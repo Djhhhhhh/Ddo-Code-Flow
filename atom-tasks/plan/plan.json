@@ -1,0 +1,33 @@
+{
+  "name": "plan",
+  "version": "1.0.0",
+  "stage": "planning",
+  "description": "读取已确认的 spec.md，基于 plan_template.md 做技术决策，生成 plan.md。必须给出 spec 中每个 Open Question 一个唯一确定答案；用户确认后方可进入 Test-Planning。",
+  "enabled": true,
+  "io": {
+    "inputs": [
+      { "ref": "skill://atom-tasks/plan/plan_template.md", "required": true },
+      { "ref": "run://spec.md", "required": true },
+      { "ref": "run://context-summary.md", "required": false }
+    ],
+    "outputs": [
+      { "ref": "run://plan.md", "kind": "markdown" }
+    ]
+  },
+  "prompt": {
+    "instruction": "Read spec.md and translate every functional requirement into a technical decision: architecture shape, key schema, communication mechanism, file layout, library choices, risk + mitigation. Each section of plan_template.md must be filled with concrete answers. Append a 'Spec Open Questions resolution' table that lists every Q-N from spec and the corresponding section in this plan that resolves it.",
+    "templateRef": "skill://atom-tasks/plan/plan_template.md",
+    "guardrails": [
+      "Every spec Open Question must have exactly one definitive answer in this plan.",
+      "For each major decision, write its trade-off briefly so future readers understand why it was chosen.",
+      "Do not write executable code; describe schemas, interfaces, and algorithms only.",
+      "Reference spec FR IDs verbatim when describing what a decision implements."
+    ]
+  },
+  "confirmation": {
+    "required": true,
+    "rejectAction": "regenerate-with-feedback"
+  },
+  "concurrency": { "parallelizable": false },
+  "timeoutSec": 0
+}

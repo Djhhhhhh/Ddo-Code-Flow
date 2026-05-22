@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ddo-swe/config.schema.json",
+  "title": "ddo-swe config",
+  "$comment": "Reference existence (atom-task names) and DAG no-cycle are enforced by the loader (UI schema.js + dag.js, and the Agent's runtime). They are NOT expressible in pure JSON Schema.",
+  "type": "object",
+  "required": ["version", "base", "pipeline", "atomTaskOverrides"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "base": {
+      "type": "object",
+      "required": [
+        "targetDir",
+        "contextPaths",
+        "contextOptional",
+        "respGenerator",
+        "confirmationGates"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "targetDir": { "type": "string", "minLength": 1 },
+        "contextPaths": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "contextOptional": { "type": "boolean" },
+        "respGenerator": {
+          "type": "object",
+          "required": ["maxLength", "case", "stripStopwords"],
+          "additionalProperties": false,
+          "properties": {
+            "maxLength": { "type": "integer", "minimum": 1, "maximum": 128 },
+            "case": { "type": "string", "enum": ["kebab", "snake", "camel"] },
+            "stripStopwords": { "type": "boolean" }
+          }
+        },
+        "confirmationGates": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/stageEnum" }
+        }
+      }
+    },
+    "pipeline": {
+      "type": "array",
+      "minItems": 12,
+      "maxItems": 12,
+      "items": {
+        "type": "object",
+        "required": ["stage", "description", "atomTasks"],
+        "additionalProperties": false,
+        "properties": {
+          "stage": { "$ref": "#/$defs/stageEnum" },
+          "description": { "type": "string", "minLength": 1 },
+          "atomTasks": {
+            "type": "object",
+            "required": ["entry", "nodes"],
+            "additionalProperties": false,
+            "properties": {
+              "entry": {
+                "type": "array",
+                "items": { "type": "string", "minLength": 1 }
+              },
+              "nodes": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "object",
+                  "required": ["next", "parallelApprove"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "next": {
+                      "type": "array",
+                      "items": { "type": "string", "minLength": 1 }
+                    },
+                    "parallelApprove": { "type": "boolean" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "atomTaskOverrides": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["enabled"],
+        "additionalProperties": false,
+        "properties": {
+          "enabled": { "type": "boolean" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "stageEnum": {
+      "type": "string",
+      "enum": [
+        "context",
+        "requirement",
+        "specification",
+        "planning",
+        "test-planning",
+        "tasking",
+        "coding",
+        "verification",
+        "review",
+        "reporting",
+        "reflection",
+        "done"
+      ]
+    }
+  }
+}

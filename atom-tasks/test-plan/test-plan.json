@@ -1,0 +1,33 @@
+{
+  "name": "test-plan",
+  "version": "1.0.0",
+  "stage": "test-planning",
+  "description": "基于已确认的 spec.md 生成 checklist 形式的 test-plan.md。每条验收项必须用 `- [ ] cmd:` 或 `- [ ] human:` 之一明确标记，供 Verification 阶段两段式判定。用户确认后方可进入 Tasking。",
+  "enabled": true,
+  "io": {
+    "inputs": [
+      { "ref": "skill://atom-tasks/test-plan/test-plan_template.md", "required": true },
+      { "ref": "run://spec.md", "required": true }
+    ],
+    "outputs": [
+      { "ref": "run://test-plan.md", "kind": "markdown" }
+    ]
+  },
+  "prompt": {
+    "instruction": "Read every AC-N and FR-N from spec.md. For each, derive one or more checklist items that prove or disprove it. Use exactly two prefixes — '- [ ] cmd: <shell>' for items a shell can verify by exit-code, and '- [ ] human: <description>' for items requiring human judgement. Organize items into groups labelled G1, G2, ... with a one-line 'Pass criterion' summary at the end of each group. The very last item of the document MUST be 'cmd: tail -n 1 verification.log | grep -q \"ALL PASSED\"'.",
+    "templateRef": "skill://atom-tasks/test-plan/test-plan_template.md",
+    "guardrails": [
+      "Each checklist line MUST start with either '- [ ] cmd:' or '- [ ] human:' — no other prefixes are valid.",
+      "cmd: items must be runnable in the targetDir working directory without sudo and without network.",
+      "Each group must end with a 'Pass criterion' line so report aggregation works.",
+      "Cover every AC-N from spec.md with at least one checklist item.",
+      "Include cross-cutting concerns: file/dir existence (cmd), JSON schema validity (cmd), schema/DAG invariants (human), UX behaviours (human)."
+    ]
+  },
+  "confirmation": {
+    "required": true,
+    "rejectAction": "regenerate-with-feedback"
+  },
+  "concurrency": { "parallelizable": false },
+  "timeoutSec": 0
+}

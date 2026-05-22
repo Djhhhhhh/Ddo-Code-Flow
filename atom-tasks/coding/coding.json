@@ -1,0 +1,33 @@
+{
+  "name": "coding",
+  "version": "1.0.0",
+  "stage": "coding",
+  "description": "按 tasks/task-group.json 的拓扑顺序执行每个 task-NN.md；同层任务可批次化产出（在指令型 runtime 下相当于一次响应输出多文件）。",
+  "enabled": true,
+  "io": {
+    "inputs": [
+      { "ref": "run://tasks/task-group.json", "required": true },
+      { "ref": "run://tasks/", "required": true },
+      { "ref": "run://plan.md", "required": true },
+      { "ref": "run://test-plan.md", "required": true }
+    ],
+    "outputs": [
+      { "ref": "run://../", "kind": "dir" }
+    ]
+  },
+  "prompt": {
+    "instruction": "Parse tasks/task-group.json. If parallelGroups is present, use it as the batch schedule (each inner array is one batch executed sequentially); otherwise topologically sort tasks[] via dependsOn and group same-layer tasks into one batch. For each batch in order: read every task-NN.md in the batch, perform the described edits in targetDir, and write a one-line completion mark into the corresponding task entry of .state.json. Do not skip tasks. Do not invent tasks. Stop at the first batch where every contained task is marked done before the batch starts (treat that as a no-op).",
+    "guardrails": [
+      "Read task-group.json from tasks/ — never from the run directory's top level.",
+      "Touch only files inside targetDir; do not modify the skill itself.",
+      "Preserve unrelated files; make minimal, targeted edits.",
+      "When a task fails, record the failure in .state.json and continue with independent tasks in later batches only after the user is informed."
+    ]
+  },
+  "confirmation": {
+    "required": false,
+    "rejectAction": "regenerate-with-feedback"
+  },
+  "concurrency": { "parallelizable": true },
+  "timeoutSec": 0
+}

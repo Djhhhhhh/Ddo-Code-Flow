@@ -1,0 +1,28 @@
+{
+  "name": "requirement",
+  "version": "1.0.0",
+  "stage": "requirement",
+  "description": "接收用户需求输入：优先读取 targetDir 下的 requirement.md；若不存在，则把用户的提示词原文落盘为 run/requirement.md。两者都缺则向用户索取。",
+  "enabled": true,
+  "io": {
+    "inputs": [
+      { "ref": "run://../requirement.md", "required": false }
+    ],
+    "outputs": [
+      { "ref": "run://requirement.md", "kind": "markdown" }
+    ]
+  },
+  "prompt": {
+    "instruction": "If targetDir/requirement.md exists, copy it verbatim to run/requirement.md. Otherwise, take the user's most recent prompt that triggered this skill and write it under a '# Requirement' heading to run/requirement.md. If neither is available, halt the pipeline and ask the user for the requirement.",
+    "guardrails": [
+      "Never rewrite or summarize the user's requirement; copy it verbatim.",
+      "Never proceed without producing run/requirement.md."
+    ]
+  },
+  "confirmation": {
+    "required": false,
+    "rejectAction": "regenerate-with-feedback"
+  },
+  "concurrency": { "parallelizable": false },
+  "timeoutSec": 0
+}

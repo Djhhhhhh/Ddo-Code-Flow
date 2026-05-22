@@ -1,0 +1,43 @@
+{
+  "runId": "ddo-swe-bootstrap",
+  "createdAt": "2026-05-22T23:05:00+08:00",
+  "completedAt": "2026-05-23T02:11:00+08:00",
+  "currentStage": "done",
+  "stages": {
+    "context":       { "status": "done",    "outputs": [] },
+    "requirement":   { "status": "done",    "outputs": ["requirement.md"] },
+    "specification": { "status": "done",    "confirmation": "approved", "outputs": ["spec.md"] },
+    "planning":      { "status": "done",    "confirmation": "approved", "outputs": ["plan.md"] },
+    "test-planning": { "status": "done",    "confirmation": "approved", "outputs": ["test-plan.md"] },
+    "tasking":       { "status": "done",    "outputs": ["tasks/", "tasks/task-group.json"] },
+    "coding":        { "status": "done",    "outputs": [
+      "../SKILL.md",
+      "../config.json",
+      "../config.schema.json",
+      "../atom-tasks/_schema/atom-task.schema.json",
+      "../atom-tasks/context/", "../atom-tasks/requirement/", "../atom-tasks/spec/",
+      "../atom-tasks/plan/", "../atom-tasks/test-plan/", "../atom-tasks/tasking/",
+      "../atom-tasks/coding/", "../atom-tasks/verification/", "../atom-tasks/review/",
+      "../atom-tasks/reporting/", "../atom-tasks/reflection/",
+      "../ui/index.html", "../ui/styles.css", "../ui/app.js"
+    ] },
+    "verification":  { "status": "done",    "outputs": ["verification.log"], "result": "ALL STATIC PASSED (G4/G5/G6-dynamic/G9 deferred to first real run)" },
+    "review":        { "status": "skipped", "reason": "review atom-task disabled by default (enabled=false in review.json)" },
+    "reporting":     { "status": "done",    "outputs": ["execution-report.md"] },
+    "reflection":    { "status": "done",    "confirmation": "approved", "outputs": ["reflection-report.md"] },
+    "done":          { "status": "done" }
+  },
+  "history": [
+    { "at": "2026-05-22T23:30+08:00", "stage": "specification", "action": "rejected", "feedback": "templates 应是 atom-task 附属产物；task-group.json 在 tasks/ 内部；UI 三项功能改为 编辑基础配置 / 编辑流水线 / 原子任务开关" },
+    { "at": "2026-05-22T23:50+08:00", "stage": "specification", "action": "regenerated" },
+    { "at": "2026-05-22T23:55+08:00", "stage": "specification", "action": "approved" },
+    { "at": "2026-05-23T00:30+08:00", "stage": "planning",      "action": "rejected", "feedback": "atomTasks 改为拓扑图 DAG；stage 和 atom-task 都加 description；UI 视觉对齐 DESIGN.md + 形态参考 pipeline.png；UI 提供扫描+未使用一键加入" },
+    { "at": "2026-05-23T01:10+08:00", "stage": "planning",      "action": "regenerated" },
+    { "at": "2026-05-23T01:17+08:00", "stage": "planning",      "action": "approved" },
+    { "at": "2026-05-23T01:30+08:00", "stage": "test-planning", "action": "approved" },
+    { "at": "2026-05-23T01:50+08:00", "stage": "tasking",       "action": "produced", "detail": "17 tasks in 7 parallel batches" },
+    { "at": "2026-05-23T02:05+08:00", "stage": "coding",        "action": "produced", "detail": "0 FAIL in static verification" },
+    { "at": "2026-05-23T02:11+08:00", "stage": "reflection",    "action": "approved" },
+    { "at": "2026-05-23T02:11+08:00", "stage": "done",          "action": "completed" }
+  ]
+}
