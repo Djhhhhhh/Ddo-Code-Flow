@@ -2,12 +2,8 @@
   "$schema": "./config.schema.json",
   "version": "1.0.0",
   "base": {
-    "targetDir": ".",
-    "contextPaths": [
-      "AGENTS.md",
-      "README.md",
-      "product.md"
-    ],
+    "targetDir": "docs\\feat",
+    "contextPaths": [],
     "contextOptional": true,
     "respGenerator": {
       "maxLength": 32,
@@ -26,81 +22,153 @@
       "stage": "context",
       "description": "读取项目基础上下文（AGENTS.md / README.md / product.md / 用户自定义路径），构建后续阶段所需的背景信息。",
       "atomTasks": {
-        "entry": ["context"],
+        "entry": [
+          "context"
+        ],
         "nodes": {
-          "context": { "next": [], "parallelApprove": false }
+          "context": {
+            "next": [
+              "requirement"
+            ],
+            "parallelApprove": false,
+            "parallelWith": []
+          }
         }
-      }
+      },
+      "enabled": true
     },
     {
       "stage": "requirement",
       "description": "接收用户的需求输入（requirement.md 或直接提示词），形成本次 run 的需求来源。",
       "atomTasks": {
-        "entry": ["requirement"],
+        "entry": [
+          "requirement"
+        ],
         "nodes": {
-          "requirement": { "next": [], "parallelApprove": false }
+          "requirement": {
+            "next": [
+              "spec"
+            ],
+            "parallelApprove": false,
+            "parallelWith": []
+          }
         }
-      }
+      },
+      "enabled": true
     },
     {
       "stage": "specification",
       "description": "AI 基于 Requirement 与 Context 生成 spec.md，进入用户确认门；否决则带反馈意见重生成。",
       "atomTasks": {
-        "entry": ["spec"],
+        "entry": [
+          "spec"
+        ],
         "nodes": {
-          "spec": { "next": [], "parallelApprove": false }
+          "spec": {
+            "next": [
+              "plan"
+            ],
+            "parallelApprove": false,
+            "parallelWith": []
+          }
         }
-      }
+      },
+      "enabled": true
     },
     {
       "stage": "planning",
       "description": "基于已确认的 spec.md 做技术决策，生成 plan.md，进入用户确认门。",
       "atomTasks": {
-        "entry": ["plan"],
+        "entry": [
+          "plan"
+        ],
         "nodes": {
-          "plan": { "next": [], "parallelApprove": false }
+          "plan": {
+            "next": [
+              "test-plan"
+            ],
+            "parallelApprove": false,
+            "parallelWith": []
+          }
         }
-      }
+      },
+      "enabled": true
     },
     {
       "stage": "test-planning",
       "description": "基于已确认的 spec.md 生成 test-plan.md（checklist 形式定义验收标准），进入用户确认门。",
       "atomTasks": {
-        "entry": ["test-plan"],
+        "entry": [
+          "test-plan"
+        ],
         "nodes": {
-          "test-plan": { "next": [], "parallelApprove": false }
+          "test-plan": {
+            "next": [
+              "tasking"
+            ],
+            "parallelApprove": false,
+            "parallelWith": []
+          }
         }
-      }
+      },
+      "enabled": true
     },
     {
       "stage": "tasking",
       "description": "基于 plan.md 与 test-plan.md 拆分出 task-01.md … 并生成 tasks/task-group.json 描述依赖与并行关系。",
       "atomTasks": {
-        "entry": ["tasking"],
+        "entry": [
+          "tasking"
+        ],
         "nodes": {
-          "tasking": { "next": [], "parallelApprove": false }
+          "tasking": {
+            "next": [
+              "coding"
+            ],
+            "parallelApprove": false,
+            "parallelWith": []
+          }
         }
-      }
+      },
+      "enabled": true
     },
     {
       "stage": "coding",
       "description": "按 task-group.json 的拓扑顺序执行每个 task，产出真实代码改动。",
       "atomTasks": {
-        "entry": ["coding"],
+        "entry": [
+          "coding"
+        ],
         "nodes": {
-          "coding": { "next": [], "parallelApprove": false }
+          "coding": {
+            "next": [
+              "verification"
+            ],
+            "parallelApprove": false,
+            "parallelWith": []
+          }
         }
-      }
+      },
+      "enabled": true
     },
     {
       "stage": "verification",
       "description": "依据 test-plan.md 的 checklist 验收编码结果；任一条目失败则回到 Coding 重做，直到全部通过。",
       "atomTasks": {
-        "entry": ["verification"],
+        "entry": [
+          "verification"
+        ],
         "nodes": {
-          "verification": { "next": [], "parallelApprove": false }
+          "verification": {
+            "next": [
+              "reporting"
+            ],
+            "parallelApprove": false,
+            "parallelWith": []
+          }
         }
-      }
+      },
+      "enabled": true
     },
     {
       "stage": "review",
@@ -108,27 +176,44 @@
       "atomTasks": {
         "entry": [],
         "nodes": {}
-      }
+      },
+      "enabled": true
     },
     {
       "stage": "reporting",
       "description": "汇总上述各阶段产物与结果，生成 execution-report.md。",
       "atomTasks": {
-        "entry": ["reporting"],
+        "entry": [
+          "reporting"
+        ],
         "nodes": {
-          "reporting": { "next": [], "parallelApprove": false }
+          "reporting": {
+            "next": [
+              "reflection"
+            ],
+            "parallelApprove": false,
+            "parallelWith": []
+          }
         }
-      }
+      },
+      "enabled": true
     },
     {
       "stage": "reflection",
       "description": "检查项目是否存在未完结的后续流程，生成 reflection-report.md，进入用户确认门。",
       "atomTasks": {
-        "entry": ["reflection"],
+        "entry": [
+          "reflection"
+        ],
         "nodes": {
-          "reflection": { "next": [], "parallelApprove": false }
+          "reflection": {
+            "next": [],
+            "parallelApprove": false,
+            "parallelWith": []
+          }
         }
-      }
+      },
+      "enabled": true
     },
     {
       "stage": "done",
@@ -136,8 +221,13 @@
       "atomTasks": {
         "entry": [],
         "nodes": {}
-      }
+      },
+      "enabled": true
     }
   ],
-  "atomTaskOverrides": {}
+  "atomTaskOverrides": {
+    "coding": {
+      "enabled": true
+    }
+  }
 }

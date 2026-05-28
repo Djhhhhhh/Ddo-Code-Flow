@@ -42,20 +42,25 @@
         "confirmationGates": {
           "type": "array",
           "uniqueItems": true,
-          "items": { "$ref": "#/$defs/stageEnum" }
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]*$"
+          }
         }
       }
     },
     "pipeline": {
       "type": "array",
-      "minItems": 12,
-      "maxItems": 12,
       "items": {
         "type": "object",
         "required": ["stage", "description", "atomTasks"],
         "additionalProperties": false,
         "properties": {
-          "stage": { "$ref": "#/$defs/stageEnum" },
+          "stage": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]*$"
+          },
+          "enabled": { "type": "boolean" },
           "description": { "type": "string", "minLength": 1 },
           "atomTasks": {
             "type": "object",
@@ -77,7 +82,11 @@
                       "type": "array",
                       "items": { "type": "string", "minLength": 1 }
                     },
-                    "parallelApprove": { "type": "boolean" }
+                    "parallelApprove": { "type": "boolean" },
+                    "parallelWith": {
+                      "type": "array",
+                      "items": { "type": "string", "minLength": 1 }
+                    }
                   }
                 }
               }
