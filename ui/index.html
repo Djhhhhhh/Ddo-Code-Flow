@@ -14,6 +14,7 @@
     </div>
     <div class="topbar__path" id="topbarPath" data-i18n="noFolder">No skill folder opened</div>
     <div class="topbar__actions">
+      <button class="btn btn-secondary" id="settingsBtn" type="button" data-i18n="settings">Settings</button>
       <button class="btn btn-secondary" id="languageToggleBtn" type="button">中文</button>
       <button class="btn btn-secondary" id="openFolderBtn" type="button" data-i18n="openFolder">Open folder</button>
       <button class="btn btn-secondary" id="reloadBtn" type="button" disabled data-i18n="reload">Reload</button>
@@ -68,6 +69,24 @@
       </div>
     </aside>
   </main>
+
+  <div class="modal-backdrop" id="settingsModalBackdrop" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle">
+      <div class="modal__head">
+        <h3 id="settingsModalTitle" data-i18n="settingsTitle">Configuration</h3>
+      </div>
+      <div class="modal__body">
+        <div class="field">
+          <label for="targetDirInput">targetDir</label>
+          <input class="input" id="targetDirInput" type="text" placeholder="docs\\feat" />
+        </div>
+      </div>
+      <div class="modal__foot">
+        <button class="btn btn-secondary" id="settingsCancelBtn" type="button" data-i18n="cancel">Cancel</button>
+        <button class="btn btn-primary" id="settingsConfirmBtn" type="button" data-i18n="confirm">Confirm</button>
+      </div>
+    </div>
+  </div>
 
   <script src="studio.js"></script>
 </body>

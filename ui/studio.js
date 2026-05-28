@@ -3,10 +3,15 @@
 const $ = (id) => document.getElementById(id);
 const els = {
   banner: $("bannerHost"),
+  settings: $("settingsBtn"),
   languageToggle: $("languageToggleBtn"),
   open: $("openFolderBtn"),
   reload: $("reloadBtn"),
   save: $("saveBtn"),
+  settingsBackdrop: $("settingsModalBackdrop"),
+  settingsCancel: $("settingsCancelBtn"),
+  settingsConfirm: $("settingsConfirmBtn"),
+  targetDirInput: $("targetDirInput"),
   path: $("topbarPath"),
   taskList: $("taskList"),
   taskSearch: $("taskSearch"),
@@ -36,6 +41,12 @@ const state = {
 const i18n = {
   en: {
     subtitle: "AI Native SWE Skill Workflow Configuration",
+    settings: "Settings",
+    settingsTitle: "Configuration",
+    cancel: "Cancel",
+    confirm: "Confirm",
+    targetDirUpdated: "Updated targetDir.",
+    targetDirEmpty: "targetDir cannot be empty.",
     noFolder: "No skill folder opened",
     openFolder: "Open folder",
     reload: "Reload",
@@ -151,6 +162,12 @@ const i18n = {
   },
   zh: {
     subtitle: "AI Native SWE Skill 工作流配置",
+    settings: "配置",
+    settingsTitle: "配置",
+    cancel: "取消",
+    confirm: "确认",
+    targetDirUpdated: "已更新 targetDir。",
+    targetDirEmpty: "targetDir 不能为空。",
     noFolder: "未打开 Skill 目录",
     openFolder: "打开目录",
     reload: "重新加载",
@@ -292,6 +309,35 @@ function show(kind, message, autoMs = 2600) {
   node.textContent = message;
   els.banner.appendChild(node);
   if (autoMs) setTimeout(() => node.remove(), autoMs);
+}
+
+function openSettingsModal() {
+  if (!state.config?.base) {
+    show("warn", t("openFirst"));
+    return;
+  }
+  els.targetDirInput.value = state.config.base.targetDir || "";
+  els.settingsBackdrop.hidden = false;
+  requestAnimationFrame(() => els.targetDirInput.focus());
+}
+
+function closeSettingsModal() {
+  els.settingsBackdrop.hidden = true;
+}
+
+function saveSettingsModal() {
+  if (!state.config?.base) return;
+  const nextDir = String(els.targetDirInput.value || "").trim();
+  if (!nextDir) {
+    show("warn", t("targetDirEmpty"));
+    els.targetDirInput.focus();
+    return;
+  }
+  state.config.base.targetDir = nextDir;
+  markDirty();
+  renderInspector();
+  closeSettingsModal();
+  show("info", t("targetDirUpdated"));
 }
 
 function markDirty() {
@@ -1019,6 +1065,16 @@ function deleteStage(index) {
 }
 
 els.open.onclick = openFolder;
+els.settings.onclick = openSettingsModal;
+els.settingsCancel.onclick = closeSettingsModal;
+els.settingsConfirm.onclick = saveSettingsModal;
+els.settingsBackdrop.onclick = (event) => {
+  if (event.target === els.settingsBackdrop) closeSettingsModal();
+};
+els.targetDirInput.onkeydown = (event) => {
+  if (event.key === "Enter") saveSettingsModal();
+  if (event.key === "Escape") closeSettingsModal();
+};
 els.languageToggle.onclick = () => {
   state.lang = state.lang === "en" ? "zh" : "en";
   localStorage.setItem("ddoStudioLang", state.lang);

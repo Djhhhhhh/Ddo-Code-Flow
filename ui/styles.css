@@ -1153,6 +1153,48 @@ select {
   font-size: 12px;
 }
 
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  background: rgba(2, 6, 23, 0.62);
+  backdrop-filter: blur(4px);
+}
+
+.modal-backdrop[hidden] {
+  display: none !important;
+}
+
+.modal {
+  width: min(520px, calc(100vw - 40px));
+  border: 1px solid var(--color-hairline);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(16, 20, 31, 0.96), rgba(10, 13, 21, 0.98));
+  box-shadow: 0 26px 80px rgba(0, 0, 0, 0.38);
+}
+
+.modal__head {
+  padding: 16px 18px 12px;
+  border-bottom: 1px solid var(--color-hairline);
+}
+
+.modal__head h3 {
+  font-size: 18px;
+}
+
+.modal__body {
+  padding: 16px 18px;
+}
+
+.modal__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 0 18px 16px;
+}
+
 @keyframes edge-flow {
   to { stroke-dashoffset: -34; }
 }
