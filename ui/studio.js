@@ -3,7 +3,6 @@
 const $ = (id) => document.getElementById(id);
 const els = {
   banner: $("bannerHost"),
-  settings: $("settingsBtn"),
   languageToggle: $("languageToggleBtn"),
   open: $("openFolderBtn"),
   reload: $("reloadBtn"),
@@ -12,6 +11,8 @@ const els = {
   settingsCancel: $("settingsCancelBtn"),
   settingsConfirm: $("settingsConfirmBtn"),
   targetDirInput: $("targetDirInput"),
+  targetDirBtn: $("targetDirBtn"),
+  targetDirValue: $("targetDirValue"),
   path: $("topbarPath"),
   taskList: $("taskList"),
   taskSearch: $("taskSearch"),
@@ -41,8 +42,8 @@ const state = {
 const i18n = {
   en: {
     subtitle: "AI Native SWE Skill Workflow Configuration",
-    settings: "Settings",
-    settingsTitle: "Configuration",
+    targetDirLabel: "Output directory",
+    targetDirPickerTitle: "Output directory",
     cancel: "Cancel",
     confirm: "Confirm",
     targetDirUpdated: "Updated targetDir.",
@@ -102,11 +103,20 @@ const i18n = {
     atomTaskEnabled: "atom-task enabled",
     entryNode: "entry node",
     parallelApprove: "parallel approve",
-    parallelWith: "parallel confirm with",
-    parallelLinks: "parallel links",
     nextNodes: "next nodes",
     connectTo: "connect to",
+    nodeConfiguration: "Node configuration",
+    effectiveIoHint: "Save to refresh effective inputs merged from upstream connections.",
+    dynamicFrom: "from {source}",
+    downstreamNodes: "downstream (outputs feed into)",
+    upstreamNodes: "upstream (inputs from)",
+    declaredInputs: "Declared inputs (atom-task JSON)",
+    noConnections: "None",
+    atomAlreadyUsed: "This atom-task is already in the workflow. Each atom-task can only be used once.",
+    atomAlreadyUsedIn: "Already used in stage {stage}",
     removeFromWorkflow: "Remove from workflow",
+    removeAction: "Remove",
+    viewAtomConfig: "Click to view atom-task configuration",
     configReferenceOnly: "config reference only",
     declaredStage: "declared stage",
     saveAtomJson: "Save atom-task JSON",
@@ -162,8 +172,8 @@ const i18n = {
   },
   zh: {
     subtitle: "AI Native SWE Skill 工作流配置",
-    settings: "配置",
-    settingsTitle: "配置",
+    targetDirLabel: "输出目录",
+    targetDirPickerTitle: "输出目录",
     cancel: "取消",
     confirm: "确认",
     targetDirUpdated: "已更新 targetDir。",
@@ -223,11 +233,20 @@ const i18n = {
     atomTaskEnabled: "启用 atom-task",
     entryNode: "入口节点",
     parallelApprove: "并行确认",
-    parallelWith: "与节点并行确认",
-    parallelLinks: "并行确认链接",
     nextNodes: "后续节点",
     connectTo: "连接到",
+    nodeConfiguration: "节点配置",
+    effectiveIoHint: "保存后将在此显示合并上游连接后的有效输入。",
+    dynamicFrom: "来自 {source}",
+    downstreamNodes: "下游连接（产出供其消费）",
+    upstreamNodes: "上游连接（输入来源）",
+    declaredInputs: "声明输入（atom-task JSON）",
+    noConnections: "无",
+    atomAlreadyUsed: "该 atom-task 已在工作流中，每个 atom-task 全局只能使用一次。",
+    atomAlreadyUsedIn: "已用于阶段 {stage}",
     removeFromWorkflow: "从工作流移除",
+    removeAction: "移除",
+    viewAtomConfig: "点击查看 atom-task 配置",
     configReferenceOnly: "仅 config 引用",
     declaredStage: "声明阶段",
     saveAtomJson: "保存 atom-task JSON",
@@ -301,6 +320,15 @@ function applyI18n() {
   document.querySelectorAll("[data-i18n-placeholder]").forEach((node) => {
     node.placeholder = t(node.dataset.i18nPlaceholder);
   });
+  updateTargetDirBtn();
+}
+
+function updateTargetDirBtn() {
+  if (!els.targetDirBtn || !els.targetDirValue) return;
+  const dir = state.config?.base?.targetDir;
+  els.targetDirBtn.disabled = !state.config;
+  els.targetDirValue.textContent = dir || "—";
+  els.targetDirBtn.title = dir || t("targetDirLabel");
 }
 
 function show(kind, message, autoMs = 2600) {
@@ -311,12 +339,13 @@ function show(kind, message, autoMs = 2600) {
   if (autoMs) setTimeout(() => node.remove(), autoMs);
 }
 
-function openSettingsModal() {
+function openTargetDirModal() {
   if (!state.config?.base) {
     show("warn", t("openFirst"));
     return;
   }
   els.targetDirInput.value = state.config.base.targetDir || "";
+  document.getElementById("settingsModalTitle").textContent = t("targetDirPickerTitle");
   els.settingsBackdrop.hidden = false;
   requestAnimationFrame(() => els.targetDirInput.focus());
 }
@@ -335,6 +364,7 @@ function saveSettingsModal() {
   }
   state.config.base.targetDir = nextDir;
   markDirty();
+  updateTargetDirBtn();
   renderInspector();
   closeSettingsModal();
   show("info", t("targetDirUpdated"));
@@ -366,6 +396,75 @@ function stageAt(index) {
   return state.config?.pipeline?.[index] || null;
 }
 
+function usedAtomNames() {
+  const set = new Set();
+  for (const stage of state.config?.pipeline || []) {
+    Object.keys(stage.atomTasks?.nodes || {}).forEach((name) => set.add(name));
+  }
+  return set;
+}
+
+function atomStageLocation(name) {
+  for (const [stageIndex, stage] of (state.config?.pipeline || []).entries()) {
+    if (stage.atomTasks?.nodes?.[name]) return { stageIndex, stageName: stage.stage };
+  }
+  return null;
+}
+
+function availableAtomsForInject() {
+  const used = usedAtomNames();
+  return state.atoms.map((atom) => atom.name).filter((name) => !used.has(name)).sort();
+}
+
+function globalNodeRefs(excludeName = "") {
+  const refs = [];
+  for (const [stageIndex, stage] of (state.config?.pipeline || []).entries()) {
+    for (const nodeName of Object.keys(stage.atomTasks?.nodes || {})) {
+      if (nodeName === excludeName) continue;
+      refs.push({ value: nodeName, label: `${stage.stage} / ${nodeName}`, name: nodeName, stageIndex });
+    }
+  }
+  return refs;
+}
+
+function getPredecessors(name) {
+  const out = [];
+  for (const [stageIndex, stage] of (state.config?.pipeline || []).entries()) {
+    for (const [from, def] of Object.entries(stage.atomTasks?.nodes || {})) {
+      if ((def.next || []).includes(name)) {
+        out.push({ value: from, label: `${stage.stage} / ${from}`, stageIndex });
+      }
+    }
+  }
+  return out;
+}
+
+function syncStageEntry(stage) {
+  if (!stage?.atomTasks) return;
+  const names = Object.keys(stage.atomTasks.nodes || {});
+  const hasSameStagePred = new Set();
+  for (const def of Object.values(stage.atomTasks.nodes || {})) {
+    for (const next of def.next || []) {
+      if (names.includes(next)) hasSameStagePred.add(next);
+    }
+  }
+  stage.atomTasks.entry = names.filter((name) => !hasSameStagePred.has(name));
+}
+
+function syncAllStageEntries(config = state.config) {
+  for (const stage of config?.pipeline || []) syncStageEntry(stage);
+}
+
+function removeNextEdge(fromName, toName) {
+  const loc = atomStageLocation(fromName);
+  if (!loc) return;
+  const stage = stageAt(loc.stageIndex);
+  const node = stage?.atomTasks?.nodes?.[fromName];
+  if (!node) return;
+  node.next = (node.next || []).filter((item) => item !== toName);
+  syncAllStageEntries();
+}
+
 function allAtomNames() {
   const names = new Set(state.atoms.map((atom) => atom.name));
   for (const stage of state.config?.pipeline || []) {
@@ -382,23 +481,9 @@ function effectiveEnabled(name) {
   return atom?.json?.enabled !== false;
 }
 
-function workflowNodeRefs(exclude = {}) {
-  const refs = [];
-  for (const [stageIndex, stage] of (state.config?.pipeline || []).entries()) {
-    for (const name of Object.keys(stage.atomTasks?.nodes || {})) {
-      if (exclude.stageIndex === stageIndex && exclude.name === name) continue;
-      refs.push({ value: `${stageIndex}::${name}`, label: `${stage.stage} / ${name}`, name, stageIndex });
-    }
-  }
-  return refs;
-}
-
-function workflowNodeNames(exclude = {}) {
-  return [...new Set(workflowNodeRefs(exclude).map((ref) => ref.name))];
-}
-
-function nodeNameFromValue(value) {
-  return String(value || "").split("::").pop();
+function isParallelCapable(stage, name) {
+  const entries = stage?.atomTasks?.entry || [];
+  return entries.length > 1 && entries.includes(name);
 }
 
 function setEnabled(name, enabled) {
@@ -432,6 +517,7 @@ function normalizeConfig(config) {
       node.parallelWith ||= [];
     }
   }
+  syncAllStageEntries(config);
 }
 
 const Schema = (() => {
@@ -478,6 +564,45 @@ const Schema = (() => {
 })();
 
 const DAG = (() => {
+  function duplicateErrors(config) {
+    const seen = new Map();
+    const errors = [];
+    for (const stage of config.pipeline || []) {
+      for (const name of Object.keys(stage.atomTasks?.nodes || {})) {
+        if (seen.has(name)) errors.push(`duplicate atom-task '${name}' in stages ${seen.get(name)} and ${stage.stage}`);
+        else seen.set(name, stage.stage);
+      }
+    }
+    return errors;
+  }
+
+  function globalCycleErrors(config) {
+    const names = [...(config.pipeline || []).flatMap((stage) => Object.keys(stage.atomTasks?.nodes || {}))];
+    const indeg = new Map(names.map((name) => [name, 0]));
+    const adj = new Map(names.map((name) => [name, []]));
+    for (const stage of config.pipeline || []) {
+      for (const [from, def] of Object.entries(stage.atomTasks?.nodes || {})) {
+        for (const to of def.next || []) {
+          if (!indeg.has(to)) continue;
+          adj.get(from).push(to);
+          indeg.set(to, indeg.get(to) + 1);
+        }
+      }
+    }
+    const queue = [...indeg].filter(([, degree]) => degree === 0).map(([name]) => name);
+    const seen = new Set();
+    while (queue.length) {
+      const name = queue.shift();
+      seen.add(name);
+      for (const next of adj.get(name) || []) {
+        indeg.set(next, indeg.get(next) - 1);
+        if (indeg.get(next) === 0) queue.push(next);
+      }
+    }
+    if (seen.size === names.length) return [];
+    return [`global DAG cycle detected involving [${names.filter((name) => !seen.has(name)).join(", ")}]`];
+  }
+
   function checkStage(stage, allNames) {
     const errors = [];
     const nodes = stage.atomTasks?.nodes || {};
@@ -506,7 +631,11 @@ const DAG = (() => {
   return {
     checkConfig(config) {
       const allNames = new Set((config.pipeline || []).flatMap((stage) => Object.keys(stage.atomTasks?.nodes || {})));
-      return (config.pipeline || []).flatMap((stage) => checkStage(stage, allNames));
+      return [
+        ...duplicateErrors(config),
+        ...globalCycleErrors(config),
+        ...(config.pipeline || []).flatMap((stage) => checkStage(stage, allNames)),
+      ];
     },
   };
 })();
@@ -602,6 +731,7 @@ async function saveAll() {
   try {
     await FS.writeJSON("config.json", state.config);
     markClean();
+    renderInspector();
     show("info", state.mode === "fallback" ? t("exportedConfig") : t("savedConfig"));
   } catch (error) {
     show("error", `${t("saveFailed")}：${error.message}`, 0);
@@ -683,16 +813,27 @@ function renderTasks() {
 }
 
 function taskCard(item) {
+  const loc = atomStageLocation(item.name);
+  const inPipeline = !!loc;
   const card = document.createElement("div");
-  card.className = `task-card${state.selected?.type === "atom" && state.selected.name === item.name ? " is-selected" : ""}`;
-  card.draggable = true;
+  card.className = `task-card${state.selected?.type === "atom" && state.selected.name === item.name ? " is-selected" : ""}${inPipeline ? " is-used" : ""}`;
+  card.draggable = !inPipeline;
+  if (inPipeline) card.title = `${t("atomAlreadyUsedIn").replace("{stage}", loc.stageName)} · ${t("viewAtomConfig")}`;
+  else card.title = t("viewAtomConfig");
   card.innerHTML = `
     <div class="task-card__head">
-      <div class="task-card__title">${item.name}</div>
+      <div class="task-card__title">${item.name}${inPipeline ? `<span class="badge">${loc.stageName}</span>` : ""}</div>
     </div>
     <div class="task-card__desc">${item.broken ? `${t("broken")}: ${item.reason || t("invalid")}` : item.json?.description || t("noDescription")}</div>`;
   card.onclick = () => select({ type: "atom", name: item.name });
-  card.ondragstart = (event) => event.dataTransfer.setData("text/atom-name", item.name);
+  card.ondragstart = (event) => {
+    if (inPipeline) {
+      event.preventDefault();
+      show("warn", t("atomAlreadyUsed"), 2800);
+      return;
+    }
+    event.dataTransfer.setData("text/atom-name", item.name);
+  };
   return card;
 }
 
@@ -707,6 +848,7 @@ function renderWorkflow() {
   requestAnimationFrame(redrawEdges);
   const errors = DAG.checkConfig(state.config);
   els.pipelineHint.textContent = errors.length ? `${t("dagError")}: ${errors[0]}` : `${state.config.pipeline.length} ${t("stageCount")}, ${allAtomNames().length} ${t("atomCount")}.`;
+  updateTargetDirBtn();
 }
 
 function stageCard(stage, index) {
@@ -744,14 +886,19 @@ function stageCard(stage, index) {
   for (const [name, node] of nodes) {
     const atom = atomByName(name);
     const enabled = effectiveEnabled(name);
+    const isInspectorSelected = state.selected?.type === "node" && state.selected.stageIndex === index && state.selected.name === name;
+    const parallelCapable = isParallelCapable(stage, name);
     const pill = document.createElement("div");
-    pill.className = `node-pill${state.selected?.type === "node" && state.selected.stageIndex === index && state.selected.name === name ? " is-selected" : ""}${node.parallelApprove ? " is-pulse" : ""}${enabled ? "" : " is-disabled"}`;
+    pill.className = `node-pill${isInspectorSelected ? " is-selected" : ""}${parallelCapable ? " is-parallel-batch" : ""}${enabled ? "" : " is-disabled"}`;
     pill.dataset.nodeName = name;
     pill.dataset.disabledLabel = t("disabled");
     pill.innerHTML = `
       <div class="node-row"><div class="node-pill__title">${name}</div></div>
       <div class="node-pill__desc">${atom?.json?.description || t("injectedAtomTask")}</div>`;
-    pill.onclick = (event) => { event.stopPropagation(); select({ type: "node", stageIndex: index, name }); };
+    pill.onclick = (event) => {
+      event.stopPropagation();
+      select({ type: "node", stageIndex: index, name });
+    };
     list.appendChild(pill);
   }
   return card;
@@ -763,8 +910,11 @@ function redrawEdges() {
   els.edges.setAttribute("width", String(Math.max(els.canvas.scrollWidth, canvasRect.width)));
   els.edges.setAttribute("height", String(Math.max(els.canvas.scrollHeight, canvasRect.height)));
   const nodeEl = (stageIndex, name) => els.track.querySelector(`[data-stage-index="${stageIndex}"] [data-node-name="${CSS.escape(name)}"]`);
-  const findNodeEl = (name) => els.track.querySelector(`[data-node-name="${CSS.escape(name)}"]`);
-  const mk = (a, b, cls = "") => {
+  const nodeElByName = (name) => {
+    const loc = atomStageLocation(name);
+    return loc ? nodeEl(loc.stageIndex, name) : null;
+  };
+  const mk = (a, b) => {
     const ar = a.getBoundingClientRect();
     const br = b.getBoundingClientRect();
     const ax = ar.right - canvasRect.left + els.canvas.scrollLeft;
@@ -775,7 +925,6 @@ function redrawEdges() {
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
     path.setAttribute("d", `M ${ax} ${ay} C ${mid} ${ay}, ${mid} ${by}, ${bx} ${by}`);
     path.setAttribute("marker-end", "url(#arrow)");
-    if (cls) path.classList.add(cls);
     els.edges.appendChild(path);
   };
   els.edges.querySelectorAll("path").forEach((path) => {
@@ -785,16 +934,8 @@ function redrawEdges() {
     for (const [from, def] of Object.entries(stage.atomTasks?.nodes || {})) {
       for (const to of def.next || []) {
         const a = nodeEl(stageIndex, from);
-        const b = nodeEl(stageIndex, to) || findNodeEl(to);
-        if (a && b) mk(a, b, def.parallelApprove && (def.parallelWith || []).includes(to) ? "edge--parallel" : "");
-      }
-      if (def.parallelApprove) {
-        for (const to of def.parallelWith || []) {
-          if ((def.next || []).includes(to)) continue;
-          const a = nodeEl(stageIndex, from);
-          const b = nodeEl(stageIndex, to) || findNodeEl(to);
-          if (a && b) mk(a, b, "edge--parallel");
-        }
+        const b = nodeElByName(to);
+        if (a && b) mk(a, b);
       }
     }
   });
@@ -852,11 +993,23 @@ function toggleRow(label, checked, onchange) {
   return row;
 }
 
+function switchActionRow(label, actionLabel, onclick, { danger = false } = {}) {
+  const row = document.createElement("div");
+  row.className = "switch-row";
+  const text = document.createElement("span");
+  text.textContent = label;
+  const btn = document.createElement("button");
+  btn.className = `btn btn-secondary${danger ? " danger" : ""}`;
+  btn.textContent = actionLabel;
+  btn.onclick = onclick;
+  row.append(text, btn);
+  return row;
+}
+
 function renderBaseInspector() {
   const base = state.config.base;
   els.inspectorTitle.textContent = t("baseConfiguration");
   els.inspectorBody.append(
-    field("targetDir", input(base.targetDir, (value) => { base.targetDir = value; markDirty(); })),
     field("contextPaths", textarea((base.contextPaths || []).join("\n"), (value) => { base.contextPaths = value.split("\n").map((v) => v.trim()).filter(Boolean); markDirty(); })),
     toggleRow("contextOptional", base.contextOptional !== false, (value) => { base.contextOptional = value; markDirty(); renderInspector(); }),
     field("confirmationGates", textarea((base.confirmationGates || []).join("\n"), (value) => { base.confirmationGates = value.split("\n").map((v) => v.trim()).filter(Boolean); markDirty(); })),
@@ -874,7 +1027,7 @@ function renderStageInspector(stage, index) {
     field(t("description"), textarea(stage.description, (value) => { stage.description = value; markDirty(); renderWorkflow(); })),
     toggleRow(t("stageEnabled"), stage.enabled !== false, (value) => { stage.enabled = value; markDirty(); renderWorkflow(); renderInspector(); }),
     toggleRow(t("humanConfirmGate"), state.config.base.confirmationGates.includes(stage.stage), (value) => toggleGate(stage.stage, value)),
-    field(t("injectAtomTask"), select(["", ...state.atoms.map((atom) => atom.name).sort()], "", (name) => { if (name) injectAtom(index, name); })),
+    field(t("injectAtomTask"), select(["", ...availableAtomsForInject()], "", (atomName) => { if (atomName) injectAtom(index, atomName); })),
     actionButton(t("deleteStage"), "danger", () => deleteStage(index)),
     preview(stage, t("stageJson")),
   );
@@ -883,22 +1036,47 @@ function renderStageInspector(stage, index) {
 function renderNodeInspector(stage, stageIndex, name) {
   const node = stage?.atomTasks?.nodes?.[name];
   if (!node) return;
-  const nodeRefs = workflowNodeRefs({ stageIndex, name });
-  const nodeNames = workflowNodeNames({ stageIndex, name });
-  const nodeOptions = [{ value: "", label: t("selectPlaceholder") }, ...nodeRefs];
-  node.parallelWith ||= [];
+  const preds = getPredecessors(name);
+  const downstream = (node.next || []).map((target) => {
+    const loc = atomStageLocation(target);
+    return { value: target, label: loc ? `${loc.stageName} / ${target}` : target };
+  });
+  const graphTargets = globalNodeRefs(name);
   els.inspectorTitle.textContent = `${t("nodeLabel")} / ${name}`;
   els.inspectorBody.append(
     toggleRow(t("atomTaskEnabled"), effectiveEnabled(name), (value) => { setEnabled(name, value); renderAll(); }),
-    toggleRow(t("entryNode"), stage.atomTasks.entry.includes(name), (value) => toggleEntry(stage, name, value)),
-    helpText(t("entryNodeHelp")),
-    toggleRow(t("parallelApprove"), node.parallelApprove, (value) => { node.parallelApprove = value; markDirty(); renderAll(); }),
-    field(t("parallelWith"), select(nodeOptions, "", (value) => { const to = nodeNameFromValue(value); if (to && !node.parallelWith.includes(to)) { node.parallelWith.push(to); markDirty(); renderWorkflow(); renderInspector(); } })),
-    field(t("parallelLinks"), textarea((node.parallelWith || []).join("\n"), (value) => { node.parallelWith = value.split("\n").map((v) => v.trim()).filter((v) => nodeNames.includes(v)); markDirty(); renderWorkflow(); })),
-    field(t("nextNodes"), textarea((node.next || []).join("\n"), (value) => { node.next = value.split("\n").map((v) => v.trim()).filter((v) => nodeNames.includes(v)); markDirty(); renderWorkflow(); })),
-    field(t("connectTo"), select(nodeOptions, "", (value) => { const to = nodeNameFromValue(value); if (to && !node.next.includes(to)) { node.next.push(to); markDirty(); renderWorkflow(); renderInspector(); } })),
-    actionButton(t("removeFromWorkflow"), "danger", () => removeNode(stage, name)),
-    atomInfoPanel(atomByName(name)?.json),
+    switchActionRow(t("removeFromWorkflow"), t("removeAction"), () => removeNode(stage, name), { danger: true }),
+    nodeConfigCard([
+      connectionListField(t("upstreamNodes"), preds, graphTargets, (from) => {
+        const loc = atomStageLocation(from);
+        const srcStage = stageAt(loc?.stageIndex);
+        const src = srcStage?.atomTasks?.nodes?.[from];
+        if (src && !src.next.includes(name)) {
+          src.next.push(name);
+          syncAllStageEntries();
+          markDirty();
+          renderAll();
+        }
+      }, (from) => {
+        removeNextEdge(from, name);
+        markDirty();
+        renderAll();
+      }),
+      connectionListField(t("downstreamNodes"), downstream, graphTargets, (to) => {
+        if (!node.next.includes(to)) {
+          node.next.push(to);
+          syncAllStageEntries();
+          markDirty();
+          renderAll();
+        }
+      }, (to) => {
+        node.next = (node.next || []).filter((item) => item !== to);
+        syncAllStageEntries();
+        markDirty();
+        renderAll();
+      }),
+    ]),
+    atomInfoPanel(atomByName(name)?.json, name),
     preview({ name, ...node }, t("nodeJson"), t("jsonHelpNode")),
   );
 }
@@ -908,11 +1086,10 @@ function renderAtomInspector(name) {
   const json = item.json;
   els.inspectorTitle.textContent = `${t("atomLabel")} / ${name}`;
   if (!json) {
-    els.inspectorBody.append(toggleRow(t("atomTaskEnabled"), effectiveEnabled(name), (value) => { setEnabled(name, value); renderAll(); }), preview({ name, source: t("configReferenceOnly") }, t("nodeJson"), t("jsonHelpNode")));
+    els.inspectorBody.append(preview({ name, source: t("configReferenceOnly") }, t("nodeJson"), t("jsonHelpNode")));
     return;
   }
   els.inspectorBody.append(
-    toggleRow(t("atomTaskEnabled"), effectiveEnabled(name), (value) => { setEnabled(name, value); renderAll(); }),
     atomInfoPanel(json),
     preview(json, t("atomJson"), t("jsonHelpAtom")),
   );
@@ -925,13 +1102,78 @@ function helpText(text) {
   return node;
 }
 
-function atomInfoPanel(json) {
+function nodeConfigCard(children) {
+  const card = document.createElement("section");
+  card.className = "node-config-card";
+  const title = document.createElement("h3");
+  title.textContent = t("nodeConfiguration");
+  card.appendChild(title);
+  for (const child of children) card.appendChild(child);
+  return card;
+}
+
+function connectionListField(label, items, optionRefs, onAdd, onRemove, help) {
+  const wrap = document.createElement("div");
+  wrap.className = "connection-field";
+  const lab = document.createElement("label");
+  lab.textContent = label;
+  wrap.appendChild(lab);
+  if (onAdd) {
+    const connected = new Set(items.map((item) => item.value));
+    const available = optionRefs.filter((option) => option.value && !connected.has(option.value));
+    wrap.appendChild(select([{ value: "", label: t("selectPlaceholder") }, ...available], "", onAdd));
+  }
+  const chips = document.createElement("div");
+  chips.className = "chip-list";
+  if (!items.length) {
+    const empty = document.createElement("span");
+    empty.className = "hint";
+    empty.textContent = t("noConnections");
+    chips.appendChild(empty);
+  }
+  for (const item of items) {
+    const chip = document.createElement("span");
+    chip.className = "chip";
+    chip.textContent = item.label;
+    const x = document.createElement("button");
+    x.type = "button";
+    x.className = "chip__remove";
+    x.textContent = "×";
+    x.onclick = () => onRemove(item.value);
+    chip.appendChild(x);
+    chips.appendChild(chip);
+  }
+  wrap.appendChild(chips);
+  if (help) wrap.appendChild(helpText(help));
+  return wrap;
+}
+
+function formatEffectiveInputs(nodeName, json) {
+  const lines = [];
+  for (const pred of getPredecessors(nodeName)) {
+    const atom = atomByName(pred.value);
+    for (const output of atom?.json?.io?.outputs || []) {
+      lines.push(`${output.ref} (${t("dynamicFrom").replace("{source}", pred.label)})`);
+    }
+  }
+  for (const input of json?.io?.inputs || []) {
+    lines.push(`${input.ref}${input.required === false ? "?" : ""}`);
+  }
+  return lines.length ? lines.join(", ") : "-";
+}
+
+function atomInfoPanel(json, nodeName = "") {
   const wrap = document.createElement("section");
   wrap.className = "info-panel";
   if (!json) {
     wrap.appendChild(helpText(t("configReferenceOnly")));
     return wrap;
   }
+  const showEffectiveIo = nodeName && !state.dirty;
+  const inputsText = showEffectiveIo
+    ? formatEffectiveInputs(nodeName, json)
+    : (json.io?.inputs || []).map((item) => `${item.ref}${item.required === false ? "?" : ""}`).join(", ") || "-";
+  const outputsText = (json.io?.outputs || []).map((item) => `${item.ref} (${item.kind})`).join(", ") || "-";
   wrap.innerHTML = `
     <h3>${t("basicInfo")}</h3>
     <dl class="info-grid">
@@ -944,8 +1186,8 @@ function atomInfoPanel(json) {
     </dl>
     <h3>${t("ioInfo")}</h3>
     <dl class="info-grid">
-      <dt>${t("inputs")}</dt><dd>${(json.io?.inputs || []).map((item) => `${item.ref}${item.required ? "" : "?"}`).join(", ") || "-"}</dd>
-      <dt>${t("outputs")}</dt><dd>${(json.io?.outputs || []).map((item) => `${item.ref} (${item.kind})`).join(", ") || "-"}</dd>
+      <dt>${t("inputs")}</dt><dd>${inputsText}</dd>
+      <dt>${t("outputs")}</dt><dd>${outputsText}</dd>
     </dl>
     <h3>${t("promptInfo")}</h3>
     <dl class="info-grid">
@@ -962,6 +1204,7 @@ function atomInfoPanel(json) {
     <dl class="info-grid">
       <dt>${t("parallelizable")}</dt><dd>${json.concurrency?.parallelizable === true ? t("enabled") : t("disabled")}</dd>
     </dl>`;
+  if (nodeName && state.dirty) wrap.appendChild(helpText(t("effectiveIoHint")));
   return wrap;
 }
 
@@ -1013,34 +1256,36 @@ function toggleGate(stageName, enabled) {
   renderInspector();
 }
 
-function toggleEntry(stage, name, enabled) {
-  if (enabled && !stage.atomTasks.entry.includes(name)) stage.atomTasks.entry.push(name);
-  if (!enabled) stage.atomTasks.entry = stage.atomTasks.entry.filter((item) => item !== name);
-  markDirty();
-  renderAll();
-}
 
 function injectAtom(stageIndex, name) {
   const stage = stageAt(stageIndex);
   if (!stage || !name) return;
+  if (atomStageLocation(name)) {
+    show("warn", t("atomAlreadyUsed"), 2800);
+    return;
+  }
   stage.atomTasks ||= { entry: [], nodes: {} };
   if (!stage.atomTasks.nodes[name]) {
     stage.atomTasks.nodes[name] = { next: [], parallelApprove: false, parallelWith: [] };
-    if (!stage.atomTasks.entry.length) stage.atomTasks.entry.push(name);
+    syncStageEntry(stage);
     markDirty();
+    renderWorkflow();
   }
   select({ type: "node", stageIndex, name });
 }
 
 function removeNode(stage, name) {
+  const stageIndex = state.config.pipeline.indexOf(stage);
   delete stage.atomTasks.nodes[name];
-  stage.atomTasks.entry = stage.atomTasks.entry.filter((item) => item !== name);
-  for (const def of Object.values(stage.atomTasks.nodes)) {
-    def.next = (def.next || []).filter((item) => item !== name);
-    def.parallelWith = (def.parallelWith || []).filter((item) => item !== name);
+  for (const pipelineStage of state.config.pipeline) {
+    for (const def of Object.values(pipelineStage.atomTasks?.nodes || {})) {
+      def.next = (def.next || []).filter((item) => item !== name);
+      def.parallelWith = (def.parallelWith || []).filter((item) => item !== name);
+    }
   }
+  syncAllStageEntries();
   markDirty();
-  select({ type: "stage", index: state.config.pipeline.indexOf(stage) });
+  select({ type: "stage", index: stageIndex });
 }
 
 function addStage() {
@@ -1065,7 +1310,7 @@ function deleteStage(index) {
 }
 
 els.open.onclick = openFolder;
-els.settings.onclick = openSettingsModal;
+if (els.targetDirBtn) els.targetDirBtn.onclick = openTargetDirModal;
 els.settingsCancel.onclick = closeSettingsModal;
 els.settingsConfirm.onclick = saveSettingsModal;
 els.settingsBackdrop.onclick = (event) => {

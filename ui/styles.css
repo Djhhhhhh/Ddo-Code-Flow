@@ -744,8 +744,12 @@ select {
   border-radius: 16px;
   padding: 12px;
   background: rgba(255, 255, 255, 0.04);
-  cursor: grab;
+  cursor: pointer;
   transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.task-card:not(.is-used):active {
+  cursor: grabbing;
 }
 
 .task-card:hover,
@@ -753,6 +757,36 @@ select {
   transform: translateY(-1px);
   border-color: rgba(103, 232, 249, 0.42);
   background: rgba(103, 232, 249, 0.06);
+}
+
+.task-card.is-used {
+  opacity: 0.72;
+  cursor: pointer;
+}
+
+.task-card.is-used:hover {
+  transform: translateY(-1px);
+  border-color: rgba(103, 232, 249, 0.28);
+  background: rgba(103, 232, 249, 0.04);
+}
+
+.task-card__head .badge {
+  margin-left: 6px;
+  font-size: 10px;
+  vertical-align: middle;
+}
+
+.chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.chip-list .chip {
+  height: auto;
+  min-height: 28px;
+  padding: 4px 8px 4px 10px;
 }
 
 .node-pill.is-disabled::after {
@@ -886,6 +920,52 @@ select {
   filter: drop-shadow(0 0 8px rgba(103, 232, 249, 0.28));
 }
 
+.target-dir-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(360px, 42vw);
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--color-hairline);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--color-ink);
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease;
+}
+
+.target-dir-btn:hover:not(:disabled) {
+  border-color: rgba(103, 232, 249, 0.42);
+  background: rgba(103, 232, 249, 0.06);
+}
+
+.target-dir-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.target-dir-btn__label {
+  flex: 0 0 auto;
+  color: var(--color-mute);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.target-dir-btn__value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-body);
+  text-align: left;
+}
+
 .edges path.edge--error {
   stroke: var(--color-error);
 }
@@ -958,7 +1038,7 @@ select {
 .node-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 18px;
   min-height: 126px;
   padding-top: 10px;
 }
@@ -973,6 +1053,57 @@ select {
   background: rgba(255, 255, 255, 0.055);
   cursor: pointer;
   transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.node-config-card {
+  border: 1px solid var(--color-hairline);
+  border-radius: 16px;
+  padding: 14px;
+  margin-bottom: 14px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.node-config-card > h3 {
+  margin: 0 0 12px;
+  color: var(--color-ink);
+  font-size: 13px;
+}
+
+.connection-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-hairline);
+}
+
+.connection-field:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.connection-field label {
+  color: var(--color-body);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.connection-field .select {
+  width: 100%;
+}
+
+.connection-field .chip-list {
+  margin-bottom: 0;
+}
+
+.node-pill.is-multi-selected {
+  border-color: rgba(251, 191, 36, 0.62);
+  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.18);
+}
+
+.node-pill.is-parallel-batch {
+  border-style: dashed;
+  border-color: rgba(251, 191, 36, 0.72);
 }
 
 .node-pill:hover,
@@ -1070,6 +1201,11 @@ select {
   gap: 12px;
   padding: 11px 0;
   border-bottom: 1px solid var(--color-hairline);
+}
+
+.switch-row .btn-secondary.danger {
+  border-color: rgba(251, 113, 133, 0.32);
+  color: var(--color-error);
 }
 
 .switch-row .btn {

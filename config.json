@@ -11,16 +11,16 @@
       "stripStopwords": true
     },
     "confirmationGates": [
-      "specification",
       "planning",
       "test-planning",
-      "reflection"
+      "reflection",
+      "specification"
     ]
   },
   "pipeline": [
     {
       "stage": "context",
-      "description": "读取项目基础上下文（AGENTS.md / README.md / product.md / 用户自定义路径），构建后续阶段所需的背景信息。",
+      "description": "读取项目基础上下文，构建后续阶段所需的背景信息。",
       "atomTasks": {
         "entry": [
           "context"
@@ -39,7 +39,7 @@
     },
     {
       "stage": "requirement",
-      "description": "接收用户的需求输入（requirement.md 或直接提示词），形成本次 run 的需求来源。",
+      "description": "接收用户的需求输入（requirement.md或直接提示词），形成本次 run 的需求来源。",
       "atomTasks": {
         "entry": [
           "requirement"
@@ -227,6 +227,9 @@
   ],
   "atomTaskOverrides": {
     "coding": {
+      "enabled": true
+    },
+    "review": {
       "enabled": true
     }
   }

@@ -1,93 +1,97 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Ddo-SWE Skill Configuration Studio</title>
-  <link rel="stylesheet" href="styles.css" />
-</head>
-<body>
-  <header class="topbar">
-    <div>
-      <h1 class="topbar__title">Ddo-SWE Studio</h1>
-      <div class="topbar__subtitle" data-i18n="subtitle">AI Native SWE Skill Workflow Configuration</div>
-    </div>
-    <div class="topbar__path" id="topbarPath" data-i18n="noFolder">No skill folder opened</div>
-    <div class="topbar__actions">
-      <button class="btn btn-secondary" id="settingsBtn" type="button" data-i18n="settings">Settings</button>
-      <button class="btn btn-secondary" id="languageToggleBtn" type="button">中文</button>
-      <button class="btn btn-secondary" id="openFolderBtn" type="button" data-i18n="openFolder">Open folder</button>
-      <button class="btn btn-secondary" id="reloadBtn" type="button" disabled data-i18n="reload">Reload</button>
-      <button class="btn btn-primary" id="saveBtn" type="button" disabled data-i18n="save">Save</button>
-    </div>
-  </header>
-
-  <div class="banner-host" id="bannerHost" role="status" aria-live="polite"></div>
-
-  <main class="studio">
-    <aside class="registry panel">
-      <div class="panel__head">
-        <div>
-          <div class="eyebrow" data-i18n="atomRegistry">Atom Task Registry</div>
-          <h2 data-i18n="capabilities">Capabilities</h2>
-        </div>
-      </div>
-      <input class="search" id="taskSearch" type="search" placeholder="Search atom-task..." data-i18n-placeholder="searchAtomTask" />
-      <div class="registry__actions">
-        <button class="btn btn-secondary" id="scanBtn" type="button" data-i18n="scan">Scan</button>
-        <span class="hint" id="atomsHint"></span>
-      </div>
-      <div class="task-list" id="taskList"></div>
-    </aside>
-
-    <section class="topology panel">
-      <div class="panel__head">
-        <div>
-          <div class="eyebrow" data-i18n="workflowTopology">Workflow Topology</div>
-          <h2 data-i18n="pipelineDag">Pipeline DAG</h2>
-        </div>
-        <div class="toolbar">
-          <button class="btn btn-secondary" id="addStageBtn" type="button" data-i18n="insertStage">Insert stage</button>
-        </div>
-      </div>
-      <div class="canvas" id="workflowCanvas">
-        <svg class="edges" id="workflowEdges" aria-hidden="true"></svg>
-        <div class="stage-track" id="stageTrack"></div>
-      </div>
-      <div class="statusline" id="pipelineHint"></div>
-    </section>
-
-    <aside class="inspector panel">
-      <div class="panel__head">
-        <div>
-          <div class="eyebrow" data-i18n="inspector">Inspector</div>
-          <h2 id="inspectorTitle">Nothing selected</h2>
-        </div>
-      </div>
-      <div class="inspector__body" id="inspectorBody">
-        <div class="empty-state" data-i18n="emptyInspector">Select a workflow stage, injected atom-task, or registry item to configure it.</div>
-      </div>
-    </aside>
-  </main>
-
-  <div class="modal-backdrop" id="settingsModalBackdrop" hidden>
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle">
-      <div class="modal__head">
-        <h3 id="settingsModalTitle" data-i18n="settingsTitle">Configuration</h3>
-      </div>
-      <div class="modal__body">
-        <div class="field">
-          <label for="targetDirInput">targetDir</label>
-          <input class="input" id="targetDirInput" type="text" placeholder="docs\\feat" />
-        </div>
-      </div>
-      <div class="modal__foot">
-        <button class="btn btn-secondary" id="settingsCancelBtn" type="button" data-i18n="cancel">Cancel</button>
-        <button class="btn btn-primary" id="settingsConfirmBtn" type="button" data-i18n="confirm">Confirm</button>
-      </div>
-    </div>
-  </div>
-
-  <script src="studio.js"></script>
-</body>
-</html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ddo-SWE Skill Configuration Studio</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1 class="topbar__title">Ddo-SWE Studio</h1>
+      <div class="topbar__subtitle" data-i18n="subtitle">AI Native SWE Skill Workflow Configuration</div>
+    </div>
+    <div class="topbar__path" id="topbarPath" data-i18n="noFolder">No skill folder opened</div>
+    <div class="topbar__actions">
+      <button class="btn btn-secondary" id="languageToggleBtn" type="button">中文</button>
+      <button class="btn btn-secondary" id="openFolderBtn" type="button" data-i18n="openFolder">Open folder</button>
+      <button class="btn btn-secondary" id="reloadBtn" type="button" disabled data-i18n="reload">Reload</button>
+      <button class="btn btn-primary" id="saveBtn" type="button" disabled data-i18n="save">Save</button>
+    </div>
+  </header>
+
+  <div class="banner-host" id="bannerHost" role="status" aria-live="polite"></div>
+
+  <main class="studio">
+    <aside class="registry panel">
+      <div class="panel__head">
+        <div>
+          <div class="eyebrow" data-i18n="atomRegistry">Atom Task Registry</div>
+          <h2 data-i18n="capabilities">Capabilities</h2>
+        </div>
+      </div>
+      <input class="search" id="taskSearch" type="search" placeholder="Search atom-task..." data-i18n-placeholder="searchAtomTask" />
+      <div class="registry__actions">
+        <button class="btn btn-secondary" id="scanBtn" type="button" data-i18n="scan">Scan</button>
+        <span class="hint" id="atomsHint"></span>
+      </div>
+      <div class="task-list" id="taskList"></div>
+    </aside>
+
+    <section class="topology panel">
+      <div class="panel__head">
+        <div>
+          <div class="eyebrow" data-i18n="workflowTopology">Workflow Topology</div>
+          <h2 data-i18n="pipelineDag">Pipeline DAG</h2>
+        </div>
+        <div class="toolbar">
+          <button class="target-dir-btn" id="targetDirBtn" type="button" disabled>
+            <span class="target-dir-btn__label" data-i18n="targetDirLabel">Output directory</span>
+            <span class="target-dir-btn__value" id="targetDirValue">—</span>
+          </button>
+          <button class="btn btn-secondary" id="addStageBtn" type="button" data-i18n="insertStage">Insert stage</button>
+        </div>
+      </div>
+      <div class="canvas" id="workflowCanvas">
+        <svg class="edges" id="workflowEdges" aria-hidden="true"></svg>
+        <div class="stage-track" id="stageTrack"></div>
+      </div>
+      <div class="statusline" id="pipelineHint"></div>
+    </section>
+
+    <aside class="inspector panel">
+      <div class="panel__head">
+        <div>
+          <div class="eyebrow" data-i18n="inspector">Inspector</div>
+          <h2 id="inspectorTitle">Nothing selected</h2>
+        </div>
+      </div>
+      <div class="inspector__body" id="inspectorBody">
+        <div class="empty-state" data-i18n="emptyInspector">Select a workflow stage, injected atom-task, or registry item to configure it.</div>
+      </div>
+    </aside>
+  </main>
+
+  <div class="modal-backdrop" id="settingsModalBackdrop" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle">
+      <div class="modal__head">
+        <h3 id="settingsModalTitle" data-i18n="targetDirPickerTitle">Output directory</h3>
+      </div>
+      <div class="modal__body">
+        <div class="field">
+          <label for="targetDirInput">targetDir</label>
+          <input class="input" id="targetDirInput" type="text" placeholder="docs\\feat" />
+        </div>
+      </div>
+      <div class="modal__foot">
+        <button class="btn btn-secondary" id="settingsCancelBtn" type="button" data-i18n="cancel">Cancel</button>
+        <button class="btn btn-primary" id="settingsConfirmBtn" type="button" data-i18n="confirm">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="studio.js"></script>
+</body>
+</html>
+
