@@ -1,6 +1,6 @@
 {
   "$schema": "./config.schema.json",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "base": {
     "targetDir": "docs\\feat",
     "contextPaths": [],
@@ -15,7 +15,21 @@
       "test-planning",
       "reflection",
       "specification"
-    ]
+    ],
+    "metrics": {
+      "enabled": false,
+      "provider": "tokscale",
+      "failurePolicy": "warn",
+      "report": {
+        "enabled": true,
+        "path": "metrics-report.md"
+      },
+      "pricing": {
+        "model": "",
+        "inputPerMillionUsd": 0,
+        "outputPerMillionUsd": 0
+      }
+    }
   },
   "pipeline": [
     {

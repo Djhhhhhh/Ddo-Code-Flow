@@ -102,6 +102,14 @@
 
           </button>
 
+          <button class="target-dir-btn" id="metricsBtn" type="button" disabled>
+
+            <span class="target-dir-btn__label" data-i18n="metricsLabel">Run metrics</span>
+
+            <span class="target-dir-btn__value" id="metricsValue">—</span>
+
+          </button>
+
           <button class="btn btn-secondary" id="addStageBtn" type="button" data-i18n="insertStage">Insert stage</button>
 
         </div>
@@ -175,6 +183,32 @@
         <button class="btn btn-secondary" id="settingsCancelBtn" type="button" data-i18n="cancel">Cancel</button>
 
         <button class="btn btn-primary" id="settingsConfirmBtn" type="button" data-i18n="confirm">Confirm</button>
+
+      </div>
+
+    </div>
+
+  </div>
+
+
+
+  <div class="modal-backdrop" id="metricsModalBackdrop" hidden>
+
+    <div class="modal modal--wide" role="dialog" aria-modal="true" aria-labelledby="metricsModalTitle">
+
+      <div class="modal__head">
+
+        <h3 id="metricsModalTitle" data-i18n="metricsModalTitle">Run metrics &amp; cost estimate</h3>
+
+      </div>
+
+      <div class="modal__body" id="metricsModalBody"></div>
+
+      <div class="modal__foot">
+
+        <button class="btn btn-secondary" id="metricsCancelBtn" type="button" data-i18n="cancel">Cancel</button>
+
+        <button class="btn btn-primary" id="metricsConfirmBtn" type="button" data-i18n="confirm">Confirm</button>
 
       </div>
 

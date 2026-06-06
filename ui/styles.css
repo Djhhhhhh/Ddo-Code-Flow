@@ -941,6 +941,13 @@ select {
   filter: drop-shadow(0 0 8px rgba(103, 232, 249, 0.28));
 }
 
+.field-hint {
+  margin: -6px 0 12px;
+  font-size: var(--fs-body-sm);
+  line-height: 1.45;
+  color: var(--color-muted);
+}
+
 .target-dir-btn {
   display: inline-flex;
   align-items: center;

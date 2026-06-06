@@ -8,7 +8,7 @@ description: |
 metadata:
   authors:
     - "djhhhhhh"
-  version: "1.0.0"
+  version: "1.0.1"
 ---
 
 # ddo-swe
@@ -51,6 +51,15 @@ mechanical loop below.
 2. If a `<target>/YYYY-MM-DD-<desp>/.state.json` already exists for an
    in-progress run, read it and resume from `currentStage`. Otherwise, the
    Specification stage will create a fresh `YYYY-MM-DD-<desp>/` directory.
+3. Once the run directory exists and `.state.json` is initialized (new or
+   resumed), invoke the **Metrics Runtime Plugin (runStart)** when
+   `config.base.metrics.enabled == true`:
+   - Command (adjust `skills/ddo-swe` to your skill root):
+     `node skills/ddo-swe/scripts/metrics/plugin.js runStart --run-dir <run> --config skills/ddo-swe/config.json --skill-root skills/ddo-swe`
+   - If `.state.json.metrics.snapshotBefore` already exists (resume), the
+     plugin skips re-capture. On failure, record `metrics.status: failed` and
+     **continue** the workflow (`failurePolicy` defaults to `warn`).
+   - When `metrics.enabled == false`, skip this step entirely.
 
 ### Step 3 — Execute the pipeline
 
@@ -113,7 +122,26 @@ If the `verification` atom-task writes anything other than `ALL PASSED` to
 
 After the `reflection` stage's confirmation is `approved`:
 1. Mark the `done` stage's status as `done` in `.state.json`.
-2. Tell the user the run is complete and point them to `<run>/execution-report.md`.
+2. Invoke the **Metrics Runtime Plugin (runFinish)** when
+   `config.base.metrics.enabled == true` (after step 1, before notifying the user):
+   - Command:
+     `node skills/ddo-swe/scripts/metrics/plugin.js runFinish --run-dir <run> --config skills/ddo-swe/config.json --skill-root skills/ddo-swe`
+   - Writes `metrics.snapshotAfter`, computes `metrics.runTotal` (delta from
+     snapshots), and optionally `<run>/metrics-report.md` when
+     `metrics.report.enabled == true`.
+   - Metrics failure does **not** revert workflow success; run stays COMPLETED.
+3. Tell the user the run is complete and point them to `<run>/execution-report.md`
+   (and `<run>/metrics-report.md` when generated).
+
+## Metrics Runtime Plugin (observability)
+
+Metrics is **not** an atom-task and **not** part of the DAG. It is a runtime
+plugin invoked at run start and run finish only. See `docs/metrics.md` and
+`scripts/metrics/` for provider setup.
+
+- Do **not** add metrics-reporting / usage-report atom-tasks or pipeline stages.
+- Do **not** implement per-atom-task token attribution in this version.
+- Agent must **not** invent `metrics.runTotal` values; only the plugin writes them.
 
 ## Outputs to maintain
 
@@ -124,6 +152,9 @@ After the `reflection` stage's confirmation is `approved`:
 - `<run>/tasks/task-NN.md` and `<run>/tasks/task-group.json` — produced by
   the `tasking` atom-task. `task-group.json` MUST be inside `tasks/`, not
   alongside it.
+- `<run>/metrics-report.md` — optional; produced by the Metrics
+  Runtime Plugin when `config.base.metrics.report.enabled == true`.
+  Lives alongside `execution-report.md`, `spec.md`, etc. (run root, not a subfolder).
 
 ## Failure modes (recap)
 

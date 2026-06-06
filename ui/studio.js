@@ -18,6 +18,12 @@ const els = {
   targetDirInput: $("targetDirInput"),
   targetDirBtn: $("targetDirBtn"),
   targetDirValue: $("targetDirValue"),
+  metricsBtn: $("metricsBtn"),
+  metricsValue: $("metricsValue"),
+  metricsBackdrop: $("metricsModalBackdrop"),
+  metricsBody: $("metricsModalBody"),
+  metricsCancel: $("metricsCancelBtn"),
+  metricsConfirm: $("metricsConfirmBtn"),
   path: $("topbarPath"),
   taskList: $("taskList"),
   taskSearch: $("taskSearch"),
@@ -40,6 +46,7 @@ const state = {
   atomTaskSchema: null,
   atomConfigEditName: null,
   atomConfigDraft: null,
+  metricsDraft: null,
   atoms: [],
   selected: null,
   dirty: false,
@@ -56,6 +63,20 @@ const i18n = {
     confirm: "Confirm",
     targetDirUpdated: "Updated targetDir.",
     targetDirEmpty: "targetDir cannot be empty.",
+    metricsLabel: "Run metrics",
+    metricsModalTitle: "Run metrics & cost estimate",
+    metricsUpdated: "Updated metrics settings.",
+    metricsEnabled: "Enable run metrics",
+    metricsProvider: "Provider",
+    metricsFailurePolicy: "Failure policy",
+    metricsReportEnabled: "Generate metrics-report.md",
+    metricsPricingModel: "Pricing model label (optional)",
+    metricsPricingModelHint: "Display-only note; leave empty if not needed. Does not select which model Cursor uses.",
+    metricsInputPerM: "Input USD per 1M tokens",
+    metricsOutputPerM: "Output USD per 1M tokens",
+    metricsCustomCommand: "customCommand (skill:// or path)",
+    metricsOff: "Off",
+    metricsOn: "On",
     noFolder: "No skill folder opened",
     openFolder: "Open folder",
     reload: "Reload",
@@ -195,6 +216,20 @@ const i18n = {
     confirm: "确认",
     targetDirUpdated: "已更新 targetDir。",
     targetDirEmpty: "targetDir 不能为空。",
+    metricsLabel: "运行成本统计",
+    metricsModalTitle: "运行 Metrics 与成本估算",
+    metricsUpdated: "已更新 Metrics 配置。",
+    metricsEnabled: "启用 Run 级 Metrics",
+    metricsProvider: "Provider",
+    metricsFailurePolicy: "失败策略",
+    metricsReportEnabled: "生成 metrics-report.md",
+    metricsPricingModel: "定价模型备注（可选）",
+    metricsPricingModelHint: "仅用于报告展示，留空即可；不会指定 Cursor 实际使用的模型。",
+    metricsInputPerM: "Input 单价（USD / 百万 token）",
+    metricsOutputPerM: "Output 单价（USD / 百万 token）",
+    metricsCustomCommand: "customCommand（skill:// 或路径）",
+    metricsOff: "关",
+    metricsOn: "开",
     noFolder: "未打开 Skill 目录",
     openFolder: "打开目录",
     reload: "重新加载",
@@ -347,6 +382,7 @@ function applyI18n() {
     node.placeholder = t(node.dataset.i18nPlaceholder);
   });
   updateTargetDirBtn();
+  updateMetricsBtn();
 }
 
 function updateTargetDirBtn() {
@@ -355,6 +391,120 @@ function updateTargetDirBtn() {
   els.targetDirBtn.disabled = !state.config;
   els.targetDirValue.textContent = dir || "—";
   els.targetDirBtn.title = dir || t("targetDirLabel");
+}
+
+function formatMetricsSummary(metrics) {
+  if (!metrics?.enabled) return t("metricsOff");
+  const parts = [t("metricsOn"), metrics.provider || "—"];
+  const inRate = Number(metrics.pricing?.inputPerMillionUsd) || 0;
+  const outRate = Number(metrics.pricing?.outputPerMillionUsd) || 0;
+  if (inRate > 0 || outRate > 0) parts.push(`$${inRate}/$${outRate} per M`);
+  return parts.join(" · ");
+}
+
+function updateMetricsBtn() {
+  if (!els.metricsBtn || !els.metricsValue) return;
+  const metrics = state.config?.base?.metrics;
+  els.metricsBtn.disabled = !state.config;
+  els.metricsValue.textContent = metrics ? formatMetricsSummary(metrics) : "—";
+  els.metricsBtn.title = t("metricsLabel");
+}
+
+function ensureMetricsDraft() {
+  const base = state.config?.base;
+  if (!base) return null;
+  normalizeConfig(state.config);
+  if (!state.metricsDraft) {
+    state.metricsDraft = JSON.parse(JSON.stringify(base.metrics));
+  }
+  return state.metricsDraft;
+}
+
+function openMetricsModal() {
+  if (!state.config?.base) {
+    show("warn", t("openFirst"));
+    return;
+  }
+  state.metricsDraft = JSON.parse(JSON.stringify(state.config.base.metrics));
+  renderMetricsModalBody();
+  els.metricsBackdrop.hidden = false;
+}
+
+function closeMetricsModal() {
+  els.metricsBackdrop.hidden = true;
+  state.metricsDraft = null;
+}
+
+function saveMetricsModal() {
+  if (!state.config?.base || !state.metricsDraft) return;
+  const draft = state.metricsDraft;
+  if (draft.provider === "custom-command" && !String(draft.customCommand || "").trim()) {
+    show("warn", t("metricsCustomCommand") + " required");
+    return;
+  }
+  draft.pricing ||= { model: "", inputPerMillionUsd: 0, outputPerMillionUsd: 0 };
+  draft.pricing.model = String(draft.pricing.model ?? "").trim();
+  draft.pricing.inputPerMillionUsd = Number(draft.pricing.inputPerMillionUsd) || 0;
+  draft.pricing.outputPerMillionUsd = Number(draft.pricing.outputPerMillionUsd) || 0;
+  if (draft.provider !== "custom-command") delete draft.customCommand;
+  state.config.base.metrics = JSON.parse(JSON.stringify(draft));
+  markDirty();
+  updateMetricsBtn();
+  renderInspector();
+  closeMetricsModal();
+  show("info", t("metricsUpdated"));
+}
+
+function renderMetricsModalBody() {
+  const draft = ensureMetricsDraft();
+  if (!draft || !els.metricsBody) return;
+  draft.report ||= { enabled: true, path: "metrics-report.md" };
+  draft.pricing ||= { model: "", inputPerMillionUsd: 0, outputPerMillionUsd: 0 };
+  els.metricsBody.replaceChildren();
+  const providers = ["tokscale", "custom-command", "cursor-session-counter", "cursor-sdk"];
+  const policies = ["warn", "fail"];
+
+  els.metricsBody.append(
+    toggleRow(t("metricsEnabled"), draft.enabled === true, (value) => {
+      draft.enabled = value;
+      renderMetricsModalBody();
+    }),
+    field(t("metricsProvider"), select(providers, draft.provider || "tokscale", (value) => {
+      draft.provider = value;
+      renderMetricsModalBody();
+    })),
+    field(t("metricsFailurePolicy"), select(policies, draft.failurePolicy || "warn", (value) => {
+      draft.failurePolicy = value;
+    })),
+    toggleRow(t("metricsReportEnabled"), draft.report.enabled !== false, (value) => {
+      draft.report.enabled = value;
+    }),
+    field(t("metricsPricingModel"), input(draft.pricing.model || "", (value) => {
+      draft.pricing.model = value;
+    })),
+    hint(t("metricsPricingModelHint")),
+    field(t("metricsInputPerM"), input(draft.pricing.inputPerMillionUsd, (value) => {
+      draft.pricing.inputPerMillionUsd = value;
+    }, "number")),
+    field(t("metricsOutputPerM"), input(draft.pricing.outputPerMillionUsd, (value) => {
+      draft.pricing.outputPerMillionUsd = value;
+    }, "number")),
+  );
+
+  if (draft.provider === "custom-command") {
+    els.metricsBody.append(
+      field(t("metricsCustomCommand"), input(draft.customCommand || "", (value) => {
+        draft.customCommand = value;
+      })),
+    );
+  }
+}
+
+function hint(text) {
+  const el = document.createElement("p");
+  el.className = "field-hint";
+  el.textContent = text;
+  return el;
 }
 
 function show(kind, message, autoMs = 2600) {
@@ -940,6 +1090,13 @@ function normalizeConfig(config) {
   config.base.contextPaths ||= [];
   config.base.confirmationGates ||= [];
   config.base.respGenerator ||= { maxLength: 32, case: "kebab", stripStopwords: true };
+  config.base.metrics ||= {
+    enabled: false,
+    provider: "tokscale",
+    failurePolicy: "warn",
+    report: { enabled: true, path: "metrics-report.md" },
+    pricing: { model: "", inputPerMillionUsd: 0, outputPerMillionUsd: 0 },
+  };
   config.pipeline ||= [];
   for (const stage of config.pipeline) {
     stage.enabled = stage.enabled !== false;
@@ -1750,6 +1907,12 @@ function deleteStage(index) {
 
 els.open.onclick = openFolder;
 if (els.targetDirBtn) els.targetDirBtn.onclick = openTargetDirModal;
+if (els.metricsBtn) els.metricsBtn.onclick = openMetricsModal;
+els.metricsCancel.onclick = closeMetricsModal;
+els.metricsConfirm.onclick = saveMetricsModal;
+els.metricsBackdrop.onclick = (event) => {
+  if (event.target === els.metricsBackdrop) closeMetricsModal();
+};
 els.settingsCancel.onclick = closeSettingsModal;
 els.settingsConfirm.onclick = saveSettingsModal;
 els.settingsBackdrop.onclick = (event) => {

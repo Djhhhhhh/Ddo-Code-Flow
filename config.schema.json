@@ -19,7 +19,8 @@
         "contextPaths",
         "contextOptional",
         "respGenerator",
-        "confirmationGates"
+        "confirmationGates",
+        "metrics"
       ],
       "additionalProperties": false,
       "properties": {
@@ -45,6 +46,51 @@
           "items": {
             "type": "string",
             "pattern": "^[a-z0-9][a-z0-9-]*$"
+          }
+        },
+        "metrics": {
+          "type": "object",
+          "required": ["enabled", "provider", "failurePolicy", "report", "pricing"],
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "provider": {
+              "type": "string",
+              "enum": [
+                "tokscale",
+                "custom-command",
+                "cursor-session-counter",
+                "cursor-sdk"
+              ]
+            },
+            "failurePolicy": {
+              "type": "string",
+              "enum": ["warn", "fail"]
+            },
+            "report": {
+              "type": "object",
+              "required": ["enabled", "path"],
+              "additionalProperties": false,
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "path": { "type": "string", "minLength": 1 }
+              }
+            },
+            "pricing": {
+              "type": "object",
+              "required": [
+                "model",
+                "inputPerMillionUsd",
+                "outputPerMillionUsd"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "model": { "type": "string" },
+                "inputPerMillionUsd": { "type": "number", "minimum": 0 },
+                "outputPerMillionUsd": { "type": "number", "minimum": 0 }
+              }
+            },
+            "customCommand": { "type": "string", "minLength": 1 }
           }
         }
       }
