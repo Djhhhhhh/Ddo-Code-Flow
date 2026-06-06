@@ -2,7 +2,7 @@
 
 > **ddo-swe** 是一款**可定制化的 AI 编程流水线 skill**：把「AI 写代码」拆成 12 个有序阶段（context → … → done），每个阶段由可配置的 **atom-task** 承担实际工作；通过编辑 `config.json` 即可重新编排流水线，无需改动 skill 本体。配套 **Ddo-SWE Studio**——纯本地、零依赖的可视化配置页，用于编辑 DAG、管理 atom-task 开关，以及配置 Run 级成本统计。
 
-
+![](assets/image.png)
 
 ## ✨ 项目亮点
 
