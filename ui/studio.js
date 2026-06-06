@@ -10,6 +10,11 @@ const els = {
   settingsBackdrop: $("settingsModalBackdrop"),
   settingsCancel: $("settingsCancelBtn"),
   settingsConfirm: $("settingsConfirmBtn"),
+  atomConfigBackdrop: $("atomConfigModalBackdrop"),
+  atomConfigTitle: $("atomConfigModalTitle"),
+  atomConfigBody: $("atomConfigModalBody"),
+  atomConfigCancel: $("atomConfigCancelBtn"),
+  atomConfigConfirm: $("atomConfigConfirmBtn"),
   targetDirInput: $("targetDirInput"),
   targetDirBtn: $("targetDirBtn"),
   targetDirValue: $("targetDirValue"),
@@ -32,6 +37,9 @@ const state = {
   mode: "fsapi",
   config: null,
   configSchema: null,
+  atomTaskSchema: null,
+  atomConfigEditName: null,
+  atomConfigDraft: null,
   atoms: [],
   selected: null,
   dirty: false,
@@ -101,6 +109,15 @@ const i18n = {
     injectAtomTask: "inject atom-task",
     deleteStage: "Delete stage",
     atomTaskEnabled: "atom-task enabled",
+    atomConfigDetail: "Atom-task detailed configuration",
+    configureAction: "Configure",
+    atomConfigModalTitle: "Edit atom-task: {name}",
+    atomSchemaMissing: "Atom-task schema not loaded.",
+    atomJsonMissing: "Atom-task JSON not available.",
+    fallbackAtomEdit: "Fallback mode cannot edit atom-task files on disk.",
+    addItem: "Add item",
+    optional: "optional",
+    templateRefPlaceholder: "Optional, e.g. skill://... or run://...",
     entryNode: "entry node",
     parallelApprove: "parallel approve",
     nextNodes: "next nodes",
@@ -231,6 +248,15 @@ const i18n = {
     injectAtomTask: "注入 atom-task",
     deleteStage: "删除阶段",
     atomTaskEnabled: "启用 atom-task",
+    atomConfigDetail: "原子任务详细配置修改",
+    configureAction: "配置",
+    atomConfigModalTitle: "编辑原子任务：{name}",
+    atomSchemaMissing: "未加载 atom-task schema。",
+    atomJsonMissing: "原子任务 JSON 不可用。",
+    fallbackAtomEdit: "兼容模式无法修改磁盘上的 atom-task 文件。",
+    addItem: "添加项",
+    optional: "可选",
+    templateRefPlaceholder: "可选，例如 skill://... 或 run://...",
     entryNode: "入口节点",
     parallelApprove: "并行确认",
     nextNodes: "后续节点",
@@ -368,6 +394,422 @@ function saveSettingsModal() {
   renderInspector();
   closeSettingsModal();
   show("info", t("targetDirUpdated"));
+}
+
+function resolveAtomSchema(schema, root) {
+  if (!schema) return null;
+  if (schema.$ref) {
+    if (!schema.$ref.startsWith("#/")) return null;
+    const target = schema.$ref.slice(2).split("/").reduce((node, key) => node?.[key], root);
+    return resolveAtomSchema(target, root);
+  }
+  return schema;
+}
+
+const schemaFieldLabels = {
+  name: "name",
+  version: "version",
+  stage: "declaredStage",
+  description: "description",
+  enabled: "enabled",
+  timeoutSec: "timeoutSec",
+  instruction: "instruction",
+  templateRef: "templateRef",
+  guardrails: "guardrails",
+  rejectAction: "rejectAction",
+  parallelizable: "parallelizable",
+  inputs: "inputs",
+  outputs: "outputs",
+  ref: "ref",
+  required: "required",
+  kind: "kind",
+  io: "ioInfo",
+  prompt: "promptInfo",
+  confirmation: "confirmationInfo",
+  concurrency: "concurrencyInfo",
+};
+
+function schemaFieldLabel(key) {
+  const i18nKey = schemaFieldLabels[key];
+  return i18nKey ? t(i18nKey) : key;
+}
+
+function isSchemaFieldRequired(parentSchema, key) {
+  return (parentSchema?.required || []).includes(key);
+}
+
+function isEmptyOptionalValue(value, propSchema, parentSchema, key, root) {
+  if (isSchemaFieldRequired(parentSchema, key)) return false;
+  const resolved = resolveAtomSchema(propSchema, root);
+  if (value === undefined || value === null) return true;
+  if (resolved?.type === "string" && String(value).trim() === "") return true;
+  if (resolved?.type === "array" && value.length === 0) return true;
+  return false;
+}
+
+function pruneBySchema(value, schema, root, parentSchema = null, key = "") {
+  const resolved = resolveAtomSchema(schema, root);
+  if (!resolved) return value;
+  if (resolved.type === "object" && value && typeof value === "object" && !Array.isArray(value)) {
+    const out = {};
+    for (const [childKey, childSchema] of Object.entries(resolved.properties || {})) {
+      if (!(childKey in value)) continue;
+      const pruned = pruneBySchema(value[childKey], childSchema, root, resolved, childKey);
+      if (isEmptyOptionalValue(pruned, childSchema, resolved, childKey, root)) continue;
+      out[childKey] = pruned;
+    }
+    return out;
+  }
+  if (resolved.type === "array" && Array.isArray(value)) {
+    const itemSchema = resolved.items;
+    return value
+      .map((item) => pruneBySchema(item, itemSchema, root))
+      .filter((item) => item !== undefined && item !== null && item !== "");
+  }
+  if (typeof value === "string") return value.trim();
+  return value;
+}
+
+function pruneAtomDraft(draft) {
+  return pruneBySchema(clone(draft), state.atomTaskSchema, state.atomTaskSchema);
+}
+
+function defaultForSchema(schema, root) {
+  const resolved = resolveAtomSchema(schema, root);
+  if (!resolved) return null;
+  if (resolved.enum) return resolved.enum[0];
+  if (resolved.type === "boolean") return false;
+  if (resolved.type === "integer" || resolved.type === "number") return resolved.minimum ?? 0;
+  if (resolved.type === "string") return "";
+  if (resolved.type === "array") return [];
+  if (resolved.type === "object") {
+    const obj = {};
+    for (const key of resolved.required || []) {
+      const prop = resolved.properties?.[key];
+      if (prop) obj[key] = defaultForSchema(prop, root);
+    }
+    return obj;
+  }
+  return null;
+}
+
+function setPrimitiveValue(container, key, next, isRequired) {
+  if (!isRequired && (next === "" || next === undefined || next === null || (typeof next === "string" && !next.trim()))) {
+    delete container[key];
+    return;
+  }
+  container[key] = typeof next === "string" ? next : next;
+}
+
+function isLongTextField(key, schema) {
+  return key === "instruction" || key === "description" || (schema.minLength && schema.minLength > 20);
+}
+
+function schemaBoolControl(value, onchange) {
+  let checked = !!value;
+  const wrap = document.createElement("div");
+  wrap.className = "schema-bool";
+  const btn = document.createElement("button");
+  btn.type = "button";
+  const paint = () => {
+    btn.className = `btn ${checked ? "btn-primary" : "btn-secondary"}`;
+    btn.textContent = checked ? t("enabled") : t("disabled");
+  };
+  paint();
+  btn.onclick = () => {
+    checked = !checked;
+    onchange(checked);
+    paint();
+  };
+  wrap.appendChild(btn);
+  return wrap;
+}
+
+function schemaEnumControl(schema, value, onchange) {
+  const el = document.createElement("select");
+  el.className = "select";
+  for (const option of schema.enum || []) {
+    const node = document.createElement("option");
+    node.value = option;
+    node.textContent = option;
+    node.selected = option === value;
+    el.appendChild(node);
+  }
+  el.onchange = () => onchange(el.value);
+  return el;
+}
+
+function schemaPrimitiveControl(key, schema, value, onchange, { readOnly = false } = {}) {
+  const resolved = schema;
+  if (resolved.enum) return schemaEnumControl(resolved, value, onchange);
+  if (resolved.type === "boolean") return schemaBoolControl(!!value, onchange);
+  if (resolved.type === "integer" || resolved.type === "number") {
+    const el = input(value ?? 0, (next) => onchange(resolved.type === "integer" ? Math.trunc(next) : next), "number");
+    if (readOnly) el.readOnly = true;
+    return el;
+  }
+  if (isLongTextField(key, resolved)) {
+    const el = textarea(value ?? "", onchange);
+    if (readOnly) el.readOnly = true;
+    return el;
+  }
+  const el = input(value ?? "", onchange);
+  if (key === "templateRef") el.placeholder = t("templateRefPlaceholder");
+  if (readOnly) el.readOnly = true;
+  return el;
+}
+
+function schemaField(label, control, { optional = false, wide = false } = {}) {
+  const wrap = document.createElement("div");
+  wrap.className = `schema-field${wide ? " schema-field--wide" : ""}`;
+  const lab = document.createElement("label");
+  lab.textContent = label;
+  if (optional) {
+    const badge = document.createElement("span");
+    badge.className = "schema-field__optional";
+    badge.textContent = t("optional");
+    lab.appendChild(badge);
+  }
+  wrap.append(lab, control);
+  return wrap;
+}
+
+function renderSchemaArrayField(key, schema, container, path, root, parentSchema) {
+  const resolved = resolveAtomSchema(schema, root);
+  if (!Array.isArray(container[key])) container[key] = [];
+  const items = container[key];
+
+  const wrap = document.createElement("div");
+  wrap.className = "schema-array";
+  const list = document.createElement("div");
+  list.className = "schema-array__list";
+
+  function paint() {
+    list.innerHTML = "";
+    items.forEach((item, index) => {
+      const itemWrap = document.createElement("div");
+      itemWrap.className = "schema-array__item";
+      const itemSchema = resolveAtomSchema(resolved.items, root);
+
+      if (itemSchema?.type === "object" && itemSchema.properties) {
+        const fields = document.createElement("div");
+        fields.className = "schema-array__fields";
+        for (const [subKey, subSchema] of Object.entries(itemSchema.properties)) {
+          const required = isSchemaFieldRequired(itemSchema, subKey);
+          if (!(subKey in item) && required) item[subKey] = defaultForSchema(subSchema, root);
+          const subResolved = resolveAtomSchema(subSchema, root);
+          const current = item[subKey];
+          const control = schemaPrimitiveControl(
+            subKey,
+            subResolved,
+            current,
+            (next) => setPrimitiveValue(item, subKey, next, required),
+            {},
+          );
+          fields.appendChild(schemaField(schemaFieldLabel(subKey), control, { optional: !required }));
+        }
+        const removeBtn = document.createElement("button");
+        removeBtn.type = "button";
+        removeBtn.className = "btn btn-secondary danger schema-array__remove";
+        removeBtn.textContent = "×";
+        removeBtn.title = t("removeAction");
+        removeBtn.onclick = () => {
+          items.splice(index, 1);
+          paint();
+        };
+        itemWrap.append(fields, removeBtn);
+      } else if (itemSchema?.type === "string") {
+        const row = document.createElement("div");
+        row.className = "schema-array__row";
+        const control = isLongTextField(key, itemSchema)
+          ? textarea(item ?? "", (next) => { items[index] = next; })
+          : input(item ?? "", (next) => { items[index] = next; });
+        row.appendChild(control);
+        const removeBtn = document.createElement("button");
+        removeBtn.type = "button";
+        removeBtn.className = "btn btn-secondary danger schema-array__remove";
+        removeBtn.textContent = "×";
+        removeBtn.onclick = () => {
+          items.splice(index, 1);
+          paint();
+        };
+        row.appendChild(removeBtn);
+        itemWrap.appendChild(row);
+      }
+      list.appendChild(itemWrap);
+    });
+  }
+
+  const addBtn = document.createElement("button");
+  addBtn.type = "button";
+  addBtn.className = "btn btn-secondary schema-array__add";
+  addBtn.textContent = `+ ${t("addItem")}`;
+  addBtn.onclick = () => {
+    items.push(defaultForSchema(resolved.items, root));
+    paint();
+  };
+
+  paint();
+  wrap.append(list, addBtn);
+  return schemaField(schemaFieldLabel(key), wrap, { wide: true });
+}
+
+function renderSchemaField(key, propSchema, container, path, root, opts = {}) {
+  const { readOnly = false, parentSchema = null, asCard = false, inGrid = false } = opts;
+  const resolved = resolveAtomSchema(propSchema, root);
+  if (!resolved) return document.createElement("div");
+  const isRequired = parentSchema ? isSchemaFieldRequired(parentSchema, key) : true;
+
+  if (resolved.type === "object" && resolved.properties) {
+    if (!(key in container) || typeof container[key] !== "object" || Array.isArray(container[key])) {
+      container[key] = defaultForSchema(resolved, root);
+    }
+    const obj = container[key];
+    const section = document.createElement("section");
+    section.className = asCard ? "schema-card" : "schema-section";
+    const title = document.createElement("h4");
+    title.className = "schema-card__title";
+    title.textContent = schemaFieldLabel(key);
+    section.appendChild(title);
+
+    const grid = document.createElement("div");
+    grid.className = "schema-grid";
+    const stack = document.createElement("div");
+    stack.className = "schema-stack";
+
+    for (const [subKey, subSchema] of Object.entries(resolved.properties)) {
+      const subResolved = resolveAtomSchema(subSchema, root);
+      const child = renderSchemaField(subKey, subSchema, obj, `${path}.${subKey}`, root, {
+        readOnly: readOnly && subKey === "name",
+        parentSchema: resolved,
+        inGrid: subResolved.type !== "array" && !isLongTextField(subKey, subResolved),
+      });
+      if (subResolved.type === "array" || isLongTextField(subKey, subResolved)) stack.appendChild(child);
+      else grid.appendChild(child);
+    }
+    if (grid.childElementCount) section.appendChild(grid);
+    if (stack.childElementCount) section.appendChild(stack);
+    return section;
+  }
+
+  if (resolved.type === "array") {
+    return renderSchemaArrayField(key, propSchema, container, path, root, parentSchema);
+  }
+
+  const currentValue = key in container ? container[key] : (isRequired ? defaultForSchema(resolved, root) : undefined);
+  if (isRequired && !(key in container)) container[key] = currentValue;
+  const control = schemaPrimitiveControl(
+    key,
+    resolved,
+    currentValue ?? "",
+    (next) => setPrimitiveValue(container, key, next, isRequired),
+    { readOnly },
+  );
+  return schemaField(schemaFieldLabel(key), control, { optional: !isRequired, wide: !inGrid || isLongTextField(key, resolved) });
+}
+
+function buildAtomConfigForm(draft) {
+  const root = state.atomTaskSchema;
+  const container = document.createElement("div");
+  container.className = "schema-form";
+  const top = resolveAtomSchema(root, root);
+  const basicsKeys = ["name", "version", "stage", "enabled", "timeoutSec"];
+  const objectKeys = ["io", "prompt", "confirmation", "concurrency"];
+
+  const basics = document.createElement("section");
+  basics.className = "schema-card schema-card--basics";
+  const basicsTitle = document.createElement("h4");
+  basicsTitle.className = "schema-card__title";
+  basicsTitle.textContent = t("basicInfo");
+  basics.appendChild(basicsTitle);
+
+  const basicsGrid = document.createElement("div");
+  basicsGrid.className = "schema-grid schema-grid--2";
+  for (const key of basicsKeys) {
+    const propSchema = top?.properties?.[key];
+    if (propSchema) {
+      basicsGrid.appendChild(renderSchemaField(key, propSchema, draft, key, root, {
+        readOnly: key === "name",
+        parentSchema: top,
+        inGrid: true,
+      }));
+    }
+  }
+  basics.appendChild(basicsGrid);
+
+  const descSchema = top?.properties?.description;
+  if (descSchema) {
+    basics.appendChild(renderSchemaField("description", descSchema, draft, "description", root, {
+      parentSchema: top,
+      wide: true,
+    }));
+  }
+  container.appendChild(basics);
+
+  for (const key of objectKeys) {
+    const propSchema = top?.properties?.[key];
+    if (propSchema) {
+      container.appendChild(renderSchemaField(key, propSchema, draft, key, root, {
+        parentSchema: top,
+        asCard: true,
+      }));
+    }
+  }
+  return container;
+}
+
+function openAtomConfigModal(name) {
+  const item = atomByName(name);
+  if (!item?.json) {
+    show("warn", t("atomJsonMissing"));
+    return;
+  }
+  if (!state.atomTaskSchema) {
+    show("warn", t("atomSchemaMissing"));
+    return;
+  }
+  if (state.mode === "fallback") {
+    show("warn", t("fallbackAtomEdit"));
+    return;
+  }
+  state.atomConfigEditName = name;
+  state.atomConfigDraft = clone(item.json);
+  state.atomConfigDraft.name = name;
+  els.atomConfigTitle.textContent = t("atomConfigModalTitle").replace("{name}", name);
+  els.atomConfigBody.innerHTML = "";
+  els.atomConfigBody.appendChild(buildAtomConfigForm(state.atomConfigDraft));
+  els.atomConfigBackdrop.hidden = false;
+}
+
+function closeAtomConfigModal() {
+  els.atomConfigBackdrop.hidden = true;
+  state.atomConfigEditName = null;
+  state.atomConfigDraft = null;
+}
+
+async function saveAtomConfigModal() {
+  const name = state.atomConfigEditName;
+  const draft = state.atomConfigDraft;
+  if (!name || !draft) return;
+  draft.name = name;
+  const cleaned = pruneAtomDraft(draft);
+  const result = Schema.check(cleaned, state.atomTaskSchema);
+  if (!result.ok) {
+    show("error", `${t("schemaValidationFailed")}：${result.errors.slice(0, 3).join("; ")}`, 0);
+    return;
+  }
+  try {
+    await FS.writeJSON(`atom-tasks/${name}/${name}.json`, cleaned);
+    const index = state.atoms.findIndex((atom) => atom.name === name);
+    const saved = { name, json: clone(cleaned), broken: false };
+    if (index >= 0) state.atoms[index] = saved;
+    else state.atoms.push(saved);
+    closeAtomConfigModal();
+    renderAll();
+    show("info", t("savedAtom"));
+  } catch (error) {
+    show("error", `${t("saveAtomFailed")}：${error.message}`, 0);
+  }
 }
 
 function markDirty() {
@@ -698,6 +1140,7 @@ async function loadAll() {
   try {
     state.config = await FS.readJSON("config.json");
     try { state.configSchema = await FS.readJSON("config.schema.json"); } catch (_) { state.configSchema = null; }
+    try { state.atomTaskSchema = await FS.readJSON("atom-tasks/_schema/atom-task.schema.json"); } catch (_) { state.atomTaskSchema = null; }
     normalizeConfig(state.config);
     state.atoms = await FS.listAtoms();
     els.reload.disabled = false;
@@ -770,7 +1213,7 @@ async function scanAtoms() {
   if (state.mode === "fallback") return show("warn", t("fallbackScan"));
   try {
     state.atoms = await FS.listAtoms();
-    els.atomsHint.textContent = `${state.atoms.length} atom-task(s)`;
+    els.atomsHint.textContent = `${state.atoms.length} ${t("atomCount")}`;
     renderAll();
   } catch (error) {
     show("error", `${t("scanFailed")}：${error.message}`, 0);
@@ -993,13 +1436,14 @@ function toggleRow(label, checked, onchange) {
   return row;
 }
 
-function switchActionRow(label, actionLabel, onclick, { danger = false } = {}) {
+function switchActionRow(label, actionLabel, onclick, { danger = false, primary = false, yellow = false } = {}) {
   const row = document.createElement("div");
   row.className = "switch-row";
   const text = document.createElement("span");
   text.textContent = label;
   const btn = document.createElement("button");
-  btn.className = `btn btn-secondary${danger ? " danger" : ""}`;
+  const tone = danger ? " btn-secondary danger" : yellow ? " btn-yellow" : primary ? " btn-primary" : " btn-secondary";
+  btn.className = `btn${tone}`;
   btn.textContent = actionLabel;
   btn.onclick = onclick;
   row.append(text, btn);
@@ -1025,8 +1469,6 @@ function renderStageInspector(stage, index) {
   els.inspectorBody.append(
     field(t("stageId"), input(stage.stage, (value) => { stage.stage = safeName(value); markDirty(); renderWorkflow(); })),
     field(t("description"), textarea(stage.description, (value) => { stage.description = value; markDirty(); renderWorkflow(); })),
-    toggleRow(t("stageEnabled"), stage.enabled !== false, (value) => { stage.enabled = value; markDirty(); renderWorkflow(); renderInspector(); }),
-    toggleRow(t("humanConfirmGate"), state.config.base.confirmationGates.includes(stage.stage), (value) => toggleGate(stage.stage, value)),
     field(t("injectAtomTask"), select(["", ...availableAtomsForInject()], "", (atomName) => { if (atomName) injectAtom(index, atomName); })),
     actionButton(t("deleteStage"), "danger", () => deleteStage(index)),
     preview(stage, t("stageJson")),
@@ -1045,6 +1487,7 @@ function renderNodeInspector(stage, stageIndex, name) {
   els.inspectorTitle.textContent = `${t("nodeLabel")} / ${name}`;
   els.inspectorBody.append(
     toggleRow(t("atomTaskEnabled"), effectiveEnabled(name), (value) => { setEnabled(name, value); renderAll(); }),
+    switchActionRow(t("atomConfigDetail"), t("configureAction"), () => openAtomConfigModal(name), { yellow: true }),
     switchActionRow(t("removeFromWorkflow"), t("removeAction"), () => removeNode(stage, name), { danger: true }),
     nodeConfigCard([
       connectionListField(t("upstreamNodes"), preds, graphTargets, (from) => {
@@ -1148,6 +1591,10 @@ function connectionListField(label, items, optionRefs, onAdd, onRemove, help) {
   return wrap;
 }
 
+function formatCommaLines(items) {
+  return items.length ? items.join(",<br>") : "-";
+}
+
 function formatEffectiveInputs(nodeName, json) {
   const lines = [];
   for (const pred of getPredecessors(nodeName)) {
@@ -1159,7 +1606,7 @@ function formatEffectiveInputs(nodeName, json) {
   for (const input of json?.io?.inputs || []) {
     lines.push(`${input.ref}${input.required === false ? "?" : ""}`);
   }
-  return lines.length ? lines.join(", ") : "-";
+  return formatCommaLines(lines);
 }
 
 function atomInfoPanel(json, nodeName = "") {
@@ -1172,8 +1619,9 @@ function atomInfoPanel(json, nodeName = "") {
   const showEffectiveIo = nodeName && !state.dirty;
   const inputsText = showEffectiveIo
     ? formatEffectiveInputs(nodeName, json)
-    : (json.io?.inputs || []).map((item) => `${item.ref}${item.required === false ? "?" : ""}`).join(", ") || "-";
-  const outputsText = (json.io?.outputs || []).map((item) => `${item.ref} (${item.kind})`).join(", ") || "-";
+    : formatCommaLines((json.io?.inputs || []).map((item) => `${item.ref}${item.required === false ? "?" : ""}`));
+  const outputsText = formatCommaLines((json.io?.outputs || []).map((item) => `${item.ref} (${item.kind})`));
+  const guardrailsText = formatCommaLines(json.prompt?.guardrails || []);
   wrap.innerHTML = `
     <h3>${t("basicInfo")}</h3>
     <dl class="info-grid">
@@ -1186,14 +1634,14 @@ function atomInfoPanel(json, nodeName = "") {
     </dl>
     <h3>${t("ioInfo")}</h3>
     <dl class="info-grid">
-      <dt>${t("inputs")}</dt><dd>${inputsText}</dd>
-      <dt>${t("outputs")}</dt><dd>${outputsText}</dd>
+      <dt>${t("inputs")}</dt><dd class="info-list">${inputsText}</dd>
+      <dt>${t("outputs")}</dt><dd class="info-list">${outputsText}</dd>
     </dl>
     <h3>${t("promptInfo")}</h3>
     <dl class="info-grid">
       <dt>${t("instruction")}</dt><dd>${json.prompt?.instruction || "-"}</dd>
       <dt>${t("templateRef")}</dt><dd>${json.prompt?.templateRef || "-"}</dd>
-      <dt>${t("guardrails")}</dt><dd>${(json.prompt?.guardrails || []).join(", ") || "-"}</dd>
+      <dt>${t("guardrails")}</dt><dd class="info-list">${guardrailsText}</dd>
     </dl>
     <h3>${t("confirmationInfo")}</h3>
     <dl class="info-grid">
@@ -1247,15 +1695,6 @@ function preview(value, label = t("json"), help = "") {
   if (help) wrap.appendChild(helpText(help));
   return wrap;
 }
-
-function toggleGate(stageName, enabled) {
-  const gates = state.config.base.confirmationGates;
-  if (enabled && !gates.includes(stageName)) gates.push(stageName);
-  if (!enabled) state.config.base.confirmationGates = gates.filter((name) => name !== stageName);
-  markDirty();
-  renderInspector();
-}
-
 
 function injectAtom(stageIndex, name) {
   const stage = stageAt(stageIndex);
@@ -1315,6 +1754,11 @@ els.settingsCancel.onclick = closeSettingsModal;
 els.settingsConfirm.onclick = saveSettingsModal;
 els.settingsBackdrop.onclick = (event) => {
   if (event.target === els.settingsBackdrop) closeSettingsModal();
+};
+els.atomConfigCancel.onclick = closeAtomConfigModal;
+els.atomConfigConfirm.onclick = saveAtomConfigModal;
+els.atomConfigBackdrop.onclick = (event) => {
+  if (event.target === els.atomConfigBackdrop) closeAtomConfigModal();
 };
 els.targetDirInput.onkeydown = (event) => {
   if (event.key === "Enter") saveSettingsModal();
