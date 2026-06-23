@@ -1,5 +1,5 @@
 /* ============================================================
- * ddo-swe UI — single-file entry module.
+ * ddo-code-flow UI — single-file entry module.
  *
  * Architecture (all in this file to keep zero deps and zero
  * build steps):

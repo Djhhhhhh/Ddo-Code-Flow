@@ -1,0 +1,31 @@
+{
+  "name": "git-worktree",
+  "version": "1.0.0",
+  "stage": "requirement",
+  "description": "基于用户需求创建 git 分支与工作树：从用户原始提示词提取关键词生成分支名，创建工作树目录，将后续流水线的工作目录切换到该工作树。",
+  "enabled": true,
+  "io": {
+    "inputs": [
+      { "ref": "skill://atom-tasks/git-worktree/branch-rules.json", "required": true }
+    ],
+    "outputs": [
+      { "ref": "run://worktree-info.json", "kind": "json" }
+    ]
+  },
+  "prompt": {
+    "instruction": "1. Read skill://atom-tasks/git-worktree/branch-rules.json to get the branch naming template and config.\n2. Extract a description slug from the user's original prompt (the message that triggered this skill). Take the first meaningful sentence or phrase (skip activation keywords like 'use ddo-code-flow'), convert to kebab-case: lowercase, strip special chars, collapse whitespace to hyphens. Truncate to 50 chars. If extraction fails, use branch-rules.json defaults.descriptionFallback.\n3. Generate the branch name by substituting placeholders in the template: {prefix} → defaults.prefix, {date} → today's date (YYYY-MM-DD), {description} → the extracted slug. Join with defaults.separator. Truncate the final name to defaults.maxBranchNameLength.\n4. If reuseExisting is true, check if a worktree for this branch already exists via 'git worktree list'. If found, reuse it — write worktree-info.json and update .state.json with the existing worktree path.\n5. Otherwise, create the branch and worktree:\n   a. Run 'git branch <branch-name>' from baseRef. If the branch already exists, append -2, -3, ... until unique.\n   b. Run 'git worktree add <worktree-path> <branch-name>' where worktree-path is a sibling directory named after the branch (e.g. ../<branch-name>/).\n   c. Verify the command succeeded (exit code 0 and the directory exists).\n6. Write run://worktree-info.json with: { branchName, worktreePath (absolute), baseRef, createdAt (ISO 8601) }.\n7. Update .state.json at the run root: set the top-level field 'worktreePath' to the absolute worktree path. This causes all subsequent stages to resolve run:// paths relative to the worktree.",
+    "guardrails": [
+      "Never modify any files in the main working tree; only operate on the new worktree.",
+      "Always verify 'git worktree add' succeeds (exit code 0) before proceeding.",
+      "If git commands fail (not a git repo, dirty worktree, etc.), halt and report the error — do not continue the pipeline.",
+      "Do not delete or move existing worktrees unless reuseExisting is true and the worktree matches the target branch.",
+      "The worktreePath in worktree-info.json MUST be an absolute path."
+    ]
+  },
+  "confirmation": {
+    "required": false,
+    "rejectAction": "abort"
+  },
+  "concurrency": { "parallelizable": false },
+  "timeoutSec": 60
+}

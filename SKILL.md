@@ -1,5 +1,5 @@
 ---
-name: ddo-swe
+name: ddo-code-flow
 description: |
   Customizable AI coding pipeline skill. Use when the user wants to drive a
   multi-stage spec → plan → test-plan → tasking → coding → verification →
@@ -11,21 +11,20 @@ metadata:
   version: "1.0.1"
 ---
 
-# ddo-swe
+# ddo-code-flow
 
 ## When to use
 
-Activate this skill when the user asks to "use ddo-swe", "run the pipeline",
+Activate this skill when the user asks to "use ddo-code-flow", "run the pipeline",
 "按流水线开发", or otherwise references the multi-stage AI coding workflow
 defined by this skill. Do NOT activate for one-off coding requests that don't
 require the full pipeline.
 
 ## Inputs
 
-- `requirement.md` in the target directory, OR an inline user prompt
-  describing the requirement.
-- `skills/ddo-swe/config.json` — pipeline definition.
-- `skills/ddo-swe/atom-tasks/<name>/<name>.json` — atom-task definitions.
+- An inline user prompt describing the requirement (the message that triggered this skill).
+- `skills/ddo-code-flow/config.json` — pipeline definition.
+- `skills/ddo-code-flow/atom-tasks/<name>/<name>.json` — atom-task definitions.
 
 ## Execution (read top-to-bottom each session)
 
@@ -35,7 +34,7 @@ mechanical loop below.
 
 ### Step 1 — Load and validate
 
-1. Read `skills/ddo-swe/config.json` and `skills/ddo-swe/config.schema.json`.
+1. Read `skills/ddo-code-flow/config.json` and `skills/ddo-code-flow/config.schema.json`.
 2. Validate `config.json` against the schema. Reject and abort on failure.
 3. For every stage in `config.pipeline`, run the DAG no-cycle check on
    `atomTasks.entry` + `atomTasks.nodes[*].next`. Reject and abort on any
@@ -54,14 +53,20 @@ mechanical loop below.
 3. Once the run directory exists and `.state.json` is initialized (new or
    resumed), invoke the **Metrics Runtime Plugin (runStart)** when
    `config.base.metrics.enabled == true`:
-   - Command (adjust `skills/ddo-swe` to your skill root):
-     `node skills/ddo-swe/scripts/metrics/plugin.js runStart --run-dir <run> --config skills/ddo-swe/config.json --skill-root skills/ddo-swe`
+   - Command (adjust `skills/ddo-code-flow` to your skill root):
+     `node skills/ddo-code-flow/scripts/metrics/plugin.js runStart --run-dir <run> --config skills/ddo-code-flow/config.json --skill-root skills/ddo-code-flow`
    - If `.state.json.metrics.snapshotBefore` already exists (resume), the
      plugin skips re-capture. On failure, record `metrics.status: failed` and
      **continue** the workflow (`failurePolicy` defaults to `warn`).
    - When `metrics.enabled == false`, skip this step entirely.
 
 ### Step 3 — Execute the pipeline
+
+**Worktree override**: Before entering the loop, read `.state.json.worktreePath`.
+If present and non-empty, record it as the **worktree base directory**. All
+subsequent `run://` path resolution (below) uses this directory instead of
+`<target>/<run-dir>/`. The `run://../` prefix still resolves to `<target>/`
+(the project root). If `worktreePath` is absent, resolution is unchanged.
 
 For each `stageDef` in `config.pipeline`, in order, skipping stages whose
 `.state.json.stages[stageDef.stage].status == "done"`:
@@ -82,9 +87,10 @@ For each `stageDef` in `config.pipeline`, in order, skipping stages whose
         layer in a single response when possible):
         - Load `atom-tasks/<name>/<name>.json`.
         - Resolve every `io.inputs[*].ref` and `io.outputs[*].ref`:
-          - `skill://<path>` → `skills/ddo-swe/<path>` (read-only).
-          - `run://<path>` → `<target>/<run-dir>/<path>`.
-          - `run://../<path>` → `<target>/<path>`.
+          - `skill://<path>` → `skills/ddo-code-flow/<path>` (read-only).
+          - `run://<path>` → `<worktree-base>/<path>` when worktreePath is set,
+            otherwise `<target>/<run-dir>/<path>`.
+          - `run://../<path>` → `<target>/<path>` (always the project root).
         - Execute the node's `prompt.instruction` with the resolved inputs,
           honoring `prompt.guardrails`.
         - Write outputs to disk.
@@ -125,7 +131,7 @@ After the `reflection` stage's confirmation is `approved`:
 2. Invoke the **Metrics Runtime Plugin (runFinish)** when
    `config.base.metrics.enabled == true` (after step 1, before notifying the user):
    - Command:
-     `node skills/ddo-swe/scripts/metrics/plugin.js runFinish --run-dir <run> --config skills/ddo-swe/config.json --skill-root skills/ddo-swe`
+     `node skills/ddo-code-flow/scripts/metrics/plugin.js runFinish --run-dir <run> --config skills/ddo-code-flow/config.json --skill-root skills/ddo-code-flow`
    - Writes `metrics.snapshotAfter`, computes `metrics.runTotal` (delta from
      snapshots), and optionally `<run>/metrics-report.md` when
      `metrics.report.enabled == true`.
@@ -146,9 +152,14 @@ plugin invoked at run start and run finish only. See `docs/metrics.md` and
 ## Outputs to maintain
 
 - `<run>/.state.json` — pipeline state machine. Updated at every transition.
+  When `git-worktree` completes, contains a top-level `worktreePath` field
+  pointing to the absolute path of the worktree directory.
+- `<run>/worktree-info.json` — produced by `git-worktree`. Records
+  `branchName`, `worktreePath`, `baseRef`, and `createdAt`.
 - `<run>/spec.md`, `plan.md`, `test-plan.md`, `verification.log`,
   `execution-report.md`, `reflection-report.md` — produced by their
-  respective atom-tasks.
+  respective atom-tasks. When a worktree is active, these land in the
+  worktree directory, not the original run directory.
 - `<run>/tasks/task-NN.md` and `<run>/tasks/task-group.json` — produced by
   the `tasking` atom-task. `task-group.json` MUST be inside `tasks/`, not
   alongside it.
@@ -165,6 +176,7 @@ plugin invoked at run start and run finish only. See `docs/metrics.md` and
 | Session interrupted mid-run | On next start, Step 2 reads `.state.json` and resumes from `currentStage`. Append a `resumed` entry to `.state.json.history`. |
 | `<desp>` collides with an existing run directory | Append `-2`, `-3`, ... to the suffix until unique. Record the final name in `.state.json.runId`. |
 | Schema or DAG validation fails | Abort with a clear error message; do not produce any artifacts. |
+| `git-worktree` fails (not a git repo, dirty worktree, etc.) | Abort the pipeline. The git-worktree task has `rejectAction: "abort"`. Report the git error to the user. |
 
 ## What this skill does NOT do
 

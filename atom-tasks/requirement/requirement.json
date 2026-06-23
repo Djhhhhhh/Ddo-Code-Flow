@@ -2,21 +2,17 @@
   "name": "requirement",
   "version": "1.0.0",
   "stage": "requirement",
-  "description": "接收用户需求输入：优先读取 targetDir 下的 requirement.md；若不存在，则把用户的提示词原文落盘为 run/requirement.md。两者都缺则向用户索取。",
+  "description": "验证用户需求已明确：检查用户触发 skill 的提示词是否包含足够清晰的需求描述，缺失则暂停流水线并向用户索取。",
   "enabled": true,
   "io": {
-    "inputs": [
-      { "ref": "run://../requirement.md", "required": false }
-    ],
-    "outputs": [
-      { "ref": "run://requirement.md", "kind": "markdown" }
-    ]
+    "inputs": [],
+    "outputs": []
   },
   "prompt": {
-    "instruction": "If targetDir/requirement.md exists, copy it verbatim to run/requirement.md. Otherwise, take the user's most recent prompt that triggered this skill and write it under a '# Requirement' heading to run/requirement.md. If neither is available, halt the pipeline and ask the user for the requirement.",
+    "instruction": "Check whether the user's most recent prompt that triggered this skill contains a clear, actionable requirement. If the prompt is empty, too vague, or only contains the skill activation phrase (e.g. 'use ddo-code-flow'), halt the pipeline and ask the user to provide a concrete requirement before proceeding. Otherwise, record the requirement in working memory (no file output needed) and proceed to the next task.",
     "guardrails": [
-      "Never rewrite or summarize the user's requirement; copy it verbatim.",
-      "Never proceed without producing run/requirement.md."
+      "Never rewrite or summarize the user's requirement.",
+      "If the requirement is unclear, halt and ask — do not guess or proceed."
     ]
   },
   "confirmation": {

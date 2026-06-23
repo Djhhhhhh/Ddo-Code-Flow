@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://ddo-swe/atom-task.schema.json",
-  "title": "ddo-swe atom-task",
+  "$id": "https://ddo-code-flow/atom-task.schema.json",
+  "title": "ddo-code-flow atom-task",
   "$comment": "name must equal the parent directory name; this is enforced by the loader, not by JSON Schema.",
   "type": "object",
   "required": [

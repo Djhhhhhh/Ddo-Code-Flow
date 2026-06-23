@@ -1,6 +1,6 @@
-# ddo-swe
+# ddo-code-flow
 
-> **ddo-swe** 是一款**可定制化的 AI 编程流水线 skill**：把「AI 写代码」拆成 12 个有序阶段（context → … → done），每个阶段由可配置的 **atom-task** 承担实际工作；通过编辑 `config.json` 即可重新编排流水线，无需改动 skill 本体。配套 **Ddo-SWE Studio**——纯本地、零依赖的可视化配置页，用于编辑 DAG、管理 atom-task 开关，以及配置 Run 级成本统计。
+> **ddo-code-flow** 是一款**可定制化的 AI 编程流水线 skill**：把「AI 写代码」拆成 12 个有序阶段（context → … → done），每个阶段由可配置的 **atom-task** 承担实际工作；通过编辑 `config.json` 即可重新编排流水线，无需改动 skill 本体。配套 **Ddo-Code-Flow Studio**——纯本地、零依赖的可视化配置页，用于编辑 DAG、管理 atom-task 开关，以及配置 Run 级成本统计。
 
 ![](assets/image.png)
 
@@ -44,14 +44,14 @@
 
 ## ⚡ 快速开始
 
-ddo-swe 是 **Agent Skill**，无 CLI、无需安装。
+ddo-code-flow 是 **Agent Skill**，无 CLI、无需安装。
 
 ### 1. 获取 skill
 
 将本项目 clone 或复制到 agent 可读的 skills 目录，例如：
 
 ```text
-<skills-root>/ddo-swe/
+<skills-root>/ddo-code-flow/
 ```
 
 具体路径取决于你使用的 IDE / agent 环境；安装后确保 agent 能加载 `SKILL.md` 与 `config.json`。
@@ -61,7 +61,7 @@ ddo-swe 是 **Agent Skill**，无 CLI、无需安装。
 新建 `requirement.md`，或在对话中说：
 
 ```
-用 ddo-swe 跑一遍流水线，需求是：实现一个 reverseString(s: string): string 的纯函数模块。
+用 ddo-code-flow 跑一遍流水线，需求是：实现一个 reverseString(s: string): string 的纯函数模块。
 ```
 
 agent 按 `[SKILL.md](SKILL.md)` 执行：
