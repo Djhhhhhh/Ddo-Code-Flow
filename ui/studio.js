@@ -56,7 +56,7 @@ const state = {
 
 const i18n = {
   en: {
-    subtitle: "AI Native SWE Skill Workflow Configuration",
+    subtitle: "Ddo-Code-Flow Workflow Configuration",
     targetDirLabel: "Output directory",
     targetDirPickerTitle: "Output directory",
     cancel: "Cancel",
@@ -209,7 +209,7 @@ const i18n = {
     stageDescriptionPrompt: "Stage description:",
   },
   zh: {
-    subtitle: "AI Native SWE Skill 工作流配置",
+    subtitle: "Ddo-Code-Flow 工作流配置",
     targetDirLabel: "输出目录",
     targetDirPickerTitle: "输出目录",
     cancel: "取消",
@@ -1514,16 +1514,27 @@ function redrawEdges() {
     const loc = atomStageLocation(name);
     return loc ? nodeEl(loc.stageIndex, name) : null;
   };
-  const mk = (a, b) => {
+  const mk = (a, b, sameStage) => {
     const ar = a.getBoundingClientRect();
     const br = b.getBoundingClientRect();
-    const ax = ar.right - canvasRect.left + els.canvas.scrollLeft;
-    const ay = ar.top + ar.height / 2 - canvasRect.top + els.canvas.scrollTop;
-    const bx = br.left - canvasRect.left + els.canvas.scrollLeft;
-    const by = br.top + br.height / 2 - canvasRect.top + els.canvas.scrollTop;
-    const mid = (ax + bx) / 2;
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    path.setAttribute("d", `M ${ax} ${ay} C ${mid} ${ay}, ${mid} ${by}, ${bx} ${by}`);
+    if (sameStage) {
+      // Same stage: bottom-center of source → top-center of target
+      const ax = ar.left + ar.width / 2 - canvasRect.left + els.canvas.scrollLeft;
+      const ay = ar.bottom - canvasRect.top + els.canvas.scrollTop;
+      const bx = br.left + br.width / 2 - canvasRect.left + els.canvas.scrollLeft;
+      const by = br.top - canvasRect.top + els.canvas.scrollTop;
+      const midY = (ay + by) / 2;
+      path.setAttribute("d", `M ${ax} ${ay} C ${ax} ${midY}, ${bx} ${midY}, ${bx} ${by}`);
+    } else {
+      // Cross-stage: right-center of source → left-center of target
+      const ax = ar.right - canvasRect.left + els.canvas.scrollLeft;
+      const ay = ar.top + ar.height / 2 - canvasRect.top + els.canvas.scrollTop;
+      const bx = br.left - canvasRect.left + els.canvas.scrollLeft;
+      const by = br.top + br.height / 2 - canvasRect.top + els.canvas.scrollTop;
+      const mid = (ax + bx) / 2;
+      path.setAttribute("d", `M ${ax} ${ay} C ${mid} ${ay}, ${mid} ${by}, ${bx} ${by}`);
+    }
     path.setAttribute("marker-end", "url(#arrow)");
     els.edges.appendChild(path);
   };
@@ -1535,7 +1546,11 @@ function redrawEdges() {
       for (const to of def.next || []) {
         const a = nodeEl(stageIndex, from);
         const b = nodeElByName(to);
-        if (a && b) mk(a, b);
+        if (a && b) {
+          const targetLoc = atomStageLocation(to);
+          const sameStage = targetLoc && targetLoc.stageIndex === stageIndex;
+          mk(a, b, sameStage);
+        }
       }
     }
   });
@@ -1635,47 +1650,11 @@ function renderStageInspector(stage, index) {
 function renderNodeInspector(stage, stageIndex, name) {
   const node = stage?.atomTasks?.nodes?.[name];
   if (!node) return;
-  const preds = getPredecessors(name);
-  const downstream = (node.next || []).map((target) => {
-    const loc = atomStageLocation(target);
-    return { value: target, label: loc ? `${loc.stageName} / ${target}` : target };
-  });
-  const graphTargets = globalNodeRefs(name);
   els.inspectorTitle.textContent = `${t("nodeLabel")} / ${name}`;
   els.inspectorBody.append(
     toggleRow(t("atomTaskEnabled"), effectiveEnabled(name), (value) => { setEnabled(name, value); renderAll(); }),
     switchActionRow(t("atomConfigDetail"), t("configureAction"), () => openAtomConfigModal(name), { yellow: true }),
     switchActionRow(t("removeFromWorkflow"), t("removeAction"), () => removeNode(stage, name), { danger: true }),
-    nodeConfigCard([
-      connectionListField(t("upstreamNodes"), preds, graphTargets, (from) => {
-        const loc = atomStageLocation(from);
-        const srcStage = stageAt(loc?.stageIndex);
-        const src = srcStage?.atomTasks?.nodes?.[from];
-        if (src && !src.next.includes(name)) {
-          src.next.push(name);
-          syncAllStageEntries();
-          markDirty();
-          renderAll();
-        }
-      }, (from) => {
-        removeNextEdge(from, name);
-        markDirty();
-        renderAll();
-      }),
-      connectionListField(t("downstreamNodes"), downstream, graphTargets, (to) => {
-        if (!node.next.includes(to)) {
-          node.next.push(to);
-          syncAllStageEntries();
-          markDirty();
-          renderAll();
-        }
-      }, (to) => {
-        node.next = (node.next || []).filter((item) => item !== to);
-        syncAllStageEntries();
-        markDirty();
-        renderAll();
-      }),
-    ]),
     atomInfoPanel(atomByName(name)?.json, name),
     preview({ name, ...node }, t("nodeJson"), t("jsonHelpNode")),
   );

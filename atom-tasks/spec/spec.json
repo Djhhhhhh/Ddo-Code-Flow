@@ -2,12 +2,11 @@
   "name": "spec",
   "version": "1.0.0",
   "stage": "specification",
-  "description": "读取 requirement.md 与 context-summary.md，套用 spec_template.md 生成 spec.md。spec.md 只描述 What / Why 与验收，不写技术方案；用户确认后方可进入 Planning。",
+  "description": "读取用户原始需求与 context-summary.md，套用 spec_template.md 生成 spec.md。spec.md 只描述 What / Why 与验收，不写技术方案；用户确认后方可进入 Planning。",
   "enabled": true,
   "io": {
     "inputs": [
       { "ref": "skill://atom-tasks/spec/spec_template.md", "required": true },
-      { "ref": "run://requirement.md", "required": true },
       { "ref": "run://context-summary.md", "required": false }
     ],
     "outputs": [
@@ -15,7 +14,7 @@
     ]
   },
   "prompt": {
-    "instruction": "Fill the spec_template with concrete content derived from requirement.md (primary source) and context-summary.md (supporting evidence). Replace every {{ placeholder }} with project-specific text or remove the surrounding section if not applicable. Number every functional requirement (e.g., FR-CTX-1, FR-SPEC-1) so they are addressable from later stages (plan / test-plan / tasks). Append the standard '## 用户确认' section at the end.",
+    "instruction": "Fill the spec_template with concrete content derived from the user's original requirement (the prompt that triggered this skill, available in session context) and context-summary.md (supporting evidence). Replace every {{ placeholder }} with project-specific text or remove the surrounding section if not applicable. Number every functional requirement (e.g., FR-CTX-1, FR-SPEC-1) so they are addressable from later stages (plan / test-plan / tasks). Append the standard '## 用户确认' section at the end.",
     "templateRef": "skill://atom-tasks/spec/spec_template.md",
     "guardrails": [
       "Do not include any implementation choice — no library names, no frameworks, no file paths inside source code. That belongs to plan.md.",

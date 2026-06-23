@@ -1,6 +1,6 @@
 # {{ Project Name }} Specification
 
-> AI 基于 `requirement.md` 与 `context-summary.md` 对需求的规约化理解。
+> AI 基于用户原始需求与 `context-summary.md` 对需求的规约化理解。
 > 仅描述 What / Why 与验收标准；技术方案见 `plan.md`。
 > 用户确认本 spec 是否符合预期后，方可进入下一阶段（Planning）。
 

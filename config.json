@@ -53,13 +53,20 @@
     },
     {
       "stage": "requirement",
-      "description": "接收用户的需求输入（requirement.md或直接提示词），形成本次 run 的需求来源。",
+      "description": "验证用户需求已明确，创建工作树以隔离开发环境。",
       "atomTasks": {
         "entry": [
           "requirement"
         ],
         "nodes": {
           "requirement": {
+            "next": [
+              "git-worktree"
+            ],
+            "parallelApprove": false,
+            "parallelWith": []
+          },
+          "git-worktree": {
             "next": [
               "spec"
             ],

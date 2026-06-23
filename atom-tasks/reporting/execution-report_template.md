@@ -6,7 +6,7 @@
 - currentStage: `{{ currentStage }}`
 
 ## Requirement (verbatim)
-{{ contents of run/requirement.md, fenced }}
+{{ The user's original prompt that triggered this skill, quoted verbatim. }}
 
 ## Per-stage artifacts
 

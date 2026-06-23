@@ -1,5 +1,5 @@
 /* ============================================================
-   ddo-swe UI — design tokens
+   Ddo-Code-Flow UI — design tokens
    Mapped 1:1 to DESIGN.md (Ollama-style design system).
    ============================================================ */
 :root {
@@ -1066,7 +1066,7 @@ select {
 .node-list {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 36px;
   min-height: 126px;
   padding-top: 10px;
 }
@@ -1272,6 +1272,7 @@ select {
   border: 1px solid var(--color-hairline);
   border-radius: 16px;
   padding: 12px;
+  margin-top: 16px;
   margin-bottom: 14px;
   background: rgba(255, 255, 255, 0.035);
 }

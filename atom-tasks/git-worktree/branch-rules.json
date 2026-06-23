@@ -1,0 +1,28 @@
+{
+  "$schema": "branch-rules.schema.json",
+  "template": "{prefix}/{date}-{description}",
+  "defaults": {
+    "prefix": "feat",
+    "separator": "-",
+    "maxBranchNameLength": 72,
+    "descriptionFallback": "update"
+  },
+  "prefixes": [
+    "feat",
+    "fix",
+    "chore",
+    "docs",
+    "refactor",
+    "test",
+    "perf",
+    "ci",
+    "build"
+  ],
+  "placeholders": {
+    "{prefix}": "Branch type prefix. Set in template or defaults.prefix. One of the values in 'prefixes'.",
+    "{date}": "Current date in YYYY-MM-DD format.",
+    "{description}": "Kebab-case slug extracted from the user's original prompt: take the first meaningful sentence or phrase (skip activation keywords), convert to kebab-case. Max 50 chars."
+  },
+  "baseRef": "HEAD",
+  "reuseExisting": true
+}
