@@ -12,7 +12,7 @@
       { "ref": "run://test-plan.md", "required": true }
     ],
     "outputs": [
-      { "ref": "run://../", "kind": "dir" }
+      { "ref": "run://", "kind": "dir" }
     ]
   },
   "prompt": {
