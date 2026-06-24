@@ -54,8 +54,8 @@ mechanical loop below.
 
 1. Resolve `targetDir` relative to the current working directory.
 2. Search `targetDir` for an existing `.state.json` (any subdirectory matching
-   `YYYY-MM-DD-*/`). If found, read it and resume from `currentStage`. Append
-   a `resumed` entry to `.state.json.history`.
+   `*/docs/*/.state.json`). If found, read it and resume from `currentStage`.
+   Append a `resumed` entry to `.state.json.history`.
 3. If no resumable run is found, initialize `.state.json` **in memory only**
    (do NOT write to disk yet — there is no directory to write to):
    ```json
@@ -82,27 +82,34 @@ mechanical loop below.
 |---|---|---|
 | `skill://<path>` | Project root `/<path>` (read-only) | Always |
 | `run://<path>` | `<worktreePath>/<path>` | After git-worktree sets `worktreePath` |
+| `run://docs/{type}/<path>` | `<worktreePath>/docs/<type>/<path>` | After git-worktree sets `worktreePath` and `type`; `{type}` is the branch prefix (feat/fix/chore/...) |
 | `run://<path>` | Hold in memory (pending write) | Before `worktreePath` exists |
 | `run://../<path>` | `<target>/<path>` (project root) | Always |
+
+**`.state.json` location**: `.state.json` and `worktree-info.json` live at
+`<worktreePath>/docs/<type>/.state.json` and `<worktreePath>/docs/<type>/worktree-info.json`.
+The `git-worktree` atom-task sets `worktreePath` in `.state.json` so that
+subsequent stages can resolve `run://` paths. To find `.state.json` on resume,
+search `<targetDir>/*/docs/*/.state.json` (glob across all worktrees and types).
 
 **Key mechanism — delayed write**: When `worktreePath` is not yet set in
 `.state.json`, any atom-task whose `io.outputs` use `run://` prefixes must
 hold its output **in memory** and mark the node with `outputPending: true`
-in `.state.json`. Once `git-worktree` creates the worktree directory and sets
-`worktreePath`, all pending outputs are flushed to the worktree directory.
-This ensures `context-summary.md` and all subsequent artifacts live in the
-same directory.
+in `.state.json`. Once `git-worktree` creates the worktree directory,
+the `docs/<type>/` subdirectory, and sets `worktreePath`, all pending outputs
+are flushed to `<worktreePath>/docs/<type>/`. This ensures `context-summary.md`
+and all subsequent artifacts live in the same directory.
 
-**Resume worktree override**: If `.state.json.worktreePath` is already set
-(resuming a previous run), record it as the worktree base directory. All
-`run://` paths resolve to this directory immediately. No delayed write is
-needed.
+**Resume worktree override**: If `.state.json.worktreePath` and `.state.json.type`
+are already set (resuming a previous run), record them. All `run://` paths
+resolve to the worktree directory, and `run://docs/{type}/` paths resolve to
+`<worktreePath>/docs/<type>/` immediately. No delayed write is needed.
 
 **Metrics (runStart)**: Once `worktreePath` is set (either from resume or
 from git-worktree creating it), invoke the Metrics Runtime Plugin when
 `config.base.metrics.enabled == true`:
 ```
-node scripts/metrics/plugin.js runStart --run-dir <worktreePath> --config config.json --skill-root .
+node scripts/metrics/plugin.js runStart --run-dir <worktreePath>/docs/<type> --config config.json --skill-root .
 ```
 If `.state.json.metrics.snapshotBefore` already exists (resume), the plugin
 skips re-capture. On failure, record `metrics.status: failed` and **continue**
@@ -166,8 +173,8 @@ For each `stageDef` in `config.pipeline`, in order, skipping stages whose
    - At every transition (node start, node end, layer end, stage end), update
      `.state.json` and write it to disk before continuing.
    - For the initial write (before `worktreePath` exists), write `.state.json`
-     to a temporary location in memory. Once `worktreePath` is set, flush it
-     to `<worktreePath>/.state.json`.
+     to a temporary location in memory. Once `worktreePath` and `type` are set,
+     flush it to `<worktreePath>/docs/<type>/.state.json`.
 
 ### Step 4 — Stage-level failure recovery
 
@@ -184,13 +191,13 @@ status is `done` in `.state.json`):
 1. Invoke the **Metrics Runtime Plugin (runFinish)** when
    `config.base.metrics.enabled == true`:
    - Command:
-     `node scripts/metrics/plugin.js runFinish --run-dir <worktreePath> --config config.json --skill-root .`
+     `node scripts/metrics/plugin.js runFinish --run-dir <worktreePath>/docs/<type> --config config.json --skill-root .`
    - Writes `metrics.snapshotAfter`, computes `metrics.runTotal` (delta from
-     snapshots), and optionally `<worktreePath>/metrics-report.md` when
-     `metrics.report.enabled == true`.
+     snapshots), and optionally `<worktreePath>/docs/<type>/metrics-report.md`
+     when `metrics.report.enabled == true`.
    - Metrics failure does **not** revert workflow success; run stays COMPLETED.
 2. Tell the user the run is complete and point them to
-   `<worktreePath>/execution-report.md`
+   `<worktreePath>/docs/{type}/execution-report.md`
    (and `<worktreePath>/metrics-report.md` when generated).
 
 ## Metrics Runtime Plugin (observability)
@@ -205,14 +212,17 @@ plugin invoked at run start and run finish only. See `docs/metrics.md` and
 
 ## Outputs to maintain
 
-- `<worktreePath>/.state.json` — pipeline state machine. Updated at every
-  transition. The `worktreePath` field is set by the `git-worktree` atom-task
-  and points to the absolute path of the worktree directory (which is also
-  the run directory).
+- `<worktreePath>/docs/<type>/.state.json` — pipeline state machine. Updated at
+  every transition. The `worktreePath` field is set by the `git-worktree` atom-task
+  and points to the absolute path of the worktree directory. The `type` field
+  records the branch prefix (feat/fix/...).
+- `<worktreePath>/docs/<type>/worktree-info.json` — branch metadata written by
+  the `git-worktree` atom-task.
 - All other outputs are defined in each atom-task's `io.outputs[*].ref`.
-  The runtime resolves `run://` paths to `<worktreePath>/` and writes outputs
-  accordingly. Before `worktreePath` is set, outputs are held in memory
-  (delayed write).
+  The runtime resolves `run://docs/{type}/` paths to `<worktreePath>/docs/<type>/`
+  and writes outputs accordingly. `{type}` is resolved from `.state.json.type`
+  (set by the `git-worktree` atom-task from the branch prefix).
+  Before `worktreePath` is set, outputs are held in memory (delayed write).
 - `<worktreePath>/metrics-report.md` — optional; produced by the Metrics
   Runtime Plugin when `config.base.metrics.report.enabled == true`.
 

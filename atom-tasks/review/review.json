@@ -7,11 +7,11 @@
   "io": {
     "inputs": [
       { "ref": "skill://atom-tasks/review/check-list.md", "required": true },
-      { "ref": "run://execution-report.md", "required": false },
-      { "ref": "run://tasks/", "required": false }
+      { "ref": "run://docs/{type}/execution-report.md", "required": false },
+      { "ref": "run://docs/{type}/tasks/", "required": false }
     ],
     "outputs": [
-      { "ref": "run://review-report.md", "kind": "markdown" }
+      { "ref": "run://docs/{type}/review-report.md", "kind": "markdown" }
     ]
   },
   "prompt": {

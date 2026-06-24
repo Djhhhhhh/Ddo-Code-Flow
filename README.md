@@ -127,19 +127,23 @@ agent 按 `[SKILL.md](SKILL.md)` 执行：
 每次 run 落在 `<targetDir>/YYYY-MM-DD-<desp>/`：
 
 ```text
-docs/feat/2026-06-06-reverse-string/
-├── .state.json              # 含 stages、history；启用 Metrics 时含 metrics.runTotal
-├── .metrics/                # Provider 运行时数据（可选）
-├── spec.md
-├── plan.md
-├── test-plan.md
-├── tasks/
-│   ├── task-01.md
-│   └── task-group.json
-├── verification.log
-├── execution-report.md
-├── reflection-report.md
-└── metrics-report.md        # Metrics 启用且 report.enabled 时（可选）
+<targetDir>/feat/2026-06-06-reverse-string/   # worktree 目录（sibling of project root）
+├── docs/
+│   └── feat/                # 与分支前缀一致（feat/fix/chore/...）
+│       ├── .state.json          # 含 stages、history、type；启用 Metrics 时含 metrics.runTotal
+│       ├── worktree-info.json   # 分支信息、worktreePath、type 等
+│       ├── context-summary.md
+│       ├── spec.md
+│       ├── plan.md
+│       ├── test-plan.md
+│       ├── tasks/
+│       │   ├── task-01.md
+│       │   └── task-group.json
+│       ├── verification.log
+│       ├── execution-report.md
+│       ├── reflection-report.md
+│       └── metrics-report.md   # Metrics 启用且 report.enabled 时（可选）
+└── (源代码文件)
 ```
 
 ## ⚙️ 配置说明
