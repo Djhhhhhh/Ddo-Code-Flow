@@ -34,7 +34,7 @@
   "pipeline": [
     {
       "stage": "context",
-      "description": "读取项目基础上下文，构建后续阶段所需的背景信息。",
+      "description": "读取项目基础上下文，构建后续阶段所需的背景信息。产物暂存内存，等 requirement 阶段的 git-worktree 创建运行目录后统一刷写到 worktree。",
       "atomTasks": {
         "entry": [
           "context"
@@ -53,7 +53,7 @@
     },
     {
       "stage": "requirement",
-      "description": "验证用户需求已明确，创建工作树以隔离开发环境。",
+      "description": "验证用户需求已明确，创建工作树（即本次 run 的运行目录）以隔离开发环境，并刷写 context 阶段的延迟产物。",
       "atomTasks": {
         "entry": [
           "requirement"
@@ -117,7 +117,7 @@
     },
     {
       "stage": "test-planning",
-      "description": "基于已确认的 spec.md 生成 test-plan.md（checklist 形式定义验收标准），进入用户确认门。",
+      "description": "基于已确认的 spec.md 生成 test-plan.md（checklist 形式定义验收标准）。TDD 模式开启时同步生成单元测试代码骨架。进入用户确认门。",
       "atomTasks": {
         "entry": [
           "test-plan"
@@ -252,6 +252,10 @@
     },
     "review": {
       "enabled": true
+    },
+    "test-plan": {
+      "enabled": true,
+      "tdd": true
     }
   }
 }

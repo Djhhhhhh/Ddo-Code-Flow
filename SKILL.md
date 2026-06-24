@@ -1,14 +1,14 @@
 ---
 name: ddo-code-flow
 description: |
-  Customizable AI coding pipeline skill. Use when the user wants to drive a
-  multi-stage spec → plan → test-plan → tasking → coding → verification →
-  review → reporting → reflection workflow on a target project, with
-  user-confirmation gates between key stages.
+  Customizable AI coding pipeline skill. Drives a multi-stage workflow defined
+  in config.json, with user-confirmation gates between key stages. The pipeline
+  stages, atom-tasks, and their order are fully configurable — this skill is a
+  generic runtime that executes whatever DAG the config defines.
 metadata:
   authors:
     - "djhhhhhh"
-  version: "1.0.1"
+  version: "1.0.2"
 ---
 
 # ddo-code-flow
@@ -23,8 +23,9 @@ require the full pipeline.
 ## Inputs
 
 - An inline user prompt describing the requirement (the message that triggered this skill).
-- `skills/ddo-code-flow/config.json` — pipeline definition.
-- `skills/ddo-code-flow/atom-tasks/<name>/<name>.json` — atom-task definitions.
+- `config.json` — pipeline definition (project root).
+- `config.schema.json` — JSON Schema for validation (project root).
+- `atom-tasks/<name>/<name>.json` — atom-task definitions (project root).
 
 ## Execution (read top-to-bottom each session)
 
@@ -34,7 +35,7 @@ mechanical loop below.
 
 ### Step 1 — Load and validate
 
-1. Read `skills/ddo-code-flow/config.json` and `skills/ddo-code-flow/config.schema.json`.
+1. Read `config.json` and `config.schema.json` from the project root.
 2. Validate `config.json` against the schema. Reject and abort on failure.
 3. For every stage in `config.pipeline`, run the DAG no-cycle check on
    `atomTasks.entry` + `atomTasks.nodes[*].next`. Reject and abort on any
@@ -44,29 +45,70 @@ mechanical loop below.
    is the next item) and **persist** the upgraded `config.json`. Tell the
    user the schema was auto-upgraded.
 
-### Step 2 — Resolve target directory and run dir
+### Step 2 — Resolve target directory and initialize state
+
+> **Design decision**: Step 2 does NOT create a run directory. The run directory
+> (i.e., the worktree directory) is created by the `git-worktree` atom-task
+> during pipeline execution. This ensures all artifacts — including early-stage
+> outputs like `context-summary.md` — are written to a single unified directory.
 
 1. Resolve `targetDir` relative to the current working directory.
-2. If a `<target>/YYYY-MM-DD-<desp>/.state.json` already exists for an
-   in-progress run, read it and resume from `currentStage`. Otherwise, the
-   Specification stage will create a fresh `YYYY-MM-DD-<desp>/` directory.
-3. Once the run directory exists and `.state.json` is initialized (new or
-   resumed), invoke the **Metrics Runtime Plugin (runStart)** when
-   `config.base.metrics.enabled == true`:
-   - Command (adjust `skills/ddo-code-flow` to your skill root):
-     `node skills/ddo-code-flow/scripts/metrics/plugin.js runStart --run-dir <run> --config skills/ddo-code-flow/config.json --skill-root skills/ddo-code-flow`
-   - If `.state.json.metrics.snapshotBefore` already exists (resume), the
-     plugin skips re-capture. On failure, record `metrics.status: failed` and
-     **continue** the workflow (`failurePolicy` defaults to `warn`).
-   - When `metrics.enabled == false`, skip this step entirely.
+2. Search `targetDir` for an existing `.state.json` (any subdirectory matching
+   `YYYY-MM-DD-*/`). If found, read it and resume from `currentStage`. Append
+   a `resumed` entry to `.state.json.history`.
+3. If no resumable run is found, initialize `.state.json` **in memory only**
+   (do NOT write to disk yet — there is no directory to write to):
+   ```json
+   {
+     "runId": null,
+     "createdAt": "<ISO 8601>",
+     "userRequirement": "<verbatim user prompt>",
+     "currentStage": "context",
+     "stages": {},
+     "history": [{ "event": "created", "at": "<ISO 8601>" }]
+   }
+   ```
+   The `runId` and `worktreePath` fields will be populated later by the
+   `git-worktree` atom-task.
+4. Metrics (runStart) is **deferred** to after the run directory is created
+   (see Step 3 notes). When `config.base.metrics.enabled == false`, skip
+   entirely.
 
 ### Step 3 — Execute the pipeline
 
-**Worktree override**: Before entering the loop, read `.state.json.worktreePath`.
-If present and non-empty, record it as the **worktree base directory**. All
-subsequent `run://` path resolution (below) uses this directory instead of
-`<target>/<run-dir>/`. The `run://../` prefix still resolves to `<target>/`
-(the project root). If `worktreePath` is absent, resolution is unchanged.
+**Path resolution rules** (apply throughout):
+
+| Prefix | Resolves to | When |
+|---|---|---|
+| `skill://<path>` | Project root `/<path>` (read-only) | Always |
+| `run://<path>` | `<worktreePath>/<path>` | After git-worktree sets `worktreePath` |
+| `run://<path>` | Hold in memory (pending write) | Before `worktreePath` exists |
+| `run://../<path>` | `<target>/<path>` (project root) | Always |
+
+**Key mechanism — delayed write**: When `worktreePath` is not yet set in
+`.state.json`, any atom-task whose `io.outputs` use `run://` prefixes must
+hold its output **in memory** and mark the node with `outputPending: true`
+in `.state.json`. Once `git-worktree` creates the worktree directory and sets
+`worktreePath`, all pending outputs are flushed to the worktree directory.
+This ensures `context-summary.md` and all subsequent artifacts live in the
+same directory.
+
+**Resume worktree override**: If `.state.json.worktreePath` is already set
+(resuming a previous run), record it as the worktree base directory. All
+`run://` paths resolve to this directory immediately. No delayed write is
+needed.
+
+**Metrics (runStart)**: Once `worktreePath` is set (either from resume or
+from git-worktree creating it), invoke the Metrics Runtime Plugin when
+`config.base.metrics.enabled == true`:
+```
+node scripts/metrics/plugin.js runStart --run-dir <worktreePath> --config config.json --skill-root .
+```
+If `.state.json.metrics.snapshotBefore` already exists (resume), the plugin
+skips re-capture. On failure, record `metrics.status: failed` and **continue**
+the workflow (`failurePolicy` defaults to `warn`).
+
+---
 
 For each `stageDef` in `config.pipeline`, in order, skipping stages whose
 `.state.json.stages[stageDef.stage].status == "done"`:
@@ -86,24 +128,33 @@ For each `stageDef` in `config.pipeline`, in order, skipping stages whose
      a. For every node in the layer (you may produce outputs for the whole
         layer in a single response when possible):
         - Load `atom-tasks/<name>/<name>.json`.
-        - Resolve every `io.inputs[*].ref` and `io.outputs[*].ref`:
-          - `skill://<path>` → `skills/ddo-code-flow/<path>` (read-only).
-          - `run://<path>` → `<worktree-base>/<path>` when worktreePath is set,
-            otherwise `<target>/<run-dir>/<path>`.
-          - `run://../<path>` → `<target>/<path>` (always the project root).
-        - Execute the node's `prompt.instruction` with the resolved inputs,
-          honoring `prompt.guardrails`.
-        - Write outputs to disk.
+        - Resolve every `io.inputs[*].ref` and `io.outputs[*].ref` using the
+          path resolution table above.
+        - Resolve effective options: merge `atomTaskOverrides[name]` (all keys
+          except `enabled`) over `prompt.options[*].default` values. The merged
+          object is available as `options.<key>` inside the instruction.
+        - Execute the node's `prompt.instruction` with the resolved inputs
+          and effective options, honoring `prompt.guardrails`.
+        - Write outputs to disk (or hold in memory if `worktreePath` is not
+          yet set — see delayed write mechanism above).
         - Update `.state.json.stages[stageDef.stage]` and (if applicable)
           a per-node entry.
      b. After the layer finishes, collect all nodes in the layer whose
         `parallelApprove == true`. If the set is non-empty, present **one
         merged confirmation request** to the user, listing every output
         produced by these nodes. Wait for the user's reply.
-        - On approve: mark each node's confirmation as `approved`.
-        - On reject with feedback: re-run only the rejected nodes with the
-          feedback appended to their `prompt.instruction`. Repeat until
-          approved.
+        - On approve (user explicitly says 同意/approve/确认 or equivalent
+          clear affirmative): mark each node's confirmation as `approved`.
+        - On reject with feedback (including when user selects an option from
+          multiple choices — this is feedback, NOT implicit approval): re-run
+          only the rejected nodes with the feedback appended to their
+          `prompt.instruction`. The node's output file (e.g., spec.md) MUST
+          be updated to reflect the user's feedback before re-presenting for
+          confirmation. Repeat until approved.
+        - IMPORTANT: When the user selects from options presented in the
+          output document, treat it as "reject with feedback" — update the
+          document first, then ask for explicit approval again. Never treat
+          a selection as implicit approval to proceed.
 
 3. **Stage-level confirmation gate**:
    - If `stageDef.stage` is in `config.base.confirmationGates` AND no
@@ -114,30 +165,33 @@ For each `stageDef` in `config.pipeline`, in order, skipping stages whose
 4. **Persist state**:
    - At every transition (node start, node end, layer end, stage end), update
      `.state.json` and write it to disk before continuing.
+   - For the initial write (before `worktreePath` exists), write `.state.json`
+     to a temporary location in memory. Once `worktreePath` is set, flush it
+     to `<worktreePath>/.state.json`.
 
-### Step 4 — Verification failure recovery
+### Step 4 — Stage-level failure recovery
 
-If the `verification` atom-task writes anything other than `ALL PASSED` to
-`verification.log`, jump back to the `coding` stage:
-1. Re-read failing items from `verification.log`.
-2. Identify which task(s) in `tasks/task-group.json` cover the failing items.
-3. Re-run those Coding tasks (you may add new tasks if needed).
-4. Re-run Verification. Repeat until `ALL PASSED`.
+Some atom-tasks define recovery logic in their `prompt.instruction` (e.g.,
+verification may specify "jump back to coding if failed"). When executing an
+atom-task, follow the recovery instructions defined in that atom-task's
+`prompt.instruction`. The runtime does NOT hardcode recovery targets — they
+are fully defined in the atom-task JSON.
 
 ### Step 5 — Finalize
 
-After the `reflection` stage's confirmation is `approved`:
-1. Mark the `done` stage's status as `done` in `.state.json`.
-2. Invoke the **Metrics Runtime Plugin (runFinish)** when
-   `config.base.metrics.enabled == true` (after step 1, before notifying the user):
+After all stages in `config.pipeline` have completed (i.e., the last stage's
+status is `done` in `.state.json`):
+1. Invoke the **Metrics Runtime Plugin (runFinish)** when
+   `config.base.metrics.enabled == true`:
    - Command:
-     `node skills/ddo-code-flow/scripts/metrics/plugin.js runFinish --run-dir <run> --config skills/ddo-code-flow/config.json --skill-root skills/ddo-code-flow`
+     `node scripts/metrics/plugin.js runFinish --run-dir <worktreePath> --config config.json --skill-root .`
    - Writes `metrics.snapshotAfter`, computes `metrics.runTotal` (delta from
-     snapshots), and optionally `<run>/metrics-report.md` when
+     snapshots), and optionally `<worktreePath>/metrics-report.md` when
      `metrics.report.enabled == true`.
    - Metrics failure does **not** revert workflow success; run stays COMPLETED.
-3. Tell the user the run is complete and point them to `<run>/execution-report.md`
-   (and `<run>/metrics-report.md` when generated).
+2. Tell the user the run is complete and point them to
+   `<worktreePath>/execution-report.md`
+   (and `<worktreePath>/metrics-report.md` when generated).
 
 ## Metrics Runtime Plugin (observability)
 
@@ -151,32 +205,27 @@ plugin invoked at run start and run finish only. See `docs/metrics.md` and
 
 ## Outputs to maintain
 
-- `<run>/.state.json` — pipeline state machine. Updated at every transition.
-  When `git-worktree` completes, contains a top-level `worktreePath` field
-  pointing to the absolute path of the worktree directory.
-- `<run>/worktree-info.json` — produced by `git-worktree`. Records
-  `branchName`, `worktreePath`, `baseRef`, and `createdAt`.
-- `<run>/spec.md`, `plan.md`, `test-plan.md`, `verification.log`,
-  `execution-report.md`, `reflection-report.md` — produced by their
-  respective atom-tasks. When a worktree is active, these land in the
-  worktree directory, not the original run directory.
-- `<run>/tasks/task-NN.md` and `<run>/tasks/task-group.json` — produced by
-  the `tasking` atom-task. `task-group.json` MUST be inside `tasks/`, not
-  alongside it.
-- `<run>/metrics-report.md` — optional; produced by the Metrics
+- `<worktreePath>/.state.json` — pipeline state machine. Updated at every
+  transition. The `worktreePath` field is set by the `git-worktree` atom-task
+  and points to the absolute path of the worktree directory (which is also
+  the run directory).
+- All other outputs are defined in each atom-task's `io.outputs[*].ref`.
+  The runtime resolves `run://` paths to `<worktreePath>/` and writes outputs
+  accordingly. Before `worktreePath` is set, outputs are held in memory
+  (delayed write).
+- `<worktreePath>/metrics-report.md` — optional; produced by the Metrics
   Runtime Plugin when `config.base.metrics.report.enabled == true`.
-  Lives alongside `execution-report.md`, `spec.md`, etc. (run root, not a subfolder).
 
 ## Failure modes (recap)
 
 | Trigger | Recovery |
 |---|---|
 | User rejects a confirmation gate | Re-run the relevant atom-task(s) with feedback appended to `prompt.instruction`. Record the rejection in `.state.json.history`. |
-| Verification fails | Jump back to Coding. See Step 4. |
+| Atom-task defines recovery logic | Follow the recovery instructions in that atom-task's `prompt.instruction`. See Step 4. |
 | Session interrupted mid-run | On next start, Step 2 reads `.state.json` and resumes from `currentStage`. Append a `resumed` entry to `.state.json.history`. |
-| `<desp>` collides with an existing run directory | Append `-2`, `-3`, ... to the suffix until unique. Record the final name in `.state.json.runId`. |
+| Run directory name collides | Append `-2`, `-3`, ... to the suffix until unique. Record the final name in `.state.json.runId`. |
 | Schema or DAG validation fails | Abort with a clear error message; do not produce any artifacts. |
-| `git-worktree` fails (not a git repo, dirty worktree, etc.) | Abort the pipeline. The git-worktree task has `rejectAction: "abort"`. Report the git error to the user. |
+| Atom-task with `rejectAction: "abort"` fails | Abort the pipeline. Report the error to the user. The `rejectAction` is read from the atom-task JSON, not hardcoded. |
 
 ## What this skill does NOT do
 
@@ -188,3 +237,5 @@ plugin invoked at run start and run finish only. See `docs/metrics.md` and
   shell for `verification` commands.
 - It does NOT start a server. The companion UI in `ui/` is a static page
   loaded via `file://` and the File System Access API.
+- It does NOT create the run directory. The run directory is created by the
+  `git-worktree` atom-task during pipeline execution.

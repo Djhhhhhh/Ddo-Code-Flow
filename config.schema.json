@@ -146,7 +146,7 @@
       "additionalProperties": {
         "type": "object",
         "required": ["enabled"],
-        "additionalProperties": false,
+        "additionalProperties": true,
         "properties": {
           "enabled": { "type": "boolean" }
         }

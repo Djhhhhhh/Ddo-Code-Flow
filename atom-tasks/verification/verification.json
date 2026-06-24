@@ -2,7 +2,7 @@
   "name": "verification",
   "version": "1.0.0",
   "stage": "verification",
-  "description": "解析 test-plan.md 的两段式 checklist：`cmd:` 行在 targetDir 中执行 shell 并比对 exit code，`human:` 行展示给用户手动勾选。结果落入 verification.log；任一失败回到 Coding 重做，直到末尾出现 `ALL PASSED`。",
+  "description": "解析 test-plan.md 的两段式 checklist：`cmd:` 行为自动化测试（单元测试、接口测试、shell 验证），在 targetDir 中执行并比对 exit code；`human:` 行为功能测试（UI 交互、页面操作），展示给用户手动执行并确认。结果落入 verification.log；任一失败回到 Coding 重做，直到末尾出现 `ALL PASSED`。",
   "enabled": true,
   "io": {
     "inputs": [

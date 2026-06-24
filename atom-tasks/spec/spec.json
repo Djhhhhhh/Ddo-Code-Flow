@@ -14,13 +14,15 @@
     ]
   },
   "prompt": {
-    "instruction": "Fill the spec_template with concrete content derived from the user's original requirement (the prompt that triggered this skill, available in session context) and context-summary.md (supporting evidence). Replace every {{ placeholder }} with project-specific text or remove the surrounding section if not applicable. Number every functional requirement (e.g., FR-CTX-1, FR-SPEC-1) so they are addressable from later stages (plan / test-plan / tasks). Append the standard '## 用户确认' section at the end.",
+    "instruction": "Fill the spec_template with concrete content derived from the user's original requirement (the prompt that triggered this skill, available in session context) and context-summary.md (supporting evidence). Replace every {{ placeholder }} with project-specific text or remove the surrounding section if not applicable. Number every functional requirement (e.g., FR-CTX-1, FR-SPEC-1) so they are addressable from later stages (plan / test-plan / tasks). Append the standard '## 用户确认' section at the end.\n\nWhen the user provides feedback, selects an option, or requests changes to the spec:\n1. You MUST update spec.md on disk to reflect the user's decision — merge selected options into a single definitive description, remove rejected alternatives, and incorporate all feedback.\n2. After updating, present the revised spec.md summary and explicitly ask for confirmation (同意/修改) again.\n3. Do NOT proceed to the next stage until the user explicitly approves (says 同意, approves, or equivalent clear affirmative). A selection or choice among options is NOT implicit approval — it is feedback that requires updating the document first, then obtaining a separate explicit approval.",
     "templateRef": "skill://atom-tasks/spec/spec_template.md",
     "guardrails": [
       "Do not include any implementation choice — no library names, no frameworks, no file paths inside source code. That belongs to plan.md.",
       "Every functional requirement must have a unique stable ID.",
       "Open Questions section is mandatory; defer all unresolved decisions there to be answered in plan.md.",
-      "Preserve user-supplied terminology verbatim; do not paraphrase domain terms."
+      "Preserve user-supplied terminology verbatim; do not paraphrase domain terms.",
+      "CRITICAL: When presenting multiple options/schemes to the user, you MUST wait for the user to select one, then UPDATE spec.md to reflect that selection, then ask for explicit approval. Never skip the spec.md update step.",
+      "CRITICAL: User selection among options is feedback (rejectAction: regenerate-with-feedback), NOT implicit approval. Always update the document and re-confirm."
     ]
   },
   "confirmation": {

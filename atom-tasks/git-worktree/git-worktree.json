@@ -2,7 +2,7 @@
   "name": "git-worktree",
   "version": "1.0.0",
   "stage": "requirement",
-  "description": "基于用户需求创建 git 分支与工作树：从用户原始提示词提取关键词生成分支名，创建工作树目录，将后续流水线的工作目录切换到该工作树。",
+  "description": "基于用户需求创建 git 分支与工作树：从用户原始提示词提取关键词生成分支名，创建工作树目录（即本次 run 的运行目录），将后续流水线的工作目录切换到该工作树，并刷写 context 阶段的延迟产物到 worktree。",
   "enabled": true,
   "io": {
     "inputs": [

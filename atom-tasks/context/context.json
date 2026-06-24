@@ -2,7 +2,7 @@
   "name": "context",
   "version": "1.0.0",
   "stage": "context",
-  "description": "读取项目基础上下文（AGENTS.md / README.md / product.md / 用户自定义路径）并汇总为 context-summary.md。缺失项不阻断流水线，但记录到执行报告中。",
+  "description": "读取项目基础上下文（AGENTS.md / README.md / product.md / 用户自定义路径）并汇总为 context-summary.md。缺失项不阻断流水线，但记录到执行报告中。产物暂存内存，等 git-worktree 创建运行目录后统一刷写到 worktree。",
   "enabled": true,
   "io": {
     "inputs": [
