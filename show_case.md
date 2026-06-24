@@ -87,15 +87,15 @@ Agent 自动转换为 DAG 形式：
 
 ### 2.1 解析 targetDir
 
-`config.base.targetDir = "docs\\feat"` → 解析为绝对路径：
-`/Users/djhhh/work_area/Ddo-Code-Flow/docs/feat`
+`config.base.targetDir = ".."` → 解析为绝对路径：
+`/Users/djhhh/work_area`（项目根目录的上级）
 
 ### 2.2 检查是否有可恢复的运行
 
-Agent 在 `targetDir` 下搜索已有的 `.state.json` 文件（路径模式 `*/docs/*/.state.json`），查找是否有中断的 run：
+Agent 在 `targetDir` 下搜索已有的 `.state.json` 文件（路径模式 `*/docs/*/*/.state.json`），查找是否有中断的 run：
 
 ```
-feat/2026-06-24-add-dark-mode/docs/feat/.state.json  ← 找到了，恢复
+Ddo-Code-Flow-feat-2026-06-24-add-dark-mode/docs/feat/2026-06-24-add-dark-mode/.state.json  ← 找到了，恢复
 ```
 
 如果找到，读取 `.state.json` 并从 `currentStage` 恢复。
@@ -159,7 +159,7 @@ Agent 读取 `atom-tasks/context/context.json`：
       { "ref": "run://../product.md", "required": false }
     ],
     "outputs": [
-      { "ref": "run://docs/{type}/context-summary.md", "kind": "markdown" }
+      { "ref": "run://docs/{type}/{dateDescription}/context-summary.md", "kind": "markdown" }
     ]
   }
 }
@@ -169,7 +169,7 @@ Agent 读取 `atom-tasks/context/context.json`：
 - `run://../AGENTS.md` → `/Users/djhhh/work_area/Ddo-Code-Flow/AGENTS.md`（项目根）
 - `run://../README.md` → `/Users/djhhh/work_area/Ddo-Code-Flow/README.md`
 - `run://../product.md` → `/Users/djhhh/work_area/Ddo-Code-Flow/product.md`
-- `run://docs/{type}/context-summary.md` → **暂不写入磁盘，保存在内存中**
+- `run://docs/{type}/{dateDescription}/context-summary.md` → **暂不写入磁盘，保存在内存中**
 
 **执行**：
 1. 尝试读取每个 input 文件
@@ -246,50 +246,62 @@ Agent 读取 `atom-tasks/git-worktree/git-worktree.json`：
 1. 读取 `skill://atom-tasks/git-worktree/branch-rules.json`，提取分支命名规则
 2. 从用户提示词提取描述 slug → `add-dark-mode`
 3. 生成分支名：`feat/2026-06-24-add-dark-mode`（模板 `{prefix}/{date}-{description}`）
-4. 创建 branch 和 worktree：
+4. 派生关键值：
+   - `type` = `feat`（分支名第一个 `/` 前的部分）
+   - `dateDescription` = `2026-06-24-add-dark-mode`（分支名第一个 `/` 后的部分）
+5. 计算 worktree 目录名：`Ddo-Code-Flow-feat-2026-06-24-add-dark-mode`
+   （项目名 + 分支名，`/` 替换为 `-`）
+6. 创建 branch 和 worktree：
 
 ```bash
 git branch feat/2026-06-24-add-dark-mode
-git worktree add docs/feat/2026-06-24-add-dark-mode feat/2026-06-24-add-dark-mode
+git worktree add ../Ddo-Code-Flow-feat-2026-06-24-add-dark-mode feat/2026-06-24-add-dark-mode
 ```
 
-> worktree 路径即为**运行目录**——所有流水线产物都写入此目录。
-> 这是 Step 2 不预先创建运行目录的根本原因：由 git-worktree 统一创建。
+> worktree 路径 = `<targetDir>/<projectName>-<branchName(/→-)>`，即项目根的同级目录。
+> 所有流水线产物都写入此目录。
 
-5. 写入 `docs/feat/worktree-info.json`：
+7. 创建产物子目录并写入 `worktree-info.json`：
+```bash
+mkdir -p ../Ddo-Code-Flow-feat-2026-06-24-add-dark-mode/docs/feat/2026-06-24-add-dark-mode/
+```
+写入 `<worktreePath>/docs/feat/2026-06-24-add-dark-mode/worktree-info.json`：
 ```json
 {
   "branchName": "feat/2026-06-24-add-dark-mode",
-  "worktreePath": "/Users/djhhh/work_area/feat/2026-06-24-add-dark-mode",
+  "worktreePath": "/Users/djhhh/work_area/Ddo-Code-Flow-feat-2026-06-24-add-dark-mode",
+  "targetDir": "/Users/djhhh/work_area",
   "type": "feat",
+  "dateDescription": "2026-06-24-add-dark-mode",
   "baseRef": "HEAD",
   "createdAt": "2026-06-24T10:32:00Z"
 }
 ```
 
-6. **更新 `docs/feat/.state.json`** — 写入关键字段：
+8. **更新 `.state.json`** — 写入 `<worktreePath>/docs/feat/2026-06-24-add-dark-mode/.state.json`：
 ```json
 {
   "runId": "2026-06-24-add-dark-mode",
-  "worktreePath": "/Users/djhhh/work_area/feat/2026-06-24-add-dark-mode",
-  "type": "feat"
+  "worktreePath": "/Users/djhhh/work_area/Ddo-Code-Flow-feat-2026-06-24-add-dark-mode",
+  "type": "feat",
+  "dateDescription": "2026-06-24-add-dark-mode"
 }
 ```
 
-**7. 刷写延迟产物**：
+**9. 刷写延迟产物**：
 
 此时 worktree 目录已存在，Agent 将 context 阶段暂存在内存中的
 `context-summary.md` 写入 worktree：
 
 ```
-worktreePath/docs/feat/context-summary.md  ← 从内存刷写到磁盘
+/Users/djhhh/work_area/Ddo-Code-Flow-feat-2026-06-24-add-dark-mode/docs/feat/2026-06-24-add-dark-mode/context-summary.md  ← 从内存刷写到磁盘
 ```
 
 清除 `context` 节点的 `outputPending` 标记。
 
 > **从此刻起**，所有 `run://` 路径解析统一指向 worktree 目录：
 > - `run://<path>` → `worktreePath/<path>`
-> - `run://docs/{type}/<path>` → `worktreePath/docs/<type>/<path>`（MD 产物路径，`{type}` 为分支前缀如 feat/fix/chore）
+> - `run://docs/{type}/{dateDescription}/<path>` → `worktreePath/docs/<type>/<dateDescription>/<path>`（MD 产物路径）
 > - `run://../<path>` → 项目根 `/Users/djhhh/work_area/Ddo-Code-Flow/<path>`
 
 ---
@@ -305,7 +317,7 @@ worktreePath/docs/feat/context-summary.md  ← 从内存刷写到磁盘
 Agent 读取 `atom-tasks/spec/spec.json`，解析输入：
 
 - `skill://atom-tasks/spec/spec_template.md` → `atom-tasks/spec/spec_template.md`（只读模板）
-- `run://docs/{type}/context-summary.md` → `worktreePath/docs/feat/context-summary.md`（由 context 阶段延迟写入）
+- `run://docs/{type}/{dateDescription}/context-summary.md` → `worktreePath/docs/feat/2026-06-24-add-dark-mode/context-summary.md`（由 context 阶段延迟写入）
 
 Agent 套用模板，结合用户需求和上下文，生成 `spec.md`：
 
@@ -329,7 +341,7 @@ Agent 套用模板，结合用户需求和上下文，生成 `spec.md`：
 > 请确认以上规格是否满足需求。如有修改意见，请回复。
 ```
 
-**写入** `worktreePath/spec.md`（即 `docs/feat/2026-06-24-add-dark-mode/spec.md`）
+**写入** `worktreePath/docs/feat/2026-06-24-add-dark-mode/spec.md`（即 `/Users/djhhh/work_area/Ddo-Code-Flow-feat-2026-06-24-add-dark-mode/docs/feat/2026-06-24-add-dark-mode/spec.md`）
 
 **确认门检查**：
 - `spec` 所属 stage `specification` 在 `confirmationGates` 中 ✅
@@ -771,9 +783,10 @@ Agent 输出：
 ```
 ✅ 流水线执行完成！
 
-运行目录（worktree）: docs/feat/2026-06-24-add-dark-mode/
+运行目录（worktree）: Ddo-Code-Flow-feat-2026-06-24-add-dark-mode/
+产物目录: Ddo-Code-Flow-feat-2026-06-24-add-dark-mode/docs/feat/2026-06-24-add-dark-mode/
 分支: feat/2026-06-24-add-dark-mode
-执行报告: docs/feat/2026-06-24-add-dark-mode/execution-report.md
+执行报告: Ddo-Code-Flow-feat-2026-06-24-add-dark-mode/docs/feat/2026-06-24-add-dark-mode/execution-report.md
 
 感谢使用 ddo-code-flow。
 ```
@@ -792,11 +805,11 @@ Agent 输出：
 |---|---|---|
 | `skill://<path>` | `./<path>`（只读） | 技能自身的模板/配置文件 |
 | `run://<path>` | `<worktreePath>/<path>` | worktree 目录（git-worktree 创建后） |
-| `run://docs/{type}/<path>` | `<worktreePath>/docs/<type>/<path>` | MD 产物目录（`{type}` 为分支前缀：feat/fix/chore/...） |
+| `run://docs/{type}/{dateDescription}/<path>` | `<worktreePath>/docs/<type>/<dateDescription>/<path>` | MD 产物目录（`{type}` 为分支前缀，`{dateDescription}` 为日期-描述） |
 | `run://../<path>` | `<target>/<path>` | 项目根目录（始终不变） |
 
 **特殊处理**：当 context 阶段执行时 worktree 尚未存在，
-`run://docs/{type}/` 输出路径暂存内存，待 git-worktree 完成后统一刷写到 `worktreePath/docs/<type>/`。
+`run://docs/{type}/{dateDescription}/` 输出路径暂存内存，待 git-worktree 完成后统一刷写到 `worktreePath/docs/<type>/<dateDescription>/`。
 
 ### 5.2 确认门循环
 
@@ -890,7 +903,7 @@ Agent 不会逐个询问用户，而是**合并为一个确认请求**：
     { "event": "created", "at": "2026-06-24T10:30:00Z" },
     { "event": "stage_started", "stage": "context", "at": "2026-06-24T10:30:05Z" },
     { "event": "stage_completed", "stage": "context", "at": "2026-06-24T10:31:15Z", "note": "output held in memory" },
-    { "event": "worktree_created", "at": "2026-06-24T10:32:00Z", "worktreePath": "/Users/djhhh/work_area/Ddo-Code-Flow/docs/feat/2026-06-24-add-dark-mode" },
+    { "event": "worktree_created", "at": "2026-06-24T10:32:00Z", "worktreePath": "/Users/djhhh/work_area/Ddo-Code-Flow-feat-2026-06-24-add-dark-mode" },
     { "event": "context_output_flushed", "at": "2026-06-24T10:32:01Z", "file": "context-summary.md" },
     { "event": "confirmation_rejected", "stage": "specification", "node": "spec", "round": 1, "at": "2026-06-24T10:35:00Z" },
     { "event": "confirmation_approved", "stage": "specification", "node": "spec", "round": 2, "at": "2026-06-24T10:38:00Z" },

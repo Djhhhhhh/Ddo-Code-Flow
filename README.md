@@ -124,26 +124,29 @@ agent 按 `[SKILL.md](SKILL.md)` 执行：
 
 ### 5. 查看产物
 
-每次 run 落在 `<targetDir>/YYYY-MM-DD-<desp>/`：
+每次 run 落在 `<targetDir>/<projectName>-<branchName(/→-)>/` 下：
 
 ```text
-<targetDir>/feat/2026-06-06-reverse-string/   # worktree 目录（sibling of project root）
-├── docs/
-│   └── feat/                # 与分支前缀一致（feat/fix/chore/...）
-│       ├── .state.json          # 含 stages、history、type；启用 Metrics 时含 metrics.runTotal
-│       ├── worktree-info.json   # 分支信息、worktreePath、type 等
-│       ├── context-summary.md
-│       ├── spec.md
-│       ├── plan.md
-│       ├── test-plan.md
-│       ├── tasks/
-│       │   ├── task-01.md
-│       │   └── task-group.json
-│       ├── verification.log
-│       ├── execution-report.md
-│       ├── reflection-report.md
-│       └── metrics-report.md   # Metrics 启用且 report.enabled 时（可选）
-└── (源代码文件)
+<targetDir>/
+├── <projectName>/                                      # 项目本体
+└── <projectName>-feat-2026-06-06-reverse-string/       # worktree 目录（sibling of project root）
+    ├── docs/
+    │   └── feat/                                       # 与分支前缀一致（feat/fix/chore/...）
+    │       └── 2026-06-06-reverse-string/              # 分支名去掉前缀后的 date-description
+    │           ├── .state.json                         # 含 stages、history、type、dateDescription
+    │           ├── worktree-info.json                  # 分支信息、worktreePath、type、dateDescription
+    │           ├── context-summary.md
+    │           ├── spec.md
+    │           ├── plan.md
+    │           ├── test-plan.md
+    │           ├── tasks/
+    │           │   ├── task-01.md
+    │           │   └── task-group.json
+    │           ├── verification.log
+    │           ├── execution-report.md
+    │           ├── reflection-report.md
+    │           └── metrics-report.md                   # Metrics 启用且 report.enabled 时（可选）
+    └── (源代码文件)
 ```
 
 ## ⚙️ 配置说明
@@ -156,7 +159,7 @@ agent 按 `[SKILL.md](SKILL.md)` 执行：
 {
   "version": "1.0.1",
   "base": {
-    "targetDir": ".",
+    "targetDir": "..",
     "contextPaths": ["AGENTS.md", "README.md"],
     "contextOptional": true,
     "respGenerator": { "maxLength": 32, "case": "kebab", "stripStopwords": true },

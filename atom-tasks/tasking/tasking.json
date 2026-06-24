@@ -7,12 +7,12 @@
   "io": {
     "inputs": [
       { "ref": "skill://atom-tasks/tasking/task_template.md", "required": true },
-      { "ref": "run://docs/{type}/plan.md", "required": true },
-      { "ref": "run://docs/{type}/test-plan.md", "required": true }
+      { "ref": "run://docs/{type}/{dateDescription}/plan.md", "required": true },
+      { "ref": "run://docs/{type}/{dateDescription}/test-plan.md", "required": true }
     ],
     "outputs": [
-      { "ref": "run://docs/{type}/tasks/", "kind": "dir" },
-      { "ref": "run://docs/{type}/tasks/task-group.json", "kind": "json" }
+      { "ref": "run://docs/{type}/{dateDescription}/tasks/", "kind": "dir" },
+      { "ref": "run://docs/{type}/{dateDescription}/tasks/task-group.json", "kind": "json" }
     ]
   },
   "prompt": {

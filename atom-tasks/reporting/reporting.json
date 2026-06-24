@@ -7,14 +7,14 @@
   "io": {
     "inputs": [
       { "ref": "skill://atom-tasks/reporting/execution-report_template.md", "required": true },
-      { "ref": "run://docs/{type}/.state.json", "required": true },
-      { "ref": "run://docs/{type}/verification.log", "required": false },
-      { "ref": "run://docs/{type}/spec.md", "required": false },
-      { "ref": "run://docs/{type}/plan.md", "required": false },
-      { "ref": "run://docs/{type}/test-plan.md", "required": false }
+      { "ref": "run://docs/{type}/{dateDescription}/.state.json", "required": true },
+      { "ref": "run://docs/{type}/{dateDescription}/verification.log", "required": false },
+      { "ref": "run://docs/{type}/{dateDescription}/spec.md", "required": false },
+      { "ref": "run://docs/{type}/{dateDescription}/plan.md", "required": false },
+      { "ref": "run://docs/{type}/{dateDescription}/test-plan.md", "required": false }
     ],
     "outputs": [
-      { "ref": "run://docs/{type}/execution-report.md", "kind": "markdown" }
+      { "ref": "run://docs/{type}/{dateDescription}/execution-report.md", "kind": "markdown" }
     ]
   },
   "prompt": {

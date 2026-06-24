@@ -6,10 +6,10 @@
   "enabled": true,
   "io": {
     "inputs": [
-      { "ref": "run://docs/{type}/tasks/task-group.json", "required": true },
-      { "ref": "run://docs/{type}/tasks/", "required": true },
-      { "ref": "run://docs/{type}/plan.md", "required": true },
-      { "ref": "run://docs/{type}/test-plan.md", "required": true }
+      { "ref": "run://docs/{type}/{dateDescription}/tasks/task-group.json", "required": true },
+      { "ref": "run://docs/{type}/{dateDescription}/tasks/", "required": true },
+      { "ref": "run://docs/{type}/{dateDescription}/plan.md", "required": true },
+      { "ref": "run://docs/{type}/{dateDescription}/test-plan.md", "required": true }
     ],
     "outputs": [
       { "ref": "run://", "kind": "dir" }

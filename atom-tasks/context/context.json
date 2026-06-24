@@ -11,7 +11,7 @@
       { "ref": "run://../product.md", "required": false }
     ],
     "outputs": [
-      { "ref": "run://docs/{type}/context-summary.md", "kind": "markdown" }
+      { "ref": "run://docs/{type}/{dateDescription}/context-summary.md", "kind": "markdown" }
     ]
   },
   "prompt": {

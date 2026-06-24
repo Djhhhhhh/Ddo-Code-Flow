@@ -7,10 +7,10 @@
   "io": {
     "inputs": [
       { "ref": "skill://atom-tasks/verification/verification_template.md", "required": true },
-      { "ref": "run://docs/{type}/test-plan.md", "required": true }
+      { "ref": "run://docs/{type}/{dateDescription}/test-plan.md", "required": true }
     ],
     "outputs": [
-      { "ref": "run://docs/{type}/verification.log", "kind": "text" }
+      { "ref": "run://docs/{type}/{dateDescription}/verification.log", "kind": "text" }
     ]
   },
   "prompt": {

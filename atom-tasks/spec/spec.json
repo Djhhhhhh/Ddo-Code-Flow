@@ -7,10 +7,10 @@
   "io": {
     "inputs": [
       { "ref": "skill://atom-tasks/spec/spec_template.md", "required": true },
-      { "ref": "run://docs/{type}/context-summary.md", "required": false }
+      { "ref": "run://docs/{type}/{dateDescription}/context-summary.md", "required": false }
     ],
     "outputs": [
-      { "ref": "run://docs/{type}/spec.md", "kind": "markdown" }
+      { "ref": "run://docs/{type}/{dateDescription}/spec.md", "kind": "markdown" }
     ]
   },
   "prompt": {

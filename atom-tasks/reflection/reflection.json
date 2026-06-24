@@ -7,11 +7,11 @@
   "io": {
     "inputs": [
       { "ref": "skill://atom-tasks/reflection/reflection-report_template.md", "required": true },
-      { "ref": "run://docs/{type}/execution-report.md", "required": true },
+      { "ref": "run://docs/{type}/{dateDescription}/execution-report.md", "required": true },
       { "ref": "run://../", "required": false }
     ],
     "outputs": [
-      { "ref": "run://docs/{type}/reflection-report.md", "kind": "markdown" }
+      { "ref": "run://docs/{type}/{dateDescription}/reflection-report.md", "kind": "markdown" }
     ]
   },
   "prompt": {

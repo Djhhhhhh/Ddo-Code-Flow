@@ -82,28 +82,55 @@ mechanical loop below.
 |---|---|---|
 | `skill://<path>` | Project root `/<path>` (read-only) | Always |
 | `run://<path>` | `<worktreePath>/<path>` | After git-worktree sets `worktreePath` |
-| `run://docs/{type}/<path>` | `<worktreePath>/docs/<type>/<path>` | After git-worktree sets `worktreePath` and `type`; `{type}` is the branch prefix (feat/fix/chore/...) |
+| `run://docs/{type}/{dateDescription}/<path>` | `<worktreePath>/docs/<type>/<dateDescription>/<path>` | After git-worktree sets `worktreePath`, `type`, and `dateDescription` |
 | `run://<path>` | Hold in memory (pending write) | Before `worktreePath` exists |
 | `run://../<path>` | `<target>/<path>` (project root) | Always |
 
+**Directory structure**:
+
+The worktree directory sits under `targetDir` as a sibling of the project root.
+Its name follows the pattern `<projectName>-<branchName>` with slashes replaced
+by dashes. Artifacts live in a nested `docs/<type>/<dateDescription>/` subdirectory.
+
+Example for project `Ddo-Code-Flow`, branch `feat/2026-06-24-add-dark-mode`:
+```
+<targetDir>/
+├── Ddo-Code-Flow/                                    ← project root
+└── Ddo-Code-Flow-feat-2026-06-24-add-dark-mode/      ← worktreePath
+    └── docs/
+        └── feat/                                     ← type
+            └── 2026-06-24-add-dark-mode/             ← dateDescription
+                ├── .state.json
+                ├── worktree-info.json
+                ├── context-summary.md
+                ├── spec.md
+                ├── plan.md
+                └── ...
+```
+
+- `projectName` = basename of project root (e.g. `Ddo-Code-Flow`)
+- `type` = branch prefix before the first `/` (e.g. `feat`)
+- `dateDescription` = branch name after the first `/` (e.g. `2026-06-24-add-dark-mode`)
+
 **`.state.json` location**: `.state.json` and `worktree-info.json` live at
-`<worktreePath>/docs/<type>/.state.json` and `<worktreePath>/docs/<type>/worktree-info.json`.
+`<worktreePath>/docs/<type>/<dateDescription>/.state.json`.
 The `git-worktree` atom-task sets `worktreePath` in `.state.json` so that
 subsequent stages can resolve `run://` paths. To find `.state.json` on resume,
-search `<targetDir>/*/docs/*/.state.json` (glob across all worktrees and types).
+search `<targetDir>/*/docs/*/*/.state.json` (glob across all worktrees, types, and date-descriptions).
 
 **Key mechanism — delayed write**: When `worktreePath` is not yet set in
 `.state.json`, any atom-task whose `io.outputs` use `run://` prefixes must
 hold its output **in memory** and mark the node with `outputPending: true`
 in `.state.json`. Once `git-worktree` creates the worktree directory,
-the `docs/<type>/` subdirectory, and sets `worktreePath`, all pending outputs
-are flushed to `<worktreePath>/docs/<type>/`. This ensures `context-summary.md`
-and all subsequent artifacts live in the same directory.
+the `docs/<type>/<dateDescription>/` subdirectory, and sets `worktreePath`,
+all pending outputs are flushed to `<worktreePath>/docs/<type>/<dateDescription>/`.
+This ensures `context-summary.md` and all subsequent artifacts live in the same directory.
 
 **Resume worktree override**: If `.state.json.worktreePath` and `.state.json.type`
 are already set (resuming a previous run), record them. All `run://` paths
-resolve to the worktree directory, and `run://docs/{type}/` paths resolve to
-`<worktreePath>/docs/<type>/` immediately. No delayed write is needed.
+resolve to the worktree directory, and `run://docs/{type}/{dateDescription}/` paths
+resolve to `<worktreePath>/docs/<type>/<dateDescription>/` immediately.
+No delayed write is needed.
 
 **Metrics (runStart)**: Once `worktreePath` is set (either from resume or
 from git-worktree creating it), invoke the Metrics Runtime Plugin when
@@ -197,7 +224,7 @@ status is `done` in `.state.json`):
      when `metrics.report.enabled == true`.
    - Metrics failure does **not** revert workflow success; run stays COMPLETED.
 2. Tell the user the run is complete and point them to
-   `<worktreePath>/docs/{type}/execution-report.md`
+   `<worktreePath>/docs/{type}/{dateDescription}/execution-report.md`
    (and `<worktreePath>/metrics-report.md` when generated).
 
 ## Metrics Runtime Plugin (observability)
@@ -219,9 +246,10 @@ plugin invoked at run start and run finish only. See `docs/metrics.md` and
 - `<worktreePath>/docs/<type>/worktree-info.json` — branch metadata written by
   the `git-worktree` atom-task.
 - All other outputs are defined in each atom-task's `io.outputs[*].ref`.
-  The runtime resolves `run://docs/{type}/` paths to `<worktreePath>/docs/<type>/`
-  and writes outputs accordingly. `{type}` is resolved from `.state.json.type`
-  (set by the `git-worktree` atom-task from the branch prefix).
+  The runtime resolves `run://docs/{type}/{dateDescription}/` paths to
+  `<worktreePath>/docs/<type>/<dateDescription>/` and writes outputs accordingly.
+  `{type}` and `{dateDescription}` are resolved from `.state.json`
+  (set by the `git-worktree` atom-task from the branch name).
   Before `worktreePath` is set, outputs are held in memory (delayed write).
 - `<worktreePath>/metrics-report.md` — optional; produced by the Metrics
   Runtime Plugin when `config.base.metrics.report.enabled == true`.
