@@ -2,7 +2,7 @@
   "$schema": "./config.schema.json",
   "version": "1.0.1",
   "base": {
-    "targetDir": "docs\\feat",
+    "targetDir": "..",
     "contextPaths": [],
     "contextOptional": true,
     "respGenerator": {
