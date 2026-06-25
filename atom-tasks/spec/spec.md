@@ -1,7 +1,7 @@
 ---
 name: spec
 version: "1.0.0"
-stage: specification
+stage: spec
 enabled: true
 timeoutSec: 0
 concurrency:

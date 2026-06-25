@@ -12,9 +12,9 @@
     },
     "confirmationGates": [
       "planning",
-      "test-planning",
+      "test-plan",
       "reflection",
-      "specification"
+      "spec"
     ],
     "metrics": {
       "enabled": false,
@@ -78,7 +78,7 @@
       "enabled": true
     },
     {
-      "stage": "specification",
+      "stage": "spec",
       "description": "AI 基于 Requirement 与 Context 生成 spec.md，进入用户确认门；否决则带反馈意见重生成。",
       "atomTasks": {
         "entry": [
@@ -116,7 +116,7 @@
       "enabled": true
     },
     {
-      "stage": "test-planning",
+      "stage": "test-plan",
       "description": "基于已确认的 spec.md 生成 test-plan.md（checklist 形式定义验收标准）。TDD 模式开启时同步生成单元测试代码骨架。进入用户确认门。",
       "atomTasks": {
         "entry": [
@@ -251,7 +251,7 @@
       "enabled": true
     },
     "review": {
-      "enabled": true
+      "enabled": false
     },
     "test-plan": {
       "enabled": true,

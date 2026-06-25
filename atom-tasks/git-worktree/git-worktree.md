@@ -45,7 +45,7 @@ outputSchemaRef: "skill://atom-tasks/git-worktree/worktree-info.output.schema.js
    c. 验证命令成功（exit code 0 且目录存在）。
 8. 创建产物子目录：mkdir -p <worktree-path>/docs/<type>/<dateDescription>/。后续所有 MD 产物和 .state.json 都写入此目录。
 9. 写入 worktree-info.json（见 output schema）。
-10. 写入 .state.json：设置 worktreePath 为绝对路径，type 为分支前缀，dateDescription 为日期描述 slug。同时刷写 context 和 requirement 阶段的延迟产物（context-summary.md、requirement.md）到 worktree。
+10. 写入 .state.json：设置 worktreePath 为绝对路径，type 为分支前缀，dateDescription 为日期描述 slug。同时刷写延迟产物：从 .state.json.pendingOutputs 读取所有条目，将每个 base64 解码后写入其对应的 outputRef 路径（已解析 run:// 前缀）。如果 pendingOutputs 为空（agent 内存中有未持久化的产物），则从内存中获取并写入。完成后删除 .state.json.pendingOutputs 字段。
 
 ## 约束
 

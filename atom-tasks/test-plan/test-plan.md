@@ -1,7 +1,7 @@
 ---
 name: test-plan
 version: "1.0.0"
-stage: test-planning
+stage: test-plan
 enabled: true
 timeoutSec: 0
 concurrency:

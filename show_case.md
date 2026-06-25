@@ -128,7 +128,7 @@ Ddo-Code-Flow-feat-2026-06-24-add-dark-mode/docs/feat/2026-06-24-add-dark-mode/.
 Agent 进入主循环，按 `config.pipeline` 的顺序逐 stage 执行：
 
 ```
-context → requirement → specification → planning → test-planning →
+context → requirement → spec → planning → test-plan →
 tasking → coding → verification → review → reporting → reflection → done
 ```
 
@@ -307,7 +307,7 @@ mkdir -p ../Ddo-Code-Flow-feat-2026-06-24-add-dark-mode/docs/feat/2026-06-24-add
 ---
 
 ### ═══════════════════════════════════════════════
-### Stage 3: specification（生成 spec.md）⭐ 确认门
+### Stage 3: spec（生成 spec.md）⭐ 确认门
 ### ═══════════════════════════════════════════════
 
 **拓扑分层**：Layer 0: `["spec"]`
@@ -344,13 +344,13 @@ Agent 套用模板，结合用户需求和上下文，生成 `spec.md`：
 **写入** `worktreePath/docs/feat/2026-06-24-add-dark-mode/spec.md`（即 `/Users/djhhh/work_area/Ddo-Code-Flow-feat-2026-06-24-add-dark-mode/docs/feat/2026-06-24-add-dark-mode/spec.md`）
 
 **确认门检查**：
-- `spec` 所属 stage `specification` 在 `confirmationGates` 中 ✅
+- `spec` 所属 stage `spec` 在 `confirmationGates` 中 ✅
 - `spec.confirmation.required = true` ✅
 
 Agent 向用户展示 spec.md 内容并等待确认：
 
 ```
-📋 specification 阶段确认
+📋 spec 阶段确认
 
 已生成 spec.md，请审阅：
 
@@ -360,7 +360,7 @@ Agent 向用户展示 spec.md 内容并等待确认：
 ```
 
 **场景 A — 用户批准**：
-→ `.state.json.stages.specification.status = "done"`，继续下一 stage。
+→ `.state.json.stages.spec.status = "done"`，继续下一 stage。
 
 **场景 B — 用户拒绝并反馈**：
 用户回复：*"FR-DM-4 不需要，先只做手动切换。另外 Q1 的答案是不需要自定义主题色。"*
@@ -405,7 +405,7 @@ Agent 读取 `atom-tasks/plan/plan.json`，输入包括：
 ---
 
 ### ═══════════════════════════════════════════════
-### Stage 5: test-planning（生成 test-plan.md）⭐ 确认门
+### Stage 5: test-plan（生成 test-plan.md）⭐ 确认门
 ### ═══════════════════════════════════════════════
 
 Agent 读取 `atom-tasks/test-plan/test-plan.json`，基于 `test-plan_template.md` 和
@@ -690,9 +690,9 @@ Agent 读取 `atom-tasks/reporting/reporting.json`，基于 `execution-report_te
 |---|---|---|
 | context | ✅ done | context-summary.md |
 | requirement | ✅ done | worktree-info.json |
-| specification | ✅ done | spec.md |
+| spec | ✅ done | spec.md |
 | planning | ✅ done | plan.md |
-| test-planning | ✅ done | test-plan.md |
+| test-plan | ✅ done | test-plan.md |
 | tasking | ✅ done | tasks/task-group.json, tasks/task-01~03.md |
 | coding | ✅ done | ui/css/theme.css, ui/js/theme.js, ui/index.html |
 | verification | ✅ done | verification.log |
@@ -713,8 +713,8 @@ Agent 读取 `atom-tasks/reporting/reporting.json`，基于 `execution-report_te
 - 2026-06-24T10:31:15Z — context completed (output held in memory)
 - 2026-06-24T10:32:00Z — worktree created
 - 2026-06-24T10:32:01Z — context output flushed
-- 2026-06-24T10:35:00Z — specification rejected (round 1: "移除 FR-DM-4")
-- 2026-06-24T10:38:00Z — specification approved (round 2)
+- 2026-06-24T10:35:00Z — spec rejected (round 1: "移除 FR-DM-4")
+- 2026-06-24T10:38:00Z — spec approved (round 2)
 - 2026-06-24T11:05:00Z — verification failed (G3)
 - 2026-06-24T11:05:05Z — recovery: verification → coding
 - 2026-06-24T11:10:00Z — verification passed (ALL PASSED)
@@ -888,9 +888,9 @@ Agent 不会逐个询问用户，而是**合并为一个确认请求**：
   "stages": {
     "context": { "status": "done", "nodes": { "context": { "status": "done", "outputPending": false } } },
     "requirement": { "status": "done", "nodes": { "requirement": { "status": "done" }, "git-worktree": { "status": "done" } } },
-    "specification": { "status": "done", "nodes": { "spec": { "status": "done", "confirmations": [{ "round": 1, "result": "rejected", "feedback": "移除 FR-DM-4" }, { "round": 2, "result": "approved" }] } } },
+    "spec": { "status": "done", "nodes": { "spec": { "status": "done", "confirmations": [{ "round": 1, "result": "rejected", "feedback": "移除 FR-DM-4" }, { "round": 2, "result": "approved" }] } } },
     "planning": { "status": "done", "nodes": { "plan": { "status": "done" } } },
-    "test-planning": { "status": "done", "nodes": { "test-plan": { "status": "done" } } },
+    "test-plan": { "status": "done", "nodes": { "test-plan": { "status": "done" } } },
     "tasking": { "status": "done", "nodes": { "tasking": { "status": "done" } } },
     "coding": { "status": "done", "nodes": { "coding": { "status": "done", "tasks": { "task-01": "done", "task-02": "done", "task-03": "done" } } } },
     "verification": { "status": "done", "nodes": { "verification": { "status": "done", "retries": 1 } } },
@@ -905,8 +905,8 @@ Agent 不会逐个询问用户，而是**合并为一个确认请求**：
     { "event": "stage_completed", "stage": "context", "at": "2026-06-24T10:31:15Z", "note": "output held in memory" },
     { "event": "worktree_created", "at": "2026-06-24T10:32:00Z", "worktreePath": "/Users/djhhh/work_area/Ddo-Code-Flow-feat-2026-06-24-add-dark-mode" },
     { "event": "context_output_flushed", "at": "2026-06-24T10:32:01Z", "file": "context-summary.md" },
-    { "event": "confirmation_rejected", "stage": "specification", "node": "spec", "round": 1, "at": "2026-06-24T10:35:00Z" },
-    { "event": "confirmation_approved", "stage": "specification", "node": "spec", "round": 2, "at": "2026-06-24T10:38:00Z" },
+    { "event": "confirmation_rejected", "stage": "spec", "node": "spec", "round": 1, "at": "2026-06-24T10:35:00Z" },
+    { "event": "confirmation_approved", "stage": "spec", "node": "spec", "round": 2, "at": "2026-06-24T10:38:00Z" },
     { "event": "verification_failed", "stage": "verification", "group": "G4", "at": "2026-06-24T11:05:00Z" },
     { "event": "recovery_jump", "from": "verification", "to": "coding", "at": "2026-06-24T11:05:05Z" },
     { "event": "verification_passed", "stage": "verification", "at": "2026-06-24T11:10:00Z" },

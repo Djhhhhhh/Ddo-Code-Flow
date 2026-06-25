@@ -56,7 +56,10 @@ mechanical loop below.
 1. Resolve `targetDir` relative to the current working directory.
 2. Search `targetDir` for an existing `.state.json` (any subdirectory matching
    `*/docs/*/.state.json`). If found, read it and resume from `currentStage`.
-   Append a `resumed` entry to `.state.json.history`.
+   Append a `resumed` entry to `.state.json.history`. If `pendingOutputs`
+   exists and `worktreePath` is set, flush all pending outputs to disk
+   (write each entry to its resolved path under `worktreePath`) and remove
+   the `pendingOutputs` field from `.state.json`.
 3. If no resumable run is found, initialize `.state.json` **in memory only**
    (do NOT write to disk yet — there is no directory to write to):
    ```json
@@ -121,10 +124,13 @@ search `<targetDir>/*/docs/*/*/.state.json` (glob across all worktrees, types, a
 
 **Key mechanism — delayed write**: When `worktreePath` is not yet set in
 `.state.json`, any atom-task whose `io.outputs` use `run://` prefixes must
-hold its output **in memory** and mark the node with `outputPending: true`
-in `.state.json`. Once `git-worktree` creates the worktree directory,
-the `docs/<type>/<dateDescription>/` subdirectory, and sets `worktreePath`,
-all pending outputs are flushed to `<worktreePath>/docs/<type>/<dateDescription>/`.
+persist its output to `.state.json.pendingOutputs[outputRef]` (base64-encoded
+text content) and mark the node with `outputPending: true` in `.state.json`.
+This ensures outputs survive session interruptions. Once `git-worktree` creates
+the worktree directory, the `docs/<type>/<dateDescription>/` subdirectory, and
+sets `worktreePath`, all pending outputs are flushed from `pendingOutputs` to
+`<worktreePath>/docs/<type>/<dateDescription>/`, and the `pendingOutputs` field
+is removed from `.state.json`.
 This ensures `context-summary.md` and all subsequent artifacts live in the same directory.
 
 **Resume worktree override**: If `.state.json.worktreePath` and `.state.json.type`

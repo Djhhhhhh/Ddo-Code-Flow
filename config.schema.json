@@ -159,9 +159,9 @@
       "enum": [
         "context",
         "requirement",
-        "specification",
+        "spec",
         "planning",
-        "test-planning",
+        "test-plan",
         "tasking",
         "coding",
         "verification",

@@ -160,7 +160,7 @@ agent 按 `[SKILL.md](SKILL.md)` 执行：
     "contextPaths": [],
     "contextOptional": true,
     "respGenerator": { "maxLength": 32, "case": "kebab", "stripStopwords": true },
-    "confirmationGates": ["specification", "planning", "test-planning", "reflection"],
+    "confirmationGates": ["spec", "planning", "test-plan", "reflection"],
     "metrics": {
       "enabled": false,
       "provider": "tokscale",
@@ -230,7 +230,7 @@ atom-tasks/
 ---
 name: spec
 version: "1.0.0"
-stage: specification
+stage: spec
 enabled: true
 timeoutSec: 0
 concurrency:

@@ -87,7 +87,7 @@
     "如果 verification.log 缺失，验证摘要 section 写「验证未执行」",
     "如果 context-summary.md 缺失，上下文缺失 section 可省略"
   ],
-  "example": "# 执行报告 — run-20260624-001\n\n> 汇总各阶段产物与 Verification 结果的完整执行报告。\n\n---\n\n## 运行元数据\n\n- runId: run-20260624-001\n- createdAt: 2026-06-24T10:00:00Z\n- currentStage: reporting\n\n---\n\n## 用户需求（原文）\n\n为当前项目添加暗色模式支持。\n\n---\n\n## 各阶段产物\n\n| 阶段 | 状态 | 产物 |\n|---|---|---|\n| context | ✅ 完成 | context-summary.md |\n| requirement | ✅ 完成 | requirement.md |\n| specification | ✅ 完成 | spec.md |\n| planning | ✅ 完成 | plan.md |\n| test-planning | ✅ 完成 | test-plan.md |\n| tasking | ✅ 完成 | tasks/ |\n| coding | ✅ 完成 | 代码变更 |\n| verification | ✅ 完成 | verification.log |\n\n---\n\n## 验证摘要\n\n### 统计\n\n8 passed / 0 failed of 8 checklist items.\n\n---\n\n## 决策日志\n\n- created: 2026-06-24T10:00:00Z\n- stage completed: context at 2026-06-24T10:01:00Z\n- stage completed: requirement at 2026-06-24T10:02:00Z\n\n---\n\n## 核心文档\n\n- 规约: [spec.md](spec.md)\n- 计划: [plan.md](plan.md)\n- 测试计划: [test-plan.md](test-plan.md)",
+  "example": "# 执行报告 — run-20260624-001\n\n> 汇总各阶段产物与 Verification 结果的完整执行报告。\n\n---\n\n## 运行元数据\n\n- runId: run-20260624-001\n- createdAt: 2026-06-24T10:00:00Z\n- currentStage: reporting\n\n---\n\n## 用户需求（原文）\n\n为当前项目添加暗色模式支持。\n\n---\n\n## 各阶段产物\n\n| 阶段 | 状态 | 产物 |\n|---|---|---|\n| context | ✅ 完成 | context-summary.md |\n| requirement | ✅ 完成 | requirement.md |\n| spec | ✅ 完成 | spec.md |\n| planning | ✅ 完成 | plan.md |\n| test-plan | ✅ 完成 | test-plan.md |\n| tasking | ✅ 完成 | tasks/ |\n| coding | ✅ 完成 | 代码变更 |\n| verification | ✅ 完成 | verification.log |\n\n---\n\n## 验证摘要\n\n### 统计\n\n8 passed / 0 failed of 8 checklist items.\n\n---\n\n## 决策日志\n\n- created: 2026-06-24T10:00:00Z\n- stage completed: context at 2026-06-24T10:01:00Z\n- stage completed: requirement at 2026-06-24T10:02:00Z\n\n---\n\n## 核心文档\n\n- 规约: [spec.md](spec.md)\n- 计划: [plan.md](plan.md)\n- 测试计划: [test-plan.md](test-plan.md)",
   "fieldDocs": {
     "sections[].format": "内容格式类型。list=键值对列表（运行元数据）/ 链接列表（核心文档）；prose=完整段落（用户需求原文、决策日志）；table=三列表格（各阶段产物）；group=含子节的分组（验证摘要）；text=单行统计文本",
     "sections[].extensible": "是否允许 agent 扩展。所有 section 均为 false，结构和内容严格按 .state.json 和 verification.log 原样引用",
@@ -96,7 +96,7 @@
     "sections[].placeholder": "text 格式的占位符模板，如 {{ pass-count }} passed / {{ fail-count }} failed of {{ total }} checklist items.",
     "document.titleFormat": "标题格式。动态拼接=固定文本「执行报告 — 」+ runId，如 \"执行报告 — run-20260624-001\"",
     "sections[0].format": "运行元数据使用 list 格式，每行为 key: value 键值对（runId、createdAt、currentStage）",
-    "sections[2].format": "各阶段产物使用 table 格式，列出 context → requirement → specification → planning → test-planning → tasking → coding → verification 全流程",
+    "sections[2].format": "各阶段产物使用 table 格式，列出 context → requirement → spec → planning → test-plan → tasking → coding → verification 全流程",
     "sections[3].subsections": "验证摘要分组：统计行（占位符替换）+ 修复记录（后续修复的失败条目，可选）",
     "sections[5].format": "决策日志使用 prose 格式，原样引用 .state.json.history 条目，不得编造"
   }
