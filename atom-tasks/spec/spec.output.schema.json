@@ -1,0 +1,169 @@
+{
+  "description": "spec.md 输出规范",
+  "outputFormat": "markdown",
+  "document": {
+    "title": "{{ 项目名称 }} Specification",
+    "titleFormat": "占位符",
+    "description": "AI 基于用户原始需求与 context-summary.md 对需求的规约化理解。仅描述 What / Why 与验收标准；技术方案见 plan.md。",
+    "separators": true
+  },
+  "sections": [
+    {
+      "heading": "项目概述",
+      "level": 2,
+      "required": true,
+      "format": "group",
+      "extensible": false,
+      "subsections": [
+        {
+          "heading": "项目名称",
+          "level": 3,
+          "required": true,
+          "format": "text",
+          "placeholder": "{{ project-name }}"
+        },
+        {
+          "heading": "一句话定义",
+          "level": 3,
+          "required": true,
+          "format": "text",
+          "placeholder": "{{ one-line definition }}"
+        },
+        {
+          "heading": "设计意图",
+          "level": 3,
+          "required": true,
+          "format": "list"
+        }
+      ]
+    },
+    {
+      "heading": "术语表（Glossary）",
+      "level": 2,
+      "required": false,
+      "format": "table",
+      "columns": ["术语", "定义"],
+      "extensible": true,
+      "description": "项目中使用的专业术语定义"
+    },
+    {
+      "heading": "功能需求（Functional Requirements）",
+      "level": 2,
+      "required": true,
+      "format": "structured-list",
+      "idPrefix": "FR",
+      "idPattern": "FR-{PREFIX}-{N}",
+      "extensible": true,
+      "description": "按模块分组的功能需求，每条用 FR-{PREFIX}-{N} 编号"
+    },
+    {
+      "heading": "产物与目录结构（What gets created）",
+      "level": 2,
+      "required": false,
+      "format": "code",
+      "language": "text",
+      "extensible": false,
+      "description": "文件系统树形结构"
+    },
+    {
+      "heading": "关键流程",
+      "level": 2,
+      "required": false,
+      "format": "code",
+      "language": "text",
+      "extensible": false,
+      "description": "ASCII 或伪代码流程图"
+    },
+    {
+      "heading": "约束与原则",
+      "level": 2,
+      "required": false,
+      "format": "structured-list",
+      "idPrefix": "C",
+      "idPattern": "C-{N}",
+      "extensible": true
+    },
+    {
+      "heading": "验收标准（Acceptance Criteria）",
+      "level": 2,
+      "required": true,
+      "format": "structured-list",
+      "idPrefix": "AC",
+      "idPattern": "AC-{N}",
+      "extensible": true,
+      "description": "spec 层的高层验收点，后续在 test-plan.md 中细化为 checklist"
+    },
+    {
+      "heading": "非功能需求（Non-Functional）",
+      "level": 2,
+      "required": false,
+      "format": "structured-list",
+      "idPrefix": "NFR",
+      "idPattern": "NFR-{N}",
+      "extensible": true
+    },
+    {
+      "heading": "范围说明（In / Out of Scope）",
+      "level": 2,
+      "required": false,
+      "format": "group",
+      "extensible": false,
+      "subsections": [
+        {
+          "heading": "In Scope",
+          "level": 3,
+          "required": true,
+          "format": "list"
+        },
+        {
+          "heading": "Out of Scope",
+          "level": 3,
+          "required": true,
+          "format": "list"
+        }
+      ]
+    },
+    {
+      "heading": "开放问题（Open Questions，待 Plan 阶段决策）",
+      "level": 2,
+      "required": true,
+      "format": "structured-list",
+      "idPrefix": "Q",
+      "idPattern": "Q-{N}",
+      "extensible": true,
+      "description": "留给 plan.md 解决的未决问题"
+    },
+    {
+      "heading": "用户确认",
+      "level": 2,
+      "required": true,
+      "format": "template",
+      "extensible": false,
+      "content": "请确认以下任一选项：\n\n- ✅ **同意**：本 spec 符合预期，可进入 **Planning** 阶段生成 `plan.md`。\n- ❌ **修改**：请在下方/对话中列出需要调整的条款编号与意见，AI 将基于反馈重新生成本文档。"
+    }
+  ],
+  "rules": [
+    "每个 {{ 占位符 }} 必须替换为具体内容或删除整个子节",
+    "功能需求必须有唯一稳定 ID（FR-{PREFIX}-{N} 格式）",
+    "开放问题 section 必须存在，至少列出一个待决问题",
+    "用户确认 section 文本不得修改",
+    "不得包含任何实现选择（库名、框架、文件路径等）"
+  ],
+  "example": "# MyProject Specification\n\n> AI 基于用户原始需求与 context-summary.md 对需求的规约化理解。\n> 仅描述 What / Why 与验收标准；技术方案见 plan.md。\n\n---\n\n## 1. 项目概述\n\n### 1.1 项目名称\nMyProject\n\n### 1.2 一句话定义\n为应用添加暗色模式支持。\n\n### 1.3 设计意图\n- 提升用户体验\n- 减少夜间视觉疲劳\n\n---\n\n## 2. 术语表（Glossary）\n\n| 术语 | 定义 |\n|---|---|\n| 暗色模式 | 背景深色、文字浅色的显示方案 |\n\n---\n\n## 3. 功能需求（Functional Requirements）\n\n### 3.1 主题管理\n\n- **FR-THEME-1**：系统应支持浅色/暗色主题切换\n- **FR-THEME-2**：切换后所有页面立即生效\n\n---\n\n## 7. 验收标准（Acceptance Criteria）\n\n- **AC-1**：用户可在设置页切换主题\n- **AC-2**：切换后无需刷新页面\n\n---\n\n## 10. 开放问题（Open Questions，待 Plan 阶段决策）\n\n- **Q-1**：主题切换是否需要动画过渡？——留给 plan.md。\n\n---\n\n## 11. 用户确认\n\n请确认以下任一选项：\n\n- ✅ **同意**：本 spec 符合预期，可进入 **Planning** 阶段生成 `plan.md`。\n- ❌ **修改**：请在下方/对话中列出需要调整的条款编号与意见，AI 将基于反馈重新生成本文档。",
+  "fieldDocs": {
+    "sections[].format": "内容格式类型。group=含子节的分组；table=表格（需 columns）；structured-list=带编号的结构化列表（需 idPrefix/idPattern）；code=代码/文本块（需 language）；template=固定模板文本（需 content）；text=简短文本；list=无序列表",
+    "sections[].extensible": "是否允许 agent 扩展。true=可增删条目（如功能需求、验收标准）；false=结构固定（如项目概述、用户确认）",
+    "sections[].idPrefix": "structured-list 的 ID 前缀，如 FR、AC、C、NFR、Q。用于生成 FR-THEME-1、AC-1 等唯一标识",
+    "sections[].idPattern": "ID 生成模式。{PREFIX} 替换为模块前缀，{N} 替换为自增序号。如 FR-{PREFIX}-{N} 生成 FR-THEME-1",
+    "sections[].content": "template 格式的固定文本内容，agent 必须原样输出，不得修改",
+    "sections[].subsections": "group 格式下的子 section 定义，每个子 section 有自己的格式和约束",
+    "sections[].columns": "table 格式的列名定义数组",
+    "sections[].language": "code 格式的语言标识，如 text（纯文本树形结构）、jsonc（带注释的 JSON）",
+    "sections[].placeholder": "text 格式的占位符提示，agent 需替换为实际内容",
+    "document.titleFormat": "标题格式。占位符={{ 项目名称 }} 需替换为实际项目名，如 \"MyProject Specification\"",
+    "sections[0].subsections": "项目概述分组，包含项目名称、一句话定义、设计意图三个子节",
+    "sections[2].idPrefix": "功能需求使用 FR 前缀，结合模块名如 FR-THEME-1、FR-AUTH-1",
+    "sections[6].idPrefix": "验收标准使用 AC 前缀，编号为 AC-1、AC-2 等，后续在 test-plan.md 中细化",
+    "sections[9].content": "用户确认是固定模板，提供同意/修改两个选项，agent 不得修改此文本"
+  }
+}

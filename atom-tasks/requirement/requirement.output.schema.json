@@ -1,0 +1,40 @@
+{
+  "description": "requirement.md 输出规范",
+  "outputFormat": "markdown",
+  "document": {
+    "title": "用户需求",
+    "titleFormat": "固定文本",
+    "description": "用户触发此流水线的原始需求描述。",
+    "separators": false
+  },
+  "sections": [
+    {
+      "heading": "原始需求",
+      "level": 2,
+      "required": true,
+      "format": "prose",
+      "extensible": false,
+      "description": "用户原始提示词的完整内容，不得改写或总结"
+    },
+    {
+      "heading": "需求摘要",
+      "level": 2,
+      "required": true,
+      "format": "text",
+      "extensible": false,
+      "description": "对原始需求的一句话概括"
+    }
+  ],
+  "rules": [
+    "原始需求必须忠实记录用户原文，不得改写、总结或遗漏",
+    "需求摘要不超过一句话"
+  ],
+  "example": "# 用户需求\n\n> 用户触发此流水线的原始需求描述。\n\n## 原始需求\n\n为当前项目添加暗色模式支持，包括主题切换功能和系统偏好自动适配。\n\n## 需求摘要\n\n为应用添加暗色模式支持与主题切换功能。",
+  "fieldDocs": {
+    "sections[].format": "内容格式类型。prose=完整段落叙述（忠实记录原文）；text=简短单行文本（一句话概括）",
+    "sections[].extensible": "是否允许 agent 在该 section 中扩展内容。false 表示内容严格固定，不得增删",
+    "document.titleFormat": "标题格式。固定文本=原样输出「用户需求」，不做任何替换",
+    "sections[0].format": "原始需求 section 使用 prose 格式，要求完整保留用户原文，不得改写或总结",
+    "sections[1].format": "需求摘要 section 使用 text 格式，限制为一句话的简短概括"
+  }
+}

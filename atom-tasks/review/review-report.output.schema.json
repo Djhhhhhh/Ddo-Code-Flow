@@ -1,0 +1,65 @@
+{
+  "description": "review-report.md 输出规范",
+  "outputFormat": "markdown",
+  "document": {
+    "title": "复审报告",
+    "titleFormat": "固定文本",
+    "description": "基于 check-list.md 逐条核对产出物的复审结果。",
+    "separators": true
+  },
+  "sections": [
+    {
+      "heading": "{{ 条目名称 }}",
+      "level": 2,
+      "required": true,
+      "format": "group",
+      "extensible": true,
+      "description": "每个 checklist 条目对应一个 section，包含结论和备注",
+      "subsections": [
+        {
+          "heading": "结论",
+          "level": 3,
+          "required": true,
+          "format": "text",
+          "extensible": false,
+          "description": "通过 / 不通过 / 不适用"
+        },
+        {
+          "heading": "备注",
+          "level": 3,
+          "required": true,
+          "format": "prose",
+          "extensible": false,
+          "description": "具体发现，引用文件路径和行号"
+        }
+      ]
+    },
+    {
+      "heading": "复审摘要",
+      "level": 2,
+      "required": true,
+      "format": "table",
+      "columns": ["条目", "结论"],
+      "extensible": false,
+      "description": "所有条目的结论汇总表"
+    }
+  ],
+  "rules": [
+    "每个 checklist 条目必须有对应的 section",
+    "结论必须是「通过」「不适用」或「不通过」之一",
+    "不通过的条目必须在备注中引用具体文件路径和行号",
+    "复审摘要必须列出所有条目的结论"
+  ],
+  "example": "# 复审报告\n\n> 基于 check-list.md 逐条核对产出物的复审结果。\n\n---\n\n## 代码规范\n\n### 结论\n\n通过\n\n### 备注\n\n代码符合项目规范，命名一致。\n\n---\n\n## 错误处理\n\n### 结论\n\n不通过\n\n### 备注\n\nsrc/api/theme.js 第 42 行缺少异常捕获，可能导致未处理的 Promise 拒绝。\n\n---\n\n## 复审摘要\n\n| 条目 | 结论 |\n|---|---|\n| 代码规范 | 通过 |\n| 错误处理 | 不通过 |",
+  "fieldDocs": {
+    "sections[].format": "内容格式类型。group=复审条目分组（含结论 + 备注子节）；text=结论文本（通过/不通过/不适用）；prose=备注段落（引用文件路径和行号）；table=复审摘要汇总表",
+    "sections[].extensible": "是否允许 agent 扩展。true=条目数量随 checklist 变化；false=结构固定（如复审摘要表）",
+    "sections[].subsections": "group 格式下的子 section。每个复审条目包含结论（text）和备注（prose）两个子节",
+    "sections[].columns": "table 格式的列名定义，复审摘要固定为 [\"条目\", \"结论\"]",
+    "sections[0].heading": "复审条目标题，与 check-list.md 中的条目名称一一对应",
+    "sections[0].subsections[0].format": "结论使用 text 格式，取值为「通过」「不通过」「不适用」三者之一",
+    "sections[0].subsections[1].format": "备注使用 prose 格式。不通过时必须引用具体文件路径和行号，如 src/api/theme.js 第 42 行",
+    "sections[1].format": "复审摘要使用 table 格式，列出所有条目名称和对应结论",
+    "document.titleFormat": "标题格式。固定文本=原样输出「复审报告」"
+  }
+}

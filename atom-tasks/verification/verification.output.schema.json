@@ -1,0 +1,72 @@
+{
+  "description": "verification.log 输出规范",
+  "outputFormat": "markdown",
+  "document": {
+    "title": "验证日志",
+    "titleFormat": "固定文本",
+    "description": "test-plan.md 中所有验收条目的执行结果记录。",
+    "separators": false
+  },
+  "sections": [
+    {
+      "heading": "G{{ N }}. {{ 分组名称 }}",
+      "level": 2,
+      "required": true,
+      "format": "group",
+      "extensible": true,
+      "description": "按 test-plan 的 G 分组组织，每个分组包含执行结果和组摘要",
+      "subsections": [
+        {
+          "heading": "执行结果",
+          "level": 3,
+          "required": true,
+          "format": "list",
+          "extensible": true,
+          "description": "每个 checklist 条目的执行结果，格式为 [PASS] 或 [FAIL] + 条目描述 + 执行详情"
+        },
+        {
+          "heading": "组摘要",
+          "level": 3,
+          "required": true,
+          "format": "text",
+          "extensible": false,
+          "description": "GROUP G<N> PASSED 或 GROUP G<N> FAILED: <count> failing"
+        }
+      ]
+    },
+    {
+      "heading": "人工检查清单",
+      "level": 2,
+      "required": false,
+      "format": "list",
+      "extensible": true,
+      "description": "human: 条目的汇总列表，记录用户的通过/失败回答"
+    },
+    {
+      "heading": "最终结果",
+      "level": 2,
+      "required": true,
+      "format": "text",
+      "extensible": false,
+      "description": "ALL PASSED 或 FAILED（如有任何条目失败）"
+    }
+  ],
+  "rules": [
+    "每个 cmd: 条目必须有 [PASS] 或 [FAIL] 结果标记",
+    "每个 G 分组必须有组摘要行（PASSED 或 FAILED + 失败计数）",
+    "如果任何条目 FAIL，最终结果必须是 FAILED，不得写 ALL PASSED",
+    "stderr 每个条目截断到 <= 200 字符",
+    "human: 条目不得自动执行，仅记录用户手动确认的结果"
+  ],
+  "example": "# 验证日志\n\n> test-plan.md 中所有验收条目的执行结果记录。\n\n## G1. 主题切换\n\n### 执行结果\n\n- [PASS] npm test -- --grep \"theme switch\" — exit code 0\n- [PASS] curl -s http://localhost:3000/api/theme | jq '.current' — 返回 \"dark\"\n- [PASS] human: 在设置页点击「暗色模式」按钮 — 用户确认生效\n\n### 组摘要\n\nGROUP G1 PASSED\n\n## G2. 主题持久化\n\n### 执行结果\n\n- [PASS] npm test -- --grep \"theme persistence\" — exit code 0\n- [FAIL] human: 切换主题后刷新页面 — 用户报告主题重置\n\n### 组摘要\n\nGROUP G2 FAILED: 1 failing\n\n## 最终结果\n\nFAILED",
+  "fieldDocs": {
+    "sections[].format": "内容格式类型。group=验证分组（含执行结果 + 组摘要子节）；list=执行结果列表（[PASS]/[FAIL] 标记）；text=组摘要或最终结果文本",
+    "sections[].extensible": "是否允许 agent 扩展。执行结果 true（条目数随 test-plan 变化）；组摘要和最终结果 false（格式固定）",
+    "sections[].subsections": "group 格式下的子 section。每个验证分组包含执行结果（list）和组摘要（text）两个子节",
+    "sections[0].heading": "验证分组标题格式为 G{N}. {{ 分组名称 }}，与 test-plan.md 的分组一一对应",
+    "sections[0].subsections[0].format": "执行结果使用 list 格式，每行以 [PASS] 或 [FAIL] 开头，后跟条目描述和执行详情",
+    "sections[0].subsections[1].format": "组摘要使用 text 格式，内容为 GROUP G{N} PASSED 或 GROUP G{N} FAILED: {count} failing",
+    "sections[2].format": "最终结果使用 text 格式，内容为 ALL PASSED 或 FAILED，只要有一个条目失败就必须写 FAILED",
+    "document.titleFormat": "标题格式。固定文本=原样输出「验证日志」"
+  }
+}

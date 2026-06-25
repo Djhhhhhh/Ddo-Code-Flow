@@ -94,14 +94,6 @@
 
         <div class="toolbar">
 
-          <button class="target-dir-btn" id="targetDirBtn" type="button" disabled>
-
-            <span class="target-dir-btn__label" data-i18n="targetDirLabel">Output directory</span>
-
-            <span class="target-dir-btn__value" id="targetDirValue">—</span>
-
-          </button>
-
           <button class="target-dir-btn" id="metricsBtn" type="button" disabled>
 
             <span class="target-dir-btn__label" data-i18n="metricsLabel">Run metrics</span>
@@ -109,8 +101,6 @@
             <span class="target-dir-btn__value" id="metricsValue">—</span>
 
           </button>
-
-          <button class="btn btn-secondary" id="addStageBtn" type="button" data-i18n="insertStage">Insert stage</button>
 
         </div>
 
@@ -156,39 +146,6 @@
 
 
 
-  <div class="modal-backdrop" id="settingsModalBackdrop" hidden>
-
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle">
-
-      <div class="modal__head">
-
-        <h3 id="settingsModalTitle" data-i18n="targetDirPickerTitle">Output directory</h3>
-
-      </div>
-
-      <div class="modal__body">
-
-        <div class="field">
-
-          <label for="targetDirInput">targetDir</label>
-
-          <input class="input" id="targetDirInput" type="text" placeholder="docs\\feat" />
-
-        </div>
-
-      </div>
-
-      <div class="modal__foot">
-
-        <button class="btn btn-secondary" id="settingsCancelBtn" type="button" data-i18n="cancel">Cancel</button>
-
-        <button class="btn btn-primary" id="settingsConfirmBtn" type="button" data-i18n="confirm">Confirm</button>
-
-      </div>
-
-    </div>
-
-  </div>
 
 
 

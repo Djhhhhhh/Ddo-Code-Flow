@@ -3,8 +3,9 @@ name: ddo-code-flow
 description: |
   Customizable AI coding pipeline skill. Drives a multi-stage workflow defined
   in config.json, with user-confirmation gates between key stages. The pipeline
-  stages, atom-tasks, and their order are fully configurable — this skill is a
-  generic runtime that executes whatever DAG the config defines.
+  stages, atom-tasks (defined as .md files with YAML frontmatter), and their
+  order are fully configurable — this skill is a generic runtime that executes
+  whatever DAG the config defines.
 metadata:
   authors:
     - "djhhhhhh"
@@ -25,7 +26,7 @@ require the full pipeline.
 - An inline user prompt describing the requirement (the message that triggered this skill).
 - `config.json` — pipeline definition (project root).
 - `config.schema.json` — JSON Schema for validation (project root).
-- `atom-tasks/<name>/<name>.json` — atom-task definitions (project root).
+- `atom-tasks/<name>/<name>.md` — atom-task definitions (YAML frontmatter + markdown body, project root).
 
 ## Execution (read top-to-bottom each session)
 
@@ -161,14 +162,22 @@ For each `stageDef` in `config.pipeline`, in order, skipping stages whose
    - For each layer, in order:
      a. For every node in the layer (you may produce outputs for the whole
         layer in a single response when possible):
-        - Load `atom-tasks/<name>/<name>.json`.
+        - Load `atom-tasks/<name>/<name>.md`. Parse the YAML frontmatter
+          (between the `---` delimiters) to extract metadata: `name`, `version`,
+          `stage`, `enabled`, `io`, `options`, `confirmation`, `concurrency`,
+          `timeoutSec`, `outputSchemaRef`. The markdown body contains:
+          `## 指令` (instruction) and `## 约束` (guardrails).
         - Resolve every `io.inputs[*].ref` and `io.outputs[*].ref` using the
           path resolution table above.
         - Resolve effective options: merge `atomTaskOverrides[name]` (all keys
-          except `enabled`) over `prompt.options[*].default` values. The merged
+          except `enabled`) over `options[*].default` values. The merged
           object is available as `options.<key>` inside the instruction.
-        - Execute the node's `prompt.instruction` with the resolved inputs
-          and effective options, honoring `prompt.guardrails`.
+        - Execute the node's instruction (from `## 指令` section) with the
+          resolved inputs and effective options, honoring constraints
+          (from `## 约束` section).
+        - If `outputSchemaRef` is present, read the referenced
+          `.output.schema.json` and use its `sections` definition and `example`
+          to structure the output file format.
         - Write outputs to disk (or hold in memory if `worktreePath` is not
           yet set — see delayed write mechanism above).
         - Update `.state.json.stages[stageDef.stage]` and (if applicable)
@@ -182,7 +191,7 @@ For each `stageDef` in `config.pipeline`, in order, skipping stages whose
         - On reject with feedback (including when user selects an option from
           multiple choices — this is feedback, NOT implicit approval): re-run
           only the rejected nodes with the feedback appended to their
-          `prompt.instruction`. The node's output file (e.g., spec.md) MUST
+          the instruction (from `## 指令` section). The node's output file (e.g., spec.md) MUST
           be updated to reflect the user's feedback before re-presenting for
           confirmation. Repeat until approved.
         - IMPORTANT: When the user selects from options presented in the
@@ -205,11 +214,11 @@ For each `stageDef` in `config.pipeline`, in order, skipping stages whose
 
 ### Step 4 — Stage-level failure recovery
 
-Some atom-tasks define recovery logic in their `prompt.instruction` (e.g.,
-verification may specify "jump back to coding if failed"). When executing an
-atom-task, follow the recovery instructions defined in that atom-task's
-`prompt.instruction`. The runtime does NOT hardcode recovery targets — they
-are fully defined in the atom-task JSON.
+Some atom-tasks define recovery logic in their instruction (from `## 指令`
+section in the .md file, e.g., verification may specify "jump back to coding
+if failed"). When executing an atom-task, follow the recovery instructions
+defined in that atom-task's instruction. The runtime does NOT hardcode
+recovery targets — they are fully defined in the atom-task .md file.
 
 ### Step 5 — Finalize
 
@@ -258,18 +267,18 @@ plugin invoked at run start and run finish only. See `docs/metrics.md` and
 
 | Trigger | Recovery |
 |---|---|
-| User rejects a confirmation gate | Re-run the relevant atom-task(s) with feedback appended to `prompt.instruction`. Record the rejection in `.state.json.history`. |
-| Atom-task defines recovery logic | Follow the recovery instructions in that atom-task's `prompt.instruction`. See Step 4. |
+| User rejects a confirmation gate | Re-run the relevant atom-task(s) with feedback appended to the instruction. Record the rejection in `.state.json.history`. |
+| Atom-task defines recovery logic | Follow the recovery instructions in that atom-task's instruction (`## 指令` section). See Step 4. |
 | Session interrupted mid-run | On next start, Step 2 reads `.state.json` and resumes from `currentStage`. Append a `resumed` entry to `.state.json.history`. |
 | Run directory name collides | Append `-2`, `-3`, ... to the suffix until unique. Record the final name in `.state.json.runId`. |
 | Schema or DAG validation fails | Abort with a clear error message; do not produce any artifacts. |
-| Atom-task with `rejectAction: "abort"` fails | Abort the pipeline. Report the error to the user. The `rejectAction` is read from the atom-task JSON, not hardcoded. |
+| Atom-task with `rejectAction: "abort"` fails | Abort the pipeline. Report the error to the user. The `rejectAction` is read from the atom-task .md frontmatter, not hardcoded. |
 
 ## What this skill does NOT do
 
-- It does NOT embed business logic. All "what to do" lives in atom-task JSON
-  files under `atom-tasks/<name>/`.
-- It does NOT modify any atom-task JSON file. Enable/disable toggles go to
+- It does NOT embed business logic. All "what to do" lives in atom-task .md
+  files under `atom-tasks/<name>/` (YAML frontmatter + markdown body).
+- It does NOT modify any atom-task .md file. Enable/disable toggles go to
   `config.json`'s `atomTaskOverrides`.
 - It does NOT depend on any runtime besides the agent itself and a POSIX-ish
   shell for `verification` commands.

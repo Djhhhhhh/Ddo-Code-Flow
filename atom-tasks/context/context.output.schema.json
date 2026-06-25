@@ -1,0 +1,44 @@
+{
+  "description": "context-summary.md 输出规范",
+  "outputFormat": "markdown",
+  "document": {
+    "title": "上下文摘要",
+    "titleFormat": "固定文本",
+    "description": "自动生成自项目上下文扫描。",
+    "separators": false
+  },
+  "sections": [
+    {
+      "heading": "已加载来源",
+      "level": 2,
+      "required": true,
+      "format": "table",
+      "columns": ["文件路径", "摘要"],
+      "extensible": false,
+      "description": "每个成功读取的源文件一行"
+    },
+    {
+      "heading": "上下文缺失",
+      "level": 2,
+      "required": true,
+      "format": "list",
+      "extensible": false,
+      "description": "声明了但实际不存在的文件路径列表；若无缺失则写 '- 无'"
+    }
+  ],
+  "rules": [
+    "每个 {{ 占位符 }} 必须替换为具体内容",
+    "摘要不超过 8 行",
+    "不得编造不存在的文件内容",
+    "遇到目录时递归 depth-3，仅包含 .md/.txt 文件"
+  ],
+  "example": "# 上下文摘要\n\n> 自动生成自项目上下文扫描。\n\n## 已加载来源\n\n| 文件路径 | 摘要 |\n|---|---|\n| AGENTS.md | 定义了 AI agent 的行为规范与编码约定。 |\n| README.md | 项目介绍，包含安装步骤和基本用法。 |\n\n## 上下文缺失\n\n- product.md",
+  "fieldDocs": {
+    "sections[].heading": "section 标题，不含 # 前缀。已加载来源和上下文缺失为固定标题",
+    "sections[].format": "内容格式类型。table=表格（每行一条记录）；list=无序列表（每行一项）",
+    "sections[].columns": "format=table 时的表头列名数组。列名决定了 agent 应输出的表格结构",
+    "sections[].extensible": "是否允许 agent 在 schema 定义的基础上扩展（如增加列或列表项）。false 表示严格遵循定义",
+    "document.title": "文档的 H1 标题，固定为「上下文摘要」不可修改",
+    "document.separators": "section 之间是否用 --- 水平线分隔。context-summary 不需要分隔线"
+  }
+}

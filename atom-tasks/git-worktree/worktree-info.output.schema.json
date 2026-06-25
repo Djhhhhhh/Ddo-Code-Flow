@@ -1,0 +1,92 @@
+{
+  "description": "worktree-info.json 输出规范（同时生成对应的 worktree-info.md）",
+  "outputFormat": "json+markdown",
+  "document": {
+    "title": "工作树信息",
+    "titleFormat": "固定文本",
+    "description": "本次 run 的 git 工作树配置信息。",
+    "separators": false
+  },
+  "jsonFields": [
+    {
+      "name": "branchName",
+      "type": "string",
+      "required": true,
+      "description": "完整的分支名（如 feat/2026-06-24-add-dark-mode）",
+      "example": "feat/2026-06-24-add-dark-mode"
+    },
+    {
+      "name": "worktreePath",
+      "type": "string",
+      "required": true,
+      "description": "工作树的绝对路径",
+      "example": "/Users/user/projects/Ddo-Code-Flow-feat-2026-06-24-add-dark-mode"
+    },
+    {
+      "name": "targetDir",
+      "type": "string",
+      "required": true,
+      "description": "目标目录（相对于项目根目录解析后的绝对路径）",
+      "example": "/Users/user/projects"
+    },
+    {
+      "name": "type",
+      "type": "string",
+      "required": true,
+      "description": "分支前缀（如 feat、fix、chore）",
+      "example": "feat"
+    },
+    {
+      "name": "dateDescription",
+      "type": "string",
+      "required": true,
+      "description": "分支名中日期+描述部分（如 2026-06-24-add-dark-mode）",
+      "example": "2026-06-24-add-dark-mode"
+    },
+    {
+      "name": "baseRef",
+      "type": "string",
+      "required": true,
+      "description": "创建分支的基准引用（如 main）",
+      "example": "main"
+    },
+    {
+      "name": "createdAt",
+      "type": "string",
+      "required": true,
+      "description": "创建时间（ISO 8601 格式）",
+      "example": "2026-06-24T10:00:00Z"
+    }
+  ],
+  "sections": [
+    {
+      "heading": "基本信息",
+      "level": 2,
+      "required": true,
+      "format": "table",
+      "columns": ["字段", "值"],
+      "extensible": false,
+      "description": "将 JSON 每个字段渲染为一行两列的表格"
+    }
+  ],
+  "rules": [
+    "worktreePath 必须是绝对路径",
+    "type 必须是有效的分支前缀（feat/fix/chore/docs/refactor/test/perf/ci/build）",
+    "createdAt 必须是 ISO 8601 格式"
+  ],
+  "example": "# 工作树信息\n\n> 本次 run 的 git 工作树配置信息。\n\n## 基本信息\n\n| 字段 | 值 |\n|---|---|\n| branchName | feat/2026-06-24-add-dark-mode |\n| worktreePath | /Users/user/projects/Ddo-Code-Flow-feat-2026-06-24-add-dark-mode |\n| targetDir | /Users/user/projects |\n| type | feat |\n| dateDescription | 2026-06-24-add-dark-mode |\n| baseRef | main |\n| createdAt | 2026-06-24T10:00:00Z |",
+  "fieldDocs": {
+    "jsonFields": "JSON 结构化字段定义。每个字段对应 worktree-info.json 中的一个顶层属性，同时在 .md 中以表格行渲染",
+    "jsonFields[].branchName": "完整的 git 分支名，遵循 type/date-description 命名规范",
+    "jsonFields[].worktreePath": "git worktree 的绝对路径，由 git worktree add 自动生成",
+    "jsonFields[].targetDir": "目标目录的绝对路径，从配置的相对路径解析而来",
+    "jsonFields[].type": "分支类型前缀，取值范围：feat/fix/chore/docs/refactor/test/perf/ci/build",
+    "jsonFields[].dateDescription": "分支名中日期+描述的组合部分，格式为 YYYY-MM-DD-kebab-description",
+    "jsonFields[].baseRef": "创建分支的基准引用，通常为 main 或其他长期分支",
+    "jsonFields[].createdAt": "工作树创建时间，ISO 8601 格式",
+    "sections[].format": "内容格式类型。table=两列表格（字段名/值），用于将 JSON 字段渲染为可读的键值对",
+    "sections[].columns": "表格列定义。固定为 [\"字段\", \"值\"]，第一列为 JSON 字段名，第二列为对应值",
+    "sections[].extensible": "是否允许 agent 扩展。false 表示严格按 jsonFields 定义渲染，不增减行",
+    "document.titleFormat": "标题格式。固定文本=原样输出「工作树信息」"
+  }
+}

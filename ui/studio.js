@@ -7,17 +7,11 @@ const els = {
   open: $("openFolderBtn"),
   reload: $("reloadBtn"),
   save: $("saveBtn"),
-  settingsBackdrop: $("settingsModalBackdrop"),
-  settingsCancel: $("settingsCancelBtn"),
-  settingsConfirm: $("settingsConfirmBtn"),
   atomConfigBackdrop: $("atomConfigModalBackdrop"),
   atomConfigTitle: $("atomConfigModalTitle"),
   atomConfigBody: $("atomConfigModalBody"),
   atomConfigCancel: $("atomConfigCancelBtn"),
   atomConfigConfirm: $("atomConfigConfirmBtn"),
-  targetDirInput: $("targetDirInput"),
-  targetDirBtn: $("targetDirBtn"),
-  targetDirValue: $("targetDirValue"),
   metricsBtn: $("metricsBtn"),
   metricsValue: $("metricsValue"),
   metricsBackdrop: $("metricsModalBackdrop"),
@@ -29,7 +23,6 @@ const els = {
   taskSearch: $("taskSearch"),
   scan: $("scanBtn"),
   atomsHint: $("atomsHint"),
-  addStage: $("addStageBtn"),
   canvas: $("workflowCanvas"),
   edges: $("workflowEdges"),
   track: $("stageTrack"),
@@ -157,14 +150,14 @@ const i18n = {
     viewAtomConfig: "Click to view atom-task configuration",
     configReferenceOnly: "config reference only",
     declaredStage: "declared stage",
-    saveAtomJson: "Save atom-task JSON",
+    saveAtomJson: "View atom-task details",
     deleteAtomTask: "Delete atom-task",
     json: "JSON",
     nodeJson: "Workflow node JSON",
     atomJson: "Atom-task JSON",
     stageJson: "Stage JSON",
     jsonHelpNode: "This JSON is the current node fragment under config.pipeline[].atomTasks.nodes.",
-    jsonHelpAtom: "This JSON is the full atom-task file scanned from atom-tasks/<name>/<name>.json.",
+    jsonHelpAtom: "This data is parsed from the YAML frontmatter of atom-tasks/<name>/<name>.md.",
     entryNodeHelp: "Entry node means this atom-task can start first within the current stage. Multiple entry nodes can start in parallel.",
     basicInfo: "Basic information",
     ioInfo: "IO",
@@ -310,14 +303,14 @@ const i18n = {
     viewAtomConfig: "点击查看 atom-task 配置",
     configReferenceOnly: "仅 config 引用",
     declaredStage: "声明阶段",
-    saveAtomJson: "保存 atom-task JSON",
+    saveAtomJson: "查看 atom-task 详情",
     deleteAtomTask: "删除 atom-task",
     json: "JSON",
     nodeJson: "工作流节点 JSON",
     atomJson: "Atom-task JSON",
     stageJson: "阶段 JSON",
     jsonHelpNode: "这里展示的是 config.pipeline[].atomTasks.nodes 下的当前节点片段。",
-    jsonHelpAtom: "这里展示的是从 atom-tasks/<name>/<name>.json 扫描到的完整 atom-task 文件。",
+    jsonHelpAtom: "这里展示的是从 atom-tasks/<name>/<name>.md 的 YAML frontmatter 解析出的 atom-task 数据。",
     entryNodeHelp: "入口节点表示该 atom-task 可以在当前阶段内最先启动；多个入口节点可以并行启动。",
     basicInfo: "基本信息",
     ioInfo: "输入输出",
@@ -381,16 +374,8 @@ function applyI18n() {
   document.querySelectorAll("[data-i18n-placeholder]").forEach((node) => {
     node.placeholder = t(node.dataset.i18nPlaceholder);
   });
-  updateTargetDirBtn();
-  updateMetricsBtn();
-}
 
-function updateTargetDirBtn() {
-  if (!els.targetDirBtn || !els.targetDirValue) return;
-  const dir = state.config?.base?.targetDir;
-  els.targetDirBtn.disabled = !state.config;
-  els.targetDirValue.textContent = dir || "—";
-  els.targetDirBtn.title = dir || t("targetDirLabel");
+  updateMetricsBtn();
 }
 
 function formatMetricsSummary(metrics) {
@@ -513,37 +498,6 @@ function show(kind, message, autoMs = 2600) {
   node.textContent = message;
   els.banner.appendChild(node);
   if (autoMs) setTimeout(() => node.remove(), autoMs);
-}
-
-function openTargetDirModal() {
-  if (!state.config?.base) {
-    show("warn", t("openFirst"));
-    return;
-  }
-  els.targetDirInput.value = state.config.base.targetDir || "";
-  document.getElementById("settingsModalTitle").textContent = t("targetDirPickerTitle");
-  els.settingsBackdrop.hidden = false;
-  requestAnimationFrame(() => els.targetDirInput.focus());
-}
-
-function closeSettingsModal() {
-  els.settingsBackdrop.hidden = true;
-}
-
-function saveSettingsModal() {
-  if (!state.config?.base) return;
-  const nextDir = String(els.targetDirInput.value || "").trim();
-  if (!nextDir) {
-    show("warn", t("targetDirEmpty"));
-    els.targetDirInput.focus();
-    return;
-  }
-  state.config.base.targetDir = nextDir;
-  markDirty();
-  updateTargetDirBtn();
-  renderInspector();
-  closeSettingsModal();
-  show("info", t("targetDirUpdated"));
 }
 
 function resolveAtomSchema(schema, root) {
@@ -914,20 +868,57 @@ function openAtomConfigModal(name) {
     show("warn", t("atomJsonMissing"));
     return;
   }
-  if (!state.atomTaskSchema) {
-    show("warn", t("atomSchemaMissing"));
-    return;
-  }
-  if (state.mode === "fallback") {
-    show("warn", t("fallbackAtomEdit"));
-    return;
-  }
   state.atomConfigEditName = name;
-  state.atomConfigDraft = clone(item.json);
-  state.atomConfigDraft.name = name;
   els.atomConfigTitle.textContent = t("atomConfigModalTitle").replace("{name}", name);
   els.atomConfigBody.innerHTML = "";
-  els.atomConfigBody.appendChild(buildAtomConfigForm(state.atomConfigDraft));
+
+  // 只读信息展示
+  const json = item.json;
+  const panel = document.createElement("div");
+  panel.className = "info-panel";
+  const inputsText = (json.io?.inputs || []).map(i => `${i.ref}${i.required === false ? "?" : ""}`).join(", ") || "-";
+  const outputsText = (json.io?.outputs || []).map(o => `${o.ref} (${o.kind})`).join(", ") || "-";
+  panel.innerHTML = `
+    <h3>${t("basicInfo")}</h3>
+    <dl class="info-grid">
+      <dt>name</dt><dd>${json.name || ""}</dd>
+      <dt>version</dt><dd>${json.version || ""}</dd>
+      <dt>${t("declaredStage")}</dt><dd>${json.stage || ""}</dd>
+      <dt>${t("description")}</dt><dd>${json.description || ""}</dd>
+      <dt>${t("enabled")}</dt><dd>${json.enabled === false ? t("disabled") : t("enabled")}</dd>
+      <dt>${t("timeoutSec")}</dt><dd>${json.timeoutSec ?? 0}</dd>
+    </dl>
+    <h3>${t("ioInfo")}</h3>
+    <dl class="info-grid">
+      <dt>${t("inputs")}</dt><dd class="info-list">${inputsText}</dd>
+      <dt>${t("outputs")}</dt><dd class="info-list">${outputsText}</dd>
+    </dl>
+    <h3>${t("confirmationInfo")}</h3>
+    <dl class="info-grid">
+      <dt>required</dt><dd>${json.confirmation?.required === true ? t("enabled") : t("disabled")}</dd>
+      <dt>${t("rejectAction")}</dt><dd>${json.confirmation?.rejectAction || "-"}</dd>
+    </dl>
+    <h3>${t("concurrencyInfo")}</h3>
+    <dl class="info-grid">
+      <dt>${t("parallelizable")}</dt><dd>${json.concurrency?.parallelizable === true ? t("enabled") : t("disabled")}</dd>
+    </dl>`;
+  els.atomConfigBody.appendChild(panel);
+
+  // context 节点：额外显示 contextPaths 配置
+  if (name === "context" && state.config?.base) {
+    const base = state.config.base;
+    const ctxCard = document.createElement("div");
+    ctxCard.className = "info-panel";
+    ctxCard.innerHTML = `<h3>额外上下文路径</h3>`;
+    ctxCard.appendChild(field("contextPaths", textarea(
+      (base.contextPaths || []).join("\n"),
+      (value) => { base.contextPaths = value.split("\n").map(v => v.trim()).filter(Boolean); markDirty(); }
+    )));
+    ctxCard.appendChild(helpText("每行一个路径（相对于 targetDir），context 阶段会额外读取这些文件。"));
+    els.atomConfigBody.appendChild(ctxCard);
+  }
+
+  els.atomConfigBody.appendChild(helpText(item.source === "md" ? "数据来源：.md 文件 YAML frontmatter（只读）" : "数据来源：.json 文件（只读）"));
   els.atomConfigBackdrop.hidden = false;
 }
 
@@ -938,28 +929,8 @@ function closeAtomConfigModal() {
 }
 
 async function saveAtomConfigModal() {
-  const name = state.atomConfigEditName;
-  const draft = state.atomConfigDraft;
-  if (!name || !draft) return;
-  draft.name = name;
-  const cleaned = pruneAtomDraft(draft);
-  const result = Schema.check(cleaned, state.atomTaskSchema);
-  if (!result.ok) {
-    show("error", `${t("schemaValidationFailed")}：${result.errors.slice(0, 3).join("; ")}`, 0);
-    return;
-  }
-  try {
-    await FS.writeJSON(`atom-tasks/${name}/${name}.json`, cleaned);
-    const index = state.atoms.findIndex((atom) => atom.name === name);
-    const saved = { name, json: clone(cleaned), broken: false };
-    if (index >= 0) state.atoms[index] = saved;
-    else state.atoms.push(saved);
-    closeAtomConfigModal();
-    renderAll();
-    show("info", t("savedAtom"));
-  } catch (error) {
-    show("error", `${t("saveAtomFailed")}：${error.message}`, 0);
-  }
+  // 现在仅关闭模态框（MD 格式不支持直接编辑保存）
+  closeAtomConfigModal();
 }
 
 function markDirty() {
@@ -1239,6 +1210,130 @@ const DAG = (() => {
   };
 })();
 
+/* ============================================================
+ * YAML frontmatter parser — lightweight subset for atom-task .md files
+ * Handles: strings, numbers, booleans, nested objects, arrays of
+ * strings/objects. No anchors, aliases, or multi-line block scalars.
+ * ============================================================ */
+function parseFrontmatter(text) {
+  const match = text.match(/^---\n([\s\S]*?)\n---/);
+  if (!match) return { meta: null, body: text };
+  const yaml = match[1];
+  const body = text.slice(match[0].length).trim();
+  const meta = parseYamlSimple(yaml);
+  return { meta, body };
+}
+
+function parseYamlSimple(yaml) {
+  const lines = yaml.split("\n");
+  const root = {};
+  const stack = [{ indent: -1, obj: root, key: null }];
+
+  function peekNextContentLine(fromIdx, minIndent) {
+    for (let j = fromIdx + 1; j < lines.length; j++) {
+      const l = lines[j];
+      if (!l.trim() || l.trim().startsWith("#")) continue;
+      if (l.search(/\S/) > minIndent) return l.trim();
+      return null; // same or lesser indent → not a child
+    }
+    return null;
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line.trim() || line.trim().startsWith("#")) continue;
+    const indent = line.search(/\S/);
+    const trimmed = line.trim();
+
+    // Pop stack to find parent
+    while (stack.length > 1 && stack[stack.length - 1].indent >= indent) {
+      stack.pop();
+    }
+    const parent = stack[stack.length - 1].obj;
+
+    // Array item: "- key: value" or "- value"
+    if (trimmed.startsWith("- ")) {
+      const content = trimmed.slice(2);
+      if (!Array.isArray(parent)) continue;
+
+      if (content.includes(": ")) {
+        const obj = {};
+        const [k, ...vParts] = content.split(": ");
+        obj[k.trim()] = parseYamlValue(vParts.join(": ").trim());
+        while (i + 1 < lines.length) {
+          const next = lines[i + 1];
+          if (!next.trim() || next.search(/\S/) <= indent) break;
+          const nextTrimmed = next.trim();
+          if (nextTrimmed.startsWith("- ")) break;
+          const [nk, ...nvParts] = nextTrimmed.split(": ");
+          if (nvParts.length > 0) obj[nk.trim()] = parseYamlValue(nvParts.join(": ").trim());
+          i++;
+        }
+        parent.push(obj);
+      } else {
+        parent.push(parseYamlValue(content));
+      }
+      continue;
+    }
+
+    // Key-value: "key: value" or "key:"
+    const colonIdx = trimmed.indexOf(": ");
+    const isKeyOnly = trimmed.endsWith(":") && colonIdx === -1;
+
+    if (colonIdx >= 0 || isKeyOnly) {
+      const keyTrimmed = isKeyOnly ? trimmed.slice(0, -1).trim() : trimmed.slice(0, colonIdx).trim();
+      const value = isKeyOnly ? "" : trimmed.slice(colonIdx + 2).trim();
+
+      if (value === "[]") {
+        // Inline empty array
+        parent[keyTrimmed] = [];
+      } else if (value === "{}") {
+        // Inline empty object
+        parent[keyTrimmed] = {};
+      } else if (value === "") {
+        // Look ahead: is the immediate child an array (" - ") or an object ("key:")?
+        const nextChild = peekNextContentLine(i, indent);
+        const shouldBeArray = nextChild && nextChild.startsWith("- ");
+        if (shouldBeArray) {
+          const arr = [];
+          parent[keyTrimmed] = arr;
+          stack.push({ indent, obj: arr, key: keyTrimmed });
+        } else {
+          const childObj = {};
+          parent[keyTrimmed] = childObj;
+          stack.push({ indent, obj: childObj, key: keyTrimmed });
+        }
+      } else if (value === "|") {
+        let block = "";
+        while (i + 1 < lines.length) {
+          const next = lines[i + 1];
+          if (next.search(/\S/) <= indent && next.trim()) break;
+          block += (block ? "\n" : "") + next.slice(indent + 2);
+          i++;
+        }
+        parent[keyTrimmed] = block;
+      } else {
+        parent[keyTrimmed] = parseYamlValue(value);
+      }
+    }
+  }
+
+  return root;
+}
+
+function parseYamlValue(str) {
+  if (str === "true") return true;
+  if (str === "false") return false;
+  if (str === "null" || str === "~") return null;
+  if (/^-?\d+$/.test(str)) return parseInt(str, 10);
+  if (/^-?\d+\.\d+$/.test(str)) return parseFloat(str);
+  // Remove surrounding quotes
+  if ((str.startsWith('"') && str.endsWith('"')) || (str.startsWith("'") && str.endsWith("'"))) {
+    return str.slice(1, -1);
+  }
+  return str;
+}
+
 const FS = (() => {
   const supports = typeof window.showDirectoryPicker === "function";
   async function readJSON(relPath) {
@@ -1247,6 +1342,13 @@ const FS = (() => {
     for (let i = 0; i < parts.length - 1; i++) handle = await handle.getDirectoryHandle(parts[i]);
     const file = await (await handle.getFileHandle(parts.at(-1))).getFile();
     return JSON.parse(await file.text());
+  }
+  async function readText(relPath) {
+    const parts = relPath.split("/").filter(Boolean);
+    let handle = state.dirHandle;
+    for (let i = 0; i < parts.length - 1; i++) handle = await handle.getDirectoryHandle(parts[i]);
+    const file = await (await handle.getFileHandle(parts.at(-1))).getFile();
+    return await file.text();
   }
   async function writeJSON(relPath, obj) {
     if (state.mode === "fallback") return exportConfig();
@@ -1265,15 +1367,44 @@ const FS = (() => {
     for await (const [name, entry] of dir.entries()) {
       if (entry.kind !== "directory" || name.startsWith("_")) continue;
       try {
-        const file = await (await entry.getFileHandle(`${name}.json`)).getFile();
-        out.push({ name, json: JSON.parse(await file.text()), broken: false });
+        // 优先读取 .md 文件（YAML frontmatter）
+        const file = await (await entry.getFileHandle(`${name}.md`)).getFile();
+        const text = await file.text();
+        const { meta } = parseFrontmatter(text);
+        if (meta) {
+          // 将 frontmatter 映射为旧的 json 结构以保持兼容
+          const json = {
+            name: meta.name || name,
+            version: meta.version || "1.0.0",
+            stage: meta.stage || "",
+            description: text.match(/^> (.+)$/m)?.[1] || "",
+            enabled: meta.enabled !== false,
+            io: meta.io || { inputs: [], outputs: [] },
+            prompt: {
+              instruction: "",
+              options: meta.options || [],
+            },
+            confirmation: meta.confirmation || { required: false, rejectAction: "regenerate-with-feedback" },
+            concurrency: meta.concurrency || { parallelizable: false },
+            timeoutSec: meta.timeoutSec || 0,
+          };
+          out.push({ name, json, broken: false, source: "md" });
+        } else {
+          out.push({ name, json: null, broken: true, reason: "no frontmatter" });
+        }
       } catch (error) {
-        out.push({ name, json: null, broken: true, reason: error.message });
+        // fallback: 尝试读取旧的 .json 文件
+        try {
+          const file = await (await entry.getFileHandle(`${name}.json`)).getFile();
+          out.push({ name, json: JSON.parse(await file.text()), broken: false, source: "json" });
+        } catch (_) {
+          out.push({ name, json: null, broken: true, reason: error.message });
+        }
       }
     }
     return out.sort((a, b) => a.name.localeCompare(b.name));
   }
-  return { supports, readJSON, writeJSON, listAtoms };
+  return { supports, readJSON, readText, writeJSON, listAtoms };
 })();
 
 async function openFolder() {
@@ -1297,7 +1428,7 @@ async function loadAll() {
   try {
     state.config = await FS.readJSON("config.json");
     try { state.configSchema = await FS.readJSON("config.schema.json"); } catch (_) { state.configSchema = null; }
-    try { state.atomTaskSchema = await FS.readJSON("atom-tasks/_schema/atom-task.schema.json"); } catch (_) { state.atomTaskSchema = null; }
+    try { state.atomTaskSchema = await FS.readJSON("atom-tasks/_schema/atom-task-md.schema.json"); } catch (_) { state.atomTaskSchema = null; }
     normalizeConfig(state.config);
     state.atoms = await FS.listAtoms();
     els.reload.disabled = false;
@@ -1448,7 +1579,7 @@ function renderWorkflow() {
   requestAnimationFrame(redrawEdges);
   const errors = DAG.checkConfig(state.config);
   els.pipelineHint.textContent = errors.length ? `${t("dagError")}: ${errors[0]}` : `${state.config.pipeline.length} ${t("stageCount")}, ${allAtomNames().length} ${t("atomCount")}.`;
-  updateTargetDirBtn();
+
 }
 
 function stageCard(stage, index) {
@@ -1863,18 +1994,6 @@ function removeNode(stage, name) {
   select({ type: "stage", index: stageIndex });
 }
 
-function addStage() {
-  if (!state.config) return;
-  const raw = prompt(t("stageIdPrompt"), "custom-stage");
-  const name = safeName(raw);
-  if (!name) return;
-  const description = prompt(t("stageDescriptionPrompt"), t("customWorkflowStage")) || t("customWorkflowStage");
-  const index = state.selected?.type === "stage" ? state.selected.index + 1 : state.config.pipeline.length;
-  state.config.pipeline.splice(index, 0, { stage: name, enabled: true, description, atomTasks: { entry: [], nodes: {} } });
-  markDirty();
-  select({ type: "stage", index });
-}
-
 function deleteStage(index) {
   if (!confirm(t("deleteStageConfirm"))) return;
   const [stage] = state.config.pipeline.splice(index, 1);
@@ -1885,26 +2004,16 @@ function deleteStage(index) {
 }
 
 els.open.onclick = openFolder;
-if (els.targetDirBtn) els.targetDirBtn.onclick = openTargetDirModal;
 if (els.metricsBtn) els.metricsBtn.onclick = openMetricsModal;
 els.metricsCancel.onclick = closeMetricsModal;
 els.metricsConfirm.onclick = saveMetricsModal;
 els.metricsBackdrop.onclick = (event) => {
   if (event.target === els.metricsBackdrop) closeMetricsModal();
 };
-els.settingsCancel.onclick = closeSettingsModal;
-els.settingsConfirm.onclick = saveSettingsModal;
-els.settingsBackdrop.onclick = (event) => {
-  if (event.target === els.settingsBackdrop) closeSettingsModal();
-};
 els.atomConfigCancel.onclick = closeAtomConfigModal;
 els.atomConfigConfirm.onclick = saveAtomConfigModal;
 els.atomConfigBackdrop.onclick = (event) => {
   if (event.target === els.atomConfigBackdrop) closeAtomConfigModal();
-};
-els.targetDirInput.onkeydown = (event) => {
-  if (event.key === "Enter") saveSettingsModal();
-  if (event.key === "Escape") closeSettingsModal();
 };
 els.languageToggle.onclick = () => {
   state.lang = state.lang === "en" ? "zh" : "en";
@@ -1914,7 +2023,6 @@ els.languageToggle.onclick = () => {
 els.reload.onclick = reloadAll;
 els.save.onclick = saveAll;
 els.scan.onclick = scanAtoms;
-els.addStage.onclick = addStage;
 els.taskSearch.oninput = () => { state.query = els.taskSearch.value; renderTasks(); };
 els.canvas.onscroll = () => requestAnimationFrame(redrawEdges);
 window.onresize = () => requestAnimationFrame(redrawEdges);

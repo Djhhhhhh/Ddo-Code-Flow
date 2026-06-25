@@ -1,0 +1,168 @@
+{
+  "description": "plan.md 输出规范",
+  "outputFormat": "markdown",
+  "document": {
+    "title": "{{ 项目名称 }} Plan",
+    "titleFormat": "占位符",
+    "description": "基于已确认的 spec.md 做技术决策：定 schema、定通信方式、定运行时模型、定关键算法、定取舍。不写代码，但对每个开放问题给出唯一确定答案。",
+    "separators": true
+  },
+  "sections": [
+    {
+      "heading": "决策原则",
+      "level": 2,
+      "required": true,
+      "format": "table",
+      "columns": ["#", "原则", "落地体现"],
+      "extensible": true,
+      "description": "指导本次技术决策的核心原则"
+    },
+    {
+      "heading": "整体架构",
+      "level": 2,
+      "required": true,
+      "format": "group",
+      "extensible": false,
+      "subsections": [
+        {
+          "heading": "架构图",
+          "level": 3,
+          "required": true,
+          "format": "code",
+          "language": "text",
+          "description": "ASCII 架构图"
+        },
+        {
+          "heading": "关键事实",
+          "level": 3,
+          "required": true,
+          "format": "list",
+          "description": "架构的关键特征"
+        }
+      ]
+    },
+    {
+      "heading": "目录与命名（最终定版）",
+      "level": 2,
+      "required": false,
+      "format": "code",
+      "language": "text",
+      "extensible": false,
+      "description": "最终确定的文件系统树形结构"
+    },
+    {
+      "heading": "核心 Schema（必填，若适用）",
+      "level": 2,
+      "required": false,
+      "format": "group",
+      "extensible": true,
+      "subsections": [
+        {
+          "heading": "{{ Schema name }}",
+          "level": 3,
+          "required": false,
+          "format": "code",
+          "language": "jsonc",
+          "description": "Schema 示例"
+        },
+        {
+          "heading": "字段语义约束",
+          "level": 3,
+          "required": false,
+          "format": "structured-list",
+          "idPrefix": "",
+          "idPattern": "{{ field }}",
+          "description": "每个字段的语义说明"
+        },
+        {
+          "heading": "校验",
+          "level": 3,
+          "required": false,
+          "format": "list",
+          "description": "校验规则"
+        }
+      ]
+    },
+    {
+      "heading": "关键算法 / 流程",
+      "level": 2,
+      "required": false,
+      "format": "group",
+      "extensible": true,
+      "subsections": [
+        {
+          "heading": "{{ algorithm name }}",
+          "level": 3,
+          "required": false,
+          "format": "prose",
+          "description": "伪代码或步骤列表"
+        }
+      ]
+    },
+    {
+      "heading": "错误处理与回退",
+      "level": 2,
+      "required": false,
+      "format": "table",
+      "columns": ["触发条件", "行为"],
+      "extensible": true
+    },
+    {
+      "heading": "风险与权衡",
+      "level": 2,
+      "required": true,
+      "format": "table",
+      "columns": ["#", "风险", "描述", "处置"],
+      "extensible": true,
+      "description": "已识别的风险及缓解措施"
+    },
+    {
+      "heading": "实施次序（高层路线，供 Tasking 拆分参考）",
+      "level": 2,
+      "required": true,
+      "format": "list",
+      "extensible": true,
+      "description": "按顺序排列的实施阶段"
+    },
+    {
+      "heading": "与 spec 的开放问题对应表",
+      "level": 2,
+      "required": true,
+      "format": "table",
+      "columns": ["spec Open Question", "plan 中的落地"],
+      "extensible": true,
+      "description": "spec 中每个 Q-N 在本 plan 中的解决位置"
+    },
+    {
+      "heading": "用户确认",
+      "level": 2,
+      "required": true,
+      "format": "template",
+      "extensible": false,
+      "content": "请确认以下任一选项：\n\n- ✅ **同意**：本 plan 符合预期，可进入 **Test-Planning** 阶段生成 `test-plan.md`。\n- ❌ **修改**：请在下方/对话中列出需要调整的章节与意见，AI 将基于反馈重新生成本文档。"
+    }
+  ],
+  "rules": [
+    "每个 {{ 占位符 }} 必须替换为具体内容",
+    "spec 中的每个开放问题必须在对应表中有且仅有一个答案",
+    "不得写可执行代码，仅描述 schema、接口和算法",
+    "引用 spec 的 FR ID 原文",
+    "每个重大决策必须写出权衡理由",
+    "用户确认 section 文本不得修改"
+  ],
+  "example": "# MyProject Plan\n\n> 基于已确认的 spec.md 做技术决策。\n\n---\n\n## 1. 决策原则\n\n| # | 原则 | 落地体现 |\n|---|------|----------|\n| P-1 | 简单优先 | 选择最简单的方案，避免过度设计 |\n\n---\n\n## 2. 整体架构\n\n```\n┌─────────┐     ┌─────────┐\n│  前端    │────▶│  后端    │\n└─────────┘     └─────────┘\n```\n\n关键事实：\n- 采用前后端分离架构\n- RESTful API 通信\n\n---\n\n## 9. 与 spec 的开放问题对应表\n\n| spec Open Question | plan 中的落地 |\n|---|---|\n| Q-1 主题切换是否需要动画？ | 第 5 节：使用 CSS transition，300ms |\n\n---\n\n## 10. 用户确认\n\n请确认以下任一选项：\n\n- ✅ **同意**：本 plan 符合预期，可进入 **Test-Planning** 阶段生成 `test-plan.md`。\n- ❌ **修改**：请在下方/对话中列出需要调整的章节与意见，AI 将基于反馈重新生成本文档。",
+  "fieldDocs": {
+    "sections[].format": "内容格式类型。table=表格（需 columns）；group=含子节的分组（需 subsections）；code=代码/文本块（需 language）；prose=完整段落叙述；list=有序/无序列表；template=固定模板文本（需 content）",
+    "sections[].extensible": "是否允许 agent 扩展。true=可增删行/条目；false=结构固定不变",
+    "sections[].columns": "table 格式的列名定义数组，如 [\"#\", \"原则\", \"落地体现\"]",
+    "sections[].subsections": "group 格式下的子 section 定义数组，每个子 section 有独立的 heading、format、description",
+    "sections[].content": "template 格式的固定文本内容，agent 必须原样输出",
+    "sections[].language": "code 格式的语言标识。text=纯文本（架构图、目录树）；jsonc=带注释的 JSON（Schema 示例）",
+    "document.titleFormat": "标题格式。占位符={{ 项目名称 }} 需替换为实际项目名，如 \"MyProject Plan\"",
+    "sections[1].subsections": "整体架构分组：架构图（ASCII art）+ 关键事实（列表）",
+    "sections[3].subsections": "核心 Schema 分组：Schema 示例（jsonc 代码块）+ 字段语义约束（structured-list）+ 校验规则（list）",
+    "sections[4].subsections": "关键算法/流程分组：每个算法一个 prose 子节，描述伪代码或步骤",
+    "sections[8].format": "与 spec 开放问题的对应表，确保每个 Q-N 在 plan 中有唯一确定答案",
+    "sections[9].content": "用户确认固定模板，提供同意/修改两个选项，agent 不得修改此文本"
+  }
+}
