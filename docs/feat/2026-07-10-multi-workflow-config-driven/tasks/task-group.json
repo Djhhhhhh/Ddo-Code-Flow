@@ -1,0 +1,48 @@
+{
+  "version": "1.0.0",
+  "tasks": [
+    {
+      "id": "task-01",
+      "file": "task-01.md",
+      "title": "更新 config.schema.json：新增 workflows 索引与 workflowDefinition 定义",
+      "dependsOn": []
+    },
+    {
+      "id": "task-02",
+      "file": "task-02.md",
+      "title": "创建 workflows/lightweight.json、standard.json、guarded.json",
+      "dependsOn": ["task-01"]
+    },
+    {
+      "id": "task-03",
+      "file": "task-03.md",
+      "title": "重写 config.json 为 v3 索引结构",
+      "dependsOn": ["task-02"]
+    },
+    {
+      "id": "task-04",
+      "file": "task-04.md",
+      "title": "更新 SKILL.md：workflow 解析与渐进式加载说明",
+      "dependsOn": ["task-03"]
+    },
+    {
+      "id": "task-05",
+      "file": "task-05.md",
+      "title": "更新 Studio UI：index.html + styles.css 新增 workflow 切换控件",
+      "dependsOn": ["task-03"]
+    },
+    {
+      "id": "task-06",
+      "file": "task-06.md",
+      "title": "更新 Studio UI：studio.js 解析 workflows 并支持切换预览与保存",
+      "dependsOn": ["task-05"]
+    }
+  ],
+  "parallelGroups": [
+    ["task-01"],
+    ["task-02"],
+    ["task-03"],
+    ["task-04", "task-05"],
+    ["task-06"]
+  ]
+}

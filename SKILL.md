@@ -24,9 +24,10 @@ require the full pipeline.
 ## Inputs
 
 - An inline user prompt describing the requirement (the message that triggered this skill).
-- `config.json` — pipeline definition (project root).
-- `config.schema.json` — JSON Schema for validation (project root).
-- `atom-tasks/<name>/<name>.md` — atom-task definitions (YAML frontmatter + markdown body, project root).
+- `config.json` — workflow index + global runtime settings (project root, **唯一事实来源**).
+- `config.schema.json` — JSON Schema for validation (project root). Also defines `$defs/workflowDefinition` for workflow JSON files.
+- `workflows/*.json` — workflow definitions (pipeline, confirmationGates, atomTaskOverrides per mode).
+- `atom-tasks/<name>/<name>.md` — atom-task definitions (YAML frontmatter + markdown body, project root). **渐进式读取：只在进入该 node 时才加载。**
 
 ## Execution (read top-to-bottom each session)
 
@@ -38,15 +39,32 @@ mechanical loop below.
 
 1. Read `config.json` and `config.schema.json` from the project root.
 2. Validate `config.json` against the schema. Reject and abort on failure.
-3. For every stage in `config.pipeline`, run the DAG no-cycle check on
-   `atomTasks.entry` + `atomTasks.nodes[*].next`. Reject and abort on any
-   cycle.
-4. If any `atomTasks` is a legacy string array (older schema), convert it
-   in-place to the DAG form (first item becomes `entry`; each item's `next`
-   is the next item) and **persist** the upgraded `config.json`. Tell the
-   user the schema was auto-upgraded.
+3. **Auto-migration (v2 → v3)**: If `config.json` has a top-level `pipeline` field and no `workflows` field, perform automatic migration:
+   a. Create `workflows/` directory if it doesn't exist.
+   b. Write `workflows/standard.json` with the current `pipeline`, `base.confirmationGates`, and `atomTaskOverrides`.
+   c. Rewrite `config.json` to v3 index structure (see plan.md §4.1 for schema).
+   d. Tell the user the config was auto-migrated from v2 to v3.
+4. **Validate workflows**: For each entry in `config.workflows.items`:
+   a. Verify the `path` file exists and is valid JSON.
+   b. Validate against `$defs/workflowDefinition` in `config.schema.json`.
+   c. Run the DAG no-cycle check on every stage's `atomTasks.entry` + `atomTasks.nodes[*].next`. Reject and abort on any cycle.
+5. Validate that `config.workflows.default` references an existing `workflows.items[].id`.
+6. Validate that all `config.workflows.selection.rules[].workflow` references exist in `workflows.items[]`.
 
-### Step 2 — Resolve target directory and initialize state
+### Step 2 — Resolve target workflow
+
+> **Workflow 选择算法**：解析顺序固定如下，第一条命中即停止。
+
+1. Read the resolved `config.workflows` object.
+2. **Explicit parameter**: If the user's skill invocation contains `workflow=<id>`, `mode=<id>`, or `profile=<id>` (one of `config.workflows.selection.argumentNames`), and `allowUserOverride` is true, use that id.
+3. **Rule matching**: Otherwise, iterate `config.workflows.selection.rules` in order. For each rule, check if any keyword in `matchAny` appears in the user's requirement text. First match wins.
+4. **Fallback**: If no rule matched, use the rule with `fallback: true`.
+5. **Default**: If still unresolved, use `config.workflows.default`.
+6. Load the workflow JSON from `config.workflows.items[].path` for the resolved id. This is the **active workflow**.
+7. **Resume override**: If `.state.json` already exists and contains a `workflowId` field, use that workflow instead (resuming a previous run should not switch workflows).
+8. Record `workflowId` in `.state.json`.
+
+### Step 3 — Resolve target directory and initialize state
 
 > **Design decision**: Step 2 does NOT create a run directory. The run directory
 > (i.e., the worktree directory) is created by the `git-worktree` atom-task
@@ -151,8 +169,14 @@ the workflow (`failurePolicy` defaults to `warn`).
 
 ---
 
-For each `stageDef` in `config.pipeline`, in order, skipping stages whose
+For each `stageDef` in the **active workflow's `pipeline`**, in order, skipping stages whose
 `.state.json.stages[stageDef.stage].status == "done"`:
+
+> **渐进式加载**: Only load `atom-tasks/<name>/<name>.md` when entering that node.
+> Only read `outputSchemaRef` when that atom-task declares one.
+> Only resolve `io.inputs` when entering that node. Do NOT preload all atom-tasks at startup.
+
+> **Override 合并优先级**: workflow 级 `atomTaskOverrides` > config 全局 `atomTaskOverrides` > atom-task 自身默认值。
 
 1. **Resolve effective DAG**:
    - Start from `stageDef.atomTasks`.
@@ -206,7 +230,7 @@ For each `stageDef` in `config.pipeline`, in order, skipping stages whose
           a selection as implicit approval to proceed.
 
 3. **Stage-level confirmation gate**:
-   - If `stageDef.stage` is in `config.base.confirmationGates` AND no
+   - If `stageDef.stage` is in the **active workflow's `confirmationGates`** AND no
      parallel-approve gate already covered the stage's terminal outputs,
      present a single confirmation request for the stage's terminal outputs.
    - Handle approve / reject identically to step 2.b.
@@ -228,7 +252,7 @@ recovery targets — they are fully defined in the atom-task .md file.
 
 ### Step 5 — Finalize
 
-After all stages in `config.pipeline` have completed (i.e., the last stage's
+After all stages in the **active workflow's `pipeline`** have completed (i.e., the last stage's
 status is `done` in `.state.json`):
 1. Invoke the **Metrics Runtime Plugin (runFinish)** when
    `config.base.metrics.enabled == true`:

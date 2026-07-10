@@ -1,0 +1,144 @@
+{
+  "$schema": "../config.schema.json#/$defs/workflowDefinition",
+  "id": "standard",
+  "version": "1.0.0",
+  "name": "Standard",
+  "description": "默认完整开发流水线：需求 → 规约 → 方案 → 测试计划 → 任务拆分 → 编码 → 验收 → 报告 → 复盘。",
+  "descriptionEn": "Full pipeline: requirement → spec → plan → test-plan → tasking → coding → verification → reporting → reflection.",
+  "descriptionZh": "默认完整开发流水线：需求 → 规约 → 方案 → 测试计划 → 任务拆分 → 编码 → 验收 → 报告 → 复盘。",
+  "confirmationGates": ["spec", "planning", "test-plan", "reflection"],
+  "pipeline": [
+    {
+      "stage": "context",
+      "description": "读取项目基础上下文，构建后续阶段所需的背景信息。产物暂存内存，等 requirement 阶段的 git-worktree 创建运行目录后统一刷写到 worktree。",
+      "enabled": true,
+      "atomTasks": {
+        "entry": ["context"],
+        "nodes": {
+          "context": { "next": ["requirement"], "parallelApprove": false, "parallelWith": [] }
+        }
+      }
+    },
+    {
+      "stage": "requirement",
+      "description": "验证用户需求已明确，创建工作树（即本次 run 的运行目录）以隔离开发环境，并刷写 context 阶段的延迟产物。",
+      "enabled": true,
+      "atomTasks": {
+        "entry": ["requirement"],
+        "nodes": {
+          "requirement": { "next": ["git-worktree"], "parallelApprove": false, "parallelWith": [] },
+          "git-worktree": { "next": ["spec"], "parallelApprove": false, "parallelWith": [] }
+        }
+      }
+    },
+    {
+      "stage": "spec",
+      "description": "AI 基于 Requirement 与 Context 生成 spec.md，进入用户确认门；否决则带反馈意见重生成。",
+      "enabled": true,
+      "atomTasks": {
+        "entry": ["spec"],
+        "nodes": {
+          "spec": { "next": ["plan"], "parallelApprove": false, "parallelWith": [] }
+        }
+      }
+    },
+    {
+      "stage": "planning",
+      "description": "基于已确认的 spec.md 做技术决策，生成 plan.md，进入用户确认门。",
+      "enabled": true,
+      "atomTasks": {
+        "entry": ["plan"],
+        "nodes": {
+          "plan": { "next": ["test-plan"], "parallelApprove": false, "parallelWith": [] }
+        }
+      }
+    },
+    {
+      "stage": "test-plan",
+      "description": "基于已确认的 spec.md 生成 test-plan.md（checklist 形式定义验收标准）。TDD 模式开启时同步生成单元测试代码骨架。进入用户确认门。",
+      "enabled": true,
+      "atomTasks": {
+        "entry": ["test-plan"],
+        "nodes": {
+          "test-plan": { "next": ["tasking"], "parallelApprove": false, "parallelWith": [] }
+        }
+      }
+    },
+    {
+      "stage": "tasking",
+      "description": "基于 plan.md 与 test-plan.md 拆分出 task-01.md … 并生成 tasks/task-group.json 描述依赖与并行关系。",
+      "enabled": true,
+      "atomTasks": {
+        "entry": ["tasking"],
+        "nodes": {
+          "tasking": { "next": ["coding"], "parallelApprove": false, "parallelWith": [] }
+        }
+      }
+    },
+    {
+      "stage": "coding",
+      "description": "按 task-group.json 的拓扑顺序执行每个 task，产出真实代码改动。",
+      "enabled": true,
+      "atomTasks": {
+        "entry": ["coding"],
+        "nodes": {
+          "coding": { "next": ["verification"], "parallelApprove": false, "parallelWith": [] }
+        }
+      }
+    },
+    {
+      "stage": "verification",
+      "description": "依据 test-plan.md 的 checklist 验收编码结果；任一条目失败则回到 Coding 重做，直到全部通过。",
+      "enabled": true,
+      "atomTasks": {
+        "entry": ["verification"],
+        "nodes": {
+          "verification": { "next": ["reporting"], "parallelApprove": false, "parallelWith": [] }
+        }
+      }
+    },
+    {
+      "stage": "review",
+      "description": "预留扩展点：后续可挂载 sub-agent-review 类 atom-task 做代码 / 文档复审。默认无 atom-task。",
+      "enabled": true,
+      "atomTasks": {
+        "entry": [],
+        "nodes": {}
+      }
+    },
+    {
+      "stage": "reporting",
+      "description": "汇总上述各阶段产物与结果，生成 execution-report.md。",
+      "enabled": true,
+      "atomTasks": {
+        "entry": ["reporting"],
+        "nodes": {
+          "reporting": { "next": ["reflection"], "parallelApprove": false, "parallelWith": [] }
+        }
+      }
+    },
+    {
+      "stage": "reflection",
+      "description": "检查项目是否存在未完结的后续流程，生成 reflection-report.md，进入用户确认门。",
+      "enabled": true,
+      "atomTasks": {
+        "entry": ["reflection"],
+        "nodes": {
+          "reflection": { "next": [], "parallelApprove": false, "parallelWith": [] }
+        }
+      }
+    },
+    {
+      "stage": "done",
+      "description": "标记本次 run 结束。",
+      "enabled": true,
+      "atomTasks": {
+        "entry": [],
+        "nodes": {}
+      }
+    }
+  ],
+  "atomTaskOverrides": {
+    "test-plan": { "enabled": true, "tdd": true }
+  }
+}

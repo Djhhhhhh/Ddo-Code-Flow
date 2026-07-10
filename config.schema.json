@@ -4,7 +4,7 @@
   "title": "ddo-code-flow config",
   "$comment": "Reference existence (atom-task names) and DAG no-cycle are enforced by the loader (UI schema.js + dag.js, and the Agent's runtime). They are NOT expressible in pure JSON Schema.",
   "type": "object",
-  "required": ["version", "base", "pipeline", "atomTaskOverrides"],
+  "required": ["version", "base", "atomTaskOverrides"],
   "additionalProperties": false,
   "properties": {
     "$schema": { "type": "string" },
@@ -141,6 +141,55 @@
         }
       }
     },
+    "workflows": {
+      "type": "object",
+      "required": ["default", "items"],
+      "additionalProperties": false,
+      "properties": {
+        "default": { "type": "string", "minLength": 1 },
+        "selection": {
+          "type": "object",
+          "required": ["allowUserOverride", "argumentNames", "rules"],
+          "additionalProperties": false,
+          "properties": {
+            "allowUserOverride": { "type": "boolean" },
+            "argumentNames": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "rules": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["workflow"],
+                "additionalProperties": false,
+                "properties": {
+                  "workflow": { "type": "string", "minLength": 1 },
+                  "matchAny": {
+                    "type": "array",
+                    "items": { "type": "string", "minLength": 1 }
+                  },
+                  "fallback": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "name", "path"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+              "name": { "type": "string", "minLength": 1 },
+              "path": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    },
     "atomTaskOverrides": {
       "type": "object",
       "additionalProperties": {
@@ -170,6 +219,83 @@
         "reflection",
         "done"
       ]
+    },
+    "workflowDefinition": {
+      "type": "object",
+      "required": ["id", "name", "pipeline"],
+      "additionalProperties": false,
+      "properties": {
+        "$schema": { "type": "string" },
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+        "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+        "name": { "type": "string", "minLength": 1 },
+        "description": { "type": "string" },
+        "confirmationGates": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]*$"
+          }
+        },
+        "pipeline": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["stage", "description", "atomTasks"],
+            "additionalProperties": false,
+            "properties": {
+              "stage": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]*$"
+              },
+              "enabled": { "type": "boolean" },
+              "description": { "type": "string", "minLength": 1 },
+              "atomTasks": {
+                "type": "object",
+                "required": ["entry", "nodes"],
+                "additionalProperties": false,
+                "properties": {
+                  "entry": {
+                    "type": "array",
+                    "items": { "type": "string", "minLength": 1 }
+                  },
+                  "nodes": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "object",
+                      "required": ["next", "parallelApprove"],
+                      "additionalProperties": false,
+                      "properties": {
+                        "next": {
+                          "type": "array",
+                          "items": { "type": "string", "minLength": 1 }
+                        },
+                        "parallelApprove": { "type": "boolean" },
+                        "parallelWith": {
+                          "type": "array",
+                          "items": { "type": "string", "minLength": 1 }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "atomTaskOverrides": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["enabled"],
+            "additionalProperties": true,
+            "properties": {
+              "enabled": { "type": "boolean" }
+            }
+          }
+        }
+      }
     }
   }
 }

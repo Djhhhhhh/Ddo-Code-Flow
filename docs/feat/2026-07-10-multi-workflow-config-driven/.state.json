@@ -1,0 +1,36 @@
+{
+  "runId": "Ddo-Code-Flow-feat-2026-07-10-multi-workflow-config-driven",
+  "createdAt": "2026-07-10T00:00:00Z",
+  "userRequirement": "让 ddo-code-flow 支持由配置驱动的多工作流选择、预览与渐进式 atom-task 加载",
+  "worktreePath": "/Users/djhhh/work_area/Ddo-Code-Flow-feat-2026-07-10-multi-workflow-config-driven",
+  "type": "feat",
+  "dateDescription": "2026-07-10-multi-workflow-config-driven",
+  "workflowId": "standard",
+  "currentStage": "done",
+  "stages": {
+    "context": { "status": "done" },
+    "requirement": { "status": "done" },
+    "spec": { "status": "done" },
+    "planning": { "status": "done" },
+    "test-plan": { "status": "done" },
+    "tasking": { "status": "done" },
+    "coding": { "status": "done", "tasks": ["task-01", "task-02", "task-03", "task-04", "task-05", "task-06"] },
+    "verification": { "status": "done", "cmdPassed": 18, "cmdTotal": 18, "humanPending": 4 },
+    "reporting": { "status": "done" },
+    "reflection": { "status": "done" }
+  },
+  "history": [
+    { "event": "created", "at": "2026-07-10T00:00:00Z" },
+    { "event": "context-done", "at": "2026-07-10T00:00:00Z" },
+    { "event": "requirement-done", "at": "2026-07-10T00:00:00Z" },
+    { "event": "worktree-created", "at": "2026-07-10T00:00:00Z" },
+    { "event": "spec-done", "at": "2026-07-10T00:00:00Z" },
+    { "event": "planning-done", "at": "2026-07-10T00:00:00Z" },
+    { "event": "test-plan-done", "at": "2026-07-10T00:00:00Z" },
+    { "event": "tasking-done", "at": "2026-07-10T00:00:00Z" },
+    { "event": "coding-done", "at": "2026-07-10T00:00:00Z" },
+    { "event": "verification-done", "at": "2026-07-10T00:00:00Z" },
+    { "event": "reporting-done", "at": "2026-07-10T00:00:00Z" },
+    { "event": "reflection-done", "at": "2026-07-10T00:00:00Z" }
+  ]
+}

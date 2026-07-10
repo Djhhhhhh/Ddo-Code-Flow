@@ -45,6 +45,10 @@ const state = {
   dirty: false,
   query: "",
   lang: localStorage.getItem("ddoStudioLang") || "en",
+  // Multi-workflow state
+  activeWorkflowId: null,
+  activeWorkflow: null,
+  loadedWorkflows: new Map(), // id → workflow JSON
 };
 
 const i18n = {
@@ -80,6 +84,7 @@ const i18n = {
     searchAtomTask: "Search atom-task...",
     scan: "Scan",
     workflowTopology: "Workflow Topology",
+    workflowLabel: "Workflow:",
     pipelineDag: "Pipeline DAG",
     insertStage: "Insert stage",
     exportPreset: "Export preset",
@@ -233,6 +238,7 @@ const i18n = {
     searchAtomTask: "搜索 atom-task...",
     scan: "扫描",
     workflowTopology: "工作流拓扑",
+    workflowLabel: "工作流:",
     pipelineDag: "流水线 DAG",
     insertStage: "插入阶段",
     exportPreset: "导出预设",
@@ -956,19 +962,19 @@ function atomByName(name) {
 }
 
 function stageAt(index) {
-  return state.config?.pipeline?.[index] || null;
+  return getActivePipeline()[index] || null;
 }
 
 function usedAtomNames() {
   const set = new Set();
-  for (const stage of state.config?.pipeline || []) {
+  for (const stage of getActivePipeline()) {
     Object.keys(stage.atomTasks?.nodes || {}).forEach((name) => set.add(name));
   }
   return set;
 }
 
 function atomStageLocation(name) {
-  for (const [stageIndex, stage] of (state.config?.pipeline || []).entries()) {
+  for (const [stageIndex, stage] of getActivePipeline().entries()) {
     if (stage.atomTasks?.nodes?.[name]) return { stageIndex, stageName: stage.stage };
   }
   return null;
@@ -981,7 +987,7 @@ function availableAtomsForInject() {
 
 function globalNodeRefs(excludeName = "") {
   const refs = [];
-  for (const [stageIndex, stage] of (state.config?.pipeline || []).entries()) {
+  for (const [stageIndex, stage] of getActivePipeline().entries()) {
     for (const nodeName of Object.keys(stage.atomTasks?.nodes || {})) {
       if (nodeName === excludeName) continue;
       refs.push({ value: nodeName, label: `${stage.stage} / ${nodeName}`, name: nodeName, stageIndex });
@@ -992,7 +998,7 @@ function globalNodeRefs(excludeName = "") {
 
 function getPredecessors(name) {
   const out = [];
-  for (const [stageIndex, stage] of (state.config?.pipeline || []).entries()) {
+  for (const [stageIndex, stage] of getActivePipeline().entries()) {
     for (const [from, def] of Object.entries(stage.atomTasks?.nodes || {})) {
       if ((def.next || []).includes(name)) {
         out.push({ value: from, label: `${stage.stage} / ${from}`, stageIndex });
@@ -1014,8 +1020,9 @@ function syncStageEntry(stage) {
   stage.atomTasks.entry = names.filter((name) => !hasSameStagePred.has(name));
 }
 
-function syncAllStageEntries(config = state.config) {
-  for (const stage of config?.pipeline || []) syncStageEntry(stage);
+function syncAllStageEntries(config) {
+  const pipeline = config?.pipeline || getActivePipeline();
+  for (const stage of pipeline) syncStageEntry(stage);
 }
 
 function removeNextEdge(fromName, toName) {
@@ -1030,10 +1037,13 @@ function removeNextEdge(fromName, toName) {
 
 function allAtomNames() {
   const names = new Set(state.atoms.map((atom) => atom.name));
-  for (const stage of state.config?.pipeline || []) {
+  for (const stage of getActivePipeline()) {
     Object.keys(stage.atomTasks?.nodes || {}).forEach((name) => names.add(name));
   }
   Object.keys(state.config?.atomTaskOverrides || {}).forEach((name) => names.add(name));
+  if (state.activeWorkflow?.atomTaskOverrides) {
+    Object.keys(state.activeWorkflow.atomTaskOverrides).forEach((name) => names.add(name));
+  }
   return [...names].sort();
 }
 
@@ -1069,6 +1079,26 @@ function normalizeConfig(config) {
     pricing: { model: "", inputPerMillionUsd: 0, outputPerMillionUsd: 0 },
   };
   config.pipeline ||= [];
+  // v3 multi-workflow: initialize workflows object if missing
+  if (!config.workflows) {
+    config.workflows = {
+      default: "standard",
+      selection: {
+        allowUserOverride: true,
+        argumentNames: ["workflow", "mode", "profile"],
+        rules: [
+          { workflow: "lightweight", matchAny: ["docs", "文档", "调研", "小修"] },
+          { workflow: "guarded", matchAny: ["安全", "数据迁移", "公开接口", "性能", "并发"] },
+          { workflow: "standard", fallback: true },
+        ],
+      },
+      items: [
+        { id: "lightweight", name: "Lightweight", path: "workflows/lightweight.json" },
+        { id: "standard", name: "Standard", path: "workflows/standard.json" },
+        { id: "guarded", name: "Guarded", path: "workflows/guarded.json" },
+      ],
+    };
+  }
   for (const stage of config.pipeline) {
     stage.enabled = stage.enabled !== false;
     stage.atomTasks ||= { entry: [], nodes: {} };
@@ -1430,6 +1460,22 @@ async function loadAll() {
     try { state.configSchema = await FS.readJSON("config.schema.json"); } catch (_) { state.configSchema = null; }
     try { state.atomTaskSchema = await FS.readJSON("atom-tasks/_schema/atom-task-md.schema.json"); } catch (_) { state.atomTaskSchema = null; }
     normalizeConfig(state.config);
+
+    // Load workflow definitions
+    state.loadedWorkflows.clear();
+    if (state.config.workflows?.items) {
+      for (const item of state.config.workflows.items) {
+        try {
+          const wf = await FS.readJSON(item.path);
+          state.loadedWorkflows.set(item.id, wf);
+        } catch (_) { /* skip missing workflow files */ }
+      }
+    }
+    // Set active workflow
+    const defaultId = state.config.workflows?.default || state.config.workflows?.items?.[0]?.id;
+    state.activeWorkflowId = defaultId;
+    state.activeWorkflow = defaultId ? state.loadedWorkflows.get(defaultId) : null;
+
     state.atoms = await FS.listAtoms();
     els.reload.disabled = false;
     markClean();
@@ -1447,7 +1493,8 @@ async function reloadAll() {
 
 async function saveAll() {
   if (!state.config) return;
-  const dagErrors = DAG.checkConfig(state.config);
+  const pipeline = getActivePipeline();
+  const dagErrors = DAG.checkConfig({ pipeline });
   if (dagErrors.length) {
     show("error", `${t("dagValidationFailed")}：${dagErrors[0]}`, 0);
     return;
@@ -1460,7 +1507,15 @@ async function saveAll() {
     }
   }
   try {
+    // Save config.json (global settings + workflow index)
     await FS.writeJSON("config.json", state.config);
+    // Save active workflow JSON (pipeline, confirmationGates, atomTaskOverrides)
+    if (state.activeWorkflowId && state.activeWorkflow) {
+      const item = state.config.workflows?.items?.find((i) => i.id === state.activeWorkflowId);
+      if (item?.path) {
+        await FS.writeJSON(item.path, state.activeWorkflow);
+      }
+    }
     markClean();
     renderInspector();
     show("info", state.mode === "fallback" ? t("exportedConfig") : t("savedConfig"));
@@ -1511,8 +1566,80 @@ async function scanAtoms() {
 function renderAll() {
   applyI18n();
   renderTasks();
+  renderWorkflowSwitcher();
   renderWorkflow();
   renderInspector();
+}
+
+/** Returns the pipeline array from the active workflow, or config.pipeline as fallback. */
+function getActivePipeline() {
+  if (state.activeWorkflow?.pipeline) return state.activeWorkflow.pipeline;
+  return state.config?.pipeline || [];
+}
+
+/** Returns the confirmationGates from the active workflow, or config.base.confirmationGates as fallback. */
+function getActiveConfirmationGates() {
+  if (state.activeWorkflow?.confirmationGates) return state.activeWorkflow.confirmationGates;
+  return state.config?.base?.confirmationGates || [];
+}
+
+/** Returns the effective atomTaskOverrides (workflow-level overrides global). */
+function getEffectiveOverrides(name) {
+  const global = state.config?.atomTaskOverrides?.[name] || {};
+  const wf = state.activeWorkflow?.atomTaskOverrides?.[name] || {};
+  return { ...global, ...wf };
+}
+
+/** Populate and render the workflow switcher dropdown. */
+function renderWorkflowSwitcher() {
+  const select = $("workflowSelect");
+  if (!select || !state.config?.workflows) return;
+
+  const items = state.config.workflows.items || [];
+  select.innerHTML = "";
+  for (const item of items) {
+    const opt = document.createElement("option");
+    opt.value = item.id;
+    opt.textContent = item.name || item.id;
+    select.appendChild(opt);
+  }
+  // Set active workflow
+  const targetId = state.activeWorkflowId || state.config.workflows.default || items[0]?.id;
+  if (targetId && items.some((i) => i.id === targetId)) {
+    select.value = targetId;
+    state.activeWorkflowId = targetId;
+  }
+
+  // Event listener (only attach once)
+  if (!select._bound) {
+    select.addEventListener("change", () => switchWorkflow(select.value));
+    select._bound = true;
+  }
+}
+
+/** Switch to a different workflow. */
+async function switchWorkflow(id) {
+  if (!state.config?.workflows) return;
+  const item = state.config.workflows.items.find((i) => i.id === id);
+  if (!item) return;
+
+  // Load workflow JSON if not cached
+  if (!state.loadedWorkflows.has(id)) {
+    try {
+      const wf = await FS.readJSON(item.path);
+      state.loadedWorkflows.set(id, wf);
+    } catch (e) {
+      show("error", `Failed to load workflow "${id}": ${e.message}`, 0);
+      return;
+    }
+  }
+  state.activeWorkflowId = id;
+  state.activeWorkflow = state.loadedWorkflows.get(id);
+  state.selected = null;
+  markDirty();
+  renderWorkflow();
+  renderInspector();
+  show("info", `Switched to workflow: ${id}`);
 }
 
 function renderTasks() {
@@ -1575,11 +1702,11 @@ function renderWorkflow() {
     els.track.innerHTML = `<div class="empty-state">${t("openWorkflowFolder")}</div>`;
     return;
   }
-  state.config.pipeline.forEach((stage, index) => els.track.appendChild(stageCard(stage, index)));
+  const pipeline = getActivePipeline();
+  pipeline.forEach((stage, index) => els.track.appendChild(stageCard(stage, index)));
   requestAnimationFrame(redrawEdges);
-  const errors = DAG.checkConfig(state.config);
-  els.pipelineHint.textContent = errors.length ? `${t("dagError")}: ${errors[0]}` : `${state.config.pipeline.length} ${t("stageCount")}, ${allAtomNames().length} ${t("atomCount")}.`;
-
+  const errors = DAG.checkConfig({ pipeline });
+  els.pipelineHint.textContent = errors.length ? `${t("dagError")}: ${errors[0]}` : `${pipeline.length} ${t("stageCount")}, ${allAtomNames().length} ${t("atomCount")}.`;
 }
 
 function stageCard(stage, index) {
@@ -1672,7 +1799,7 @@ function redrawEdges() {
   els.edges.querySelectorAll("path").forEach((path) => {
     if (!path.closest("marker")) path.remove();
   });
-  state.config.pipeline.forEach((stage, stageIndex) => {
+  getActivePipeline().forEach((stage, stageIndex) => {
     for (const [from, def] of Object.entries(stage.atomTasks?.nodes || {})) {
       for (const to of def.next || []) {
         const a = nodeEl(stageIndex, from);
@@ -1981,9 +2108,10 @@ function injectAtom(stageIndex, name) {
 }
 
 function removeNode(stage, name) {
-  const stageIndex = state.config.pipeline.indexOf(stage);
+  const pipeline = getActivePipeline();
+  const stageIndex = pipeline.indexOf(stage);
   delete stage.atomTasks.nodes[name];
-  for (const pipelineStage of state.config.pipeline) {
+  for (const pipelineStage of pipeline) {
     for (const def of Object.values(pipelineStage.atomTasks?.nodes || {})) {
       def.next = (def.next || []).filter((item) => item !== name);
       def.parallelWith = (def.parallelWith || []).filter((item) => item !== name);
@@ -1996,8 +2124,12 @@ function removeNode(stage, name) {
 
 function deleteStage(index) {
   if (!confirm(t("deleteStageConfirm"))) return;
-  const [stage] = state.config.pipeline.splice(index, 1);
-  state.config.base.confirmationGates = state.config.base.confirmationGates.filter((name) => name !== stage.stage);
+  const pipeline = getActivePipeline();
+  const [stage] = pipeline.splice(index, 1);
+  // Update confirmationGates in the active workflow
+  if (state.activeWorkflow?.confirmationGates) {
+    state.activeWorkflow.confirmationGates = state.activeWorkflow.confirmationGates.filter((name) => name !== stage.stage);
+  }
   markDirty();
   state.selected = null;
   renderAll();

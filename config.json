@@ -1,6 +1,6 @@
 {
   "$schema": "./config.schema.json",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "base": {
     "targetDir": "..",
     "contextPaths": [],
@@ -10,12 +10,6 @@
       "case": "kebab",
       "stripStopwords": true
     },
-    "confirmationGates": [
-      "planning",
-      "test-plan",
-      "reflection",
-      "spec"
-    ],
     "metrics": {
       "enabled": false,
       "provider": "tokscale",
@@ -31,231 +25,22 @@
       }
     }
   },
-  "pipeline": [
-    {
-      "stage": "context",
-      "description": "读取项目基础上下文，构建后续阶段所需的背景信息。产物暂存内存，等 requirement 阶段的 git-worktree 创建运行目录后统一刷写到 worktree。",
-      "atomTasks": {
-        "entry": [
-          "context"
-        ],
-        "nodes": {
-          "context": {
-            "next": [
-              "requirement"
-            ],
-            "parallelApprove": false,
-            "parallelWith": []
-          }
-        }
-      },
-      "enabled": true
+  "workflows": {
+    "default": "standard",
+    "selection": {
+      "allowUserOverride": true,
+      "argumentNames": ["workflow", "mode", "profile"],
+      "rules": [
+        { "workflow": "lightweight", "matchAny": ["docs", "文档", "调研", "小修"] },
+        { "workflow": "guarded", "matchAny": ["安全", "数据迁移", "公开接口", "性能", "并发"] },
+        { "workflow": "standard", "fallback": true }
+      ]
     },
-    {
-      "stage": "requirement",
-      "description": "验证用户需求已明确，创建工作树（即本次 run 的运行目录）以隔离开发环境，并刷写 context 阶段的延迟产物。",
-      "atomTasks": {
-        "entry": [
-          "requirement"
-        ],
-        "nodes": {
-          "requirement": {
-            "next": [
-              "git-worktree"
-            ],
-            "parallelApprove": false,
-            "parallelWith": []
-          },
-          "git-worktree": {
-            "next": [
-              "spec"
-            ],
-            "parallelApprove": false,
-            "parallelWith": []
-          }
-        }
-      },
-      "enabled": true
-    },
-    {
-      "stage": "spec",
-      "description": "AI 基于 Requirement 与 Context 生成 spec.md，进入用户确认门；否决则带反馈意见重生成。",
-      "atomTasks": {
-        "entry": [
-          "spec"
-        ],
-        "nodes": {
-          "spec": {
-            "next": [
-              "plan"
-            ],
-            "parallelApprove": false,
-            "parallelWith": []
-          }
-        }
-      },
-      "enabled": true
-    },
-    {
-      "stage": "planning",
-      "description": "基于已确认的 spec.md 做技术决策，生成 plan.md，进入用户确认门。",
-      "atomTasks": {
-        "entry": [
-          "plan"
-        ],
-        "nodes": {
-          "plan": {
-            "next": [
-              "test-plan"
-            ],
-            "parallelApprove": false,
-            "parallelWith": []
-          }
-        }
-      },
-      "enabled": true
-    },
-    {
-      "stage": "test-plan",
-      "description": "基于已确认的 spec.md 生成 test-plan.md（checklist 形式定义验收标准）。TDD 模式开启时同步生成单元测试代码骨架。进入用户确认门。",
-      "atomTasks": {
-        "entry": [
-          "test-plan"
-        ],
-        "nodes": {
-          "test-plan": {
-            "next": [
-              "tasking"
-            ],
-            "parallelApprove": false,
-            "parallelWith": []
-          }
-        }
-      },
-      "enabled": true
-    },
-    {
-      "stage": "tasking",
-      "description": "基于 plan.md 与 test-plan.md 拆分出 task-01.md … 并生成 tasks/task-group.json 描述依赖与并行关系。",
-      "atomTasks": {
-        "entry": [
-          "tasking"
-        ],
-        "nodes": {
-          "tasking": {
-            "next": [
-              "coding"
-            ],
-            "parallelApprove": false,
-            "parallelWith": []
-          }
-        }
-      },
-      "enabled": true
-    },
-    {
-      "stage": "coding",
-      "description": "按 task-group.json 的拓扑顺序执行每个 task，产出真实代码改动。",
-      "atomTasks": {
-        "entry": [
-          "coding"
-        ],
-        "nodes": {
-          "coding": {
-            "next": [
-              "verification"
-            ],
-            "parallelApprove": false,
-            "parallelWith": []
-          }
-        }
-      },
-      "enabled": true
-    },
-    {
-      "stage": "verification",
-      "description": "依据 test-plan.md 的 checklist 验收编码结果；任一条目失败则回到 Coding 重做，直到全部通过。",
-      "atomTasks": {
-        "entry": [
-          "verification"
-        ],
-        "nodes": {
-          "verification": {
-            "next": [
-              "reporting"
-            ],
-            "parallelApprove": false,
-            "parallelWith": []
-          }
-        }
-      },
-      "enabled": true
-    },
-    {
-      "stage": "review",
-      "description": "预留扩展点：后续可挂载 sub-agent-review 类 atom-task 做代码 / 文档复审。默认无 atom-task。",
-      "atomTasks": {
-        "entry": [],
-        "nodes": {}
-      },
-      "enabled": true
-    },
-    {
-      "stage": "reporting",
-      "description": "汇总上述各阶段产物与结果，生成 execution-report.md。",
-      "atomTasks": {
-        "entry": [
-          "reporting"
-        ],
-        "nodes": {
-          "reporting": {
-            "next": [
-              "reflection"
-            ],
-            "parallelApprove": false,
-            "parallelWith": []
-          }
-        }
-      },
-      "enabled": true
-    },
-    {
-      "stage": "reflection",
-      "description": "检查项目是否存在未完结的后续流程，生成 reflection-report.md，进入用户确认门。",
-      "atomTasks": {
-        "entry": [
-          "reflection"
-        ],
-        "nodes": {
-          "reflection": {
-            "next": [],
-            "parallelApprove": false,
-            "parallelWith": []
-          }
-        }
-      },
-      "enabled": true
-    },
-    {
-      "stage": "done",
-      "description": "标记本次 run 结束。",
-      "atomTasks": {
-        "entry": [],
-        "nodes": {}
-      },
-      "enabled": true
-    }
-  ],
-  "atomTaskOverrides": {
-    "coding": {
-      "enabled": true
-    },
-    "review": {
-      "enabled": false
-    },
-    "test-plan": {
-      "enabled": true,
-      "tdd": true
-    }
-  }
+    "items": [
+      { "id": "lightweight", "name": "Lightweight", "path": "workflows/lightweight.json" },
+      { "id": "standard", "name": "Standard", "path": "workflows/standard.json" },
+      { "id": "guarded", "name": "Guarded", "path": "workflows/guarded.json" }
+    ]
+  },
+  "atomTaskOverrides": {}
 }
