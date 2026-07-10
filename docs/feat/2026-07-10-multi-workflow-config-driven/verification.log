@@ -1,0 +1,26 @@
+[PASS] G1.1: test -f workflows/lightweight.json && test -f workflows/standard.json && test -f workflows/guarded.json
+[PASS] G1.2: config.workflows.items contains all 3 workflow ids
+[PASS] G1.3: each workflow JSON has non-empty pipeline
+[PASS] G1.4: all workflow atom-task references exist in atom-tasks/
+[PASS] G2.1: config.json has workflows.default and workflows.items
+[PASS] G2.2: no old top-level pipeline field in config.json
+[PASS] G2.3: workflows.default references existing items[].id
+[PASS] G2.4: selection rules reference valid workflow ids
+[PASS] G3: all workflow DAGs are acyclic
+[PASS] G4.1: config.workflows.selection has rules and argumentNames
+[PASS] G4.2: exactly one fallback rule exists
+[PASS] G4.3: SKILL.md describes workflow/mode/profile parameters
+[PASS] G5.1: SKILL.md mentions progressive loading (2 occurrences)
+[PASS] G5.2: SKILL.md describes state-driven resume (2 occurrences)
+[PASS] G5.3: SKILL.md describes outputSchemaRef loading (3 occurrences)
+[PASS] G6.1: SKILL.md mentions unique source of truth (1 occurrence)
+[PASS] G6.2: SKILL.md describes workflow resolution (1 occurrence)
+[PASS] G6.3: SKILL.md describes override merge priority (1 occurrence)
+[PASS] G7.1: studio.js has workflow select references (2 occurrences)
+[PASS] G7.2: studio.js has workflow loading/switching code (35 occurrences)
+[PASS] G7.3: index.html has workflow-switcher elements (3 occurrences)
+[PASS] G8.1: studio.js save logic persists workflow JSON (1 occurrence)
+[PENDING] G7.3h: UI panel__head has workflow dropdown (requires manual browser check)
+[PENDING] G7.4h: workflow switch updates DAG preview (requires manual browser check)
+[PENDING] G7.5h: workflow name and description visible (requires manual browser check)
+[PENDING] G8.2h: atom-task toggle persists to workflow JSON (requires manual browser check)
