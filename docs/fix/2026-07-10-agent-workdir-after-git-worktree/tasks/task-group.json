@@ -1,0 +1,20 @@
+{
+  "version": "1.0.0",
+  "tasks": [
+    {
+      "id": "task-01",
+      "file": "task-01.md",
+      "title": "修改 SKILL.md — 添加 projectRoot 和工作目录切换机制",
+      "dependsOn": []
+    },
+    {
+      "id": "task-02",
+      "file": "task-02.md",
+      "title": "修改 git-worktree.md — 添加 CWD 切换步骤和约束",
+      "dependsOn": []
+    }
+  ],
+  "parallelGroups": [
+    ["task-01", "task-02"]
+  ]
+}
