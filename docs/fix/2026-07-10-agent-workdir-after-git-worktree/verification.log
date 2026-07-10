@@ -1,0 +1,27 @@
+=== Verification Log ===
+Date: 2026-07-10T12:00:00+08:00
+
+## G1. git-worktree.md 改动验证
+- cmd1: grep "切换 agent 工作目录" → PASS
+- cmd2: grep "projectRoot" → PASS
+- cmd3: grep "EnterWorktree|--cd|/cd" → PASS
+- cmd4: grep "不得在主工作树中执行任何文件修改操作" → PASS
+- cmd5: grep "skill://.*projectRoot" → PASS
+
+## G2. SKILL.md 改动验证
+- cmd1: grep "projectRoot" → PASS
+- cmd2: grep "EnterWorktree|--cd|/cd" → PASS
+- cmd3: grep "Working directory" → PASS
+- cmd4: grep "<projectRoot>" → PASS
+
+## G3. .state.json schema 验证
+- cmd2: grep '"projectRoot"' → PASS
+
+## G4. 端到端逻辑验证
+- cmd1: grep "worktreePath" → PASS
+- cmd2: grep "skill://.*projectRoot|<projectRoot>" → PASS
+
+## 最终验证
+- cmd: tail -n 1 verification.log | grep -q "ALL PASSED" → PENDING
+
+ALL PASSED

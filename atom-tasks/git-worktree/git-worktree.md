@@ -46,6 +46,10 @@ outputSchemaRef: "skill://atom-tasks/git-worktree/worktree-info.output.schema.js
 8. 创建产物子目录：mkdir -p <worktree-path>/docs/<type>/<dateDescription>/。后续所有 MD 产物和 .state.json 都写入此目录。
 9. 写入 worktree-info.json（见 output schema）。
 10. 写入 .state.json：设置 worktreePath 为绝对路径，type 为分支前缀，dateDescription 为日期描述 slug。同时刷写延迟产物：从 .state.json.pendingOutputs 读取所有条目，将每个 base64 解码后写入其对应的 outputRef 路径（已解析 run:// 前缀）。如果 pendingOutputs 为空（agent 内存中有未持久化的产物），则从内存中获取并写入。完成后删除 .state.json.pendingOutputs 字段。
+11. 切换 agent 工作目录：
+    a. 确认 .state.json 中 projectRoot 已正确记录（项目根目录绝对路径）。
+    b. 使用 agent 自带的工作目录切换机制将工作目录切换到 worktreePath。例如 Claude Code 使用 EnterWorktree 工具（path 参数指向已创建的 worktree）或 /cd 命令，Codex 使用 --cd 标志。
+    c. 切换后用 `pwd` 验证当前目录正确。
 
 ## 约束
 
@@ -56,3 +60,6 @@ outputSchemaRef: "skill://atom-tasks/git-worktree/worktree-info.output.schema.js
 - 工作树目录名必须是 <项目名>-<分支名>（斜杠替换为连字符），位于 targetDir 下作为项目根目录的兄弟目录。
 - 产物子目录必须是 <worktreePath>/docs/<type>/<dateDescription>/。所有 .state.json、worktree-info.json 和 MD 产物都放在这里。
 - 不得直接在 targetDir、worktreePath 或 worktreePath/docs/ 下写入产物。
+- git-worktree 完成后，必须将 agent 的工作目录切换到 worktreePath（agent 级别切换，非 Bash cd）。
+- .state.json 中必须记录 projectRoot（项目根目录绝对路径）。后续阶段通过 skill:// 前缀加载 atom-task 时，始终基于 projectRoot 解析。
+- 不得在主工作树中执行任何文件修改操作。
