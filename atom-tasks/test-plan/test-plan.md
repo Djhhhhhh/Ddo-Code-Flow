@@ -39,7 +39,7 @@ options:
 - `- [ ] cmd: <shell>` — **自动化测试**：单元测试、接口测试、shell 命令验证等。机器自动执行，exit code == 0 视为通过。
 - `- [ ] human: <描述>` — **功能测试**：在页面/客户端上实际操作（点击按钮、输入表单、切换主题、刷新页面等），由用户手动执行并确认。
 
-将条目组织为 G1、G2、... 分组，每个分组末尾有一行「通过标准」摘要。文档最后一个条目必须是 `cmd: tail -n 1 verification.log | grep -q "ALL PASSED"`。
+将条目组织为 G1、G2、... 分组，每个分组末尾有一行「通过标准」摘要。checklist 只能包含针对项目行为的独立验收命令，不得读取 verification.log 或以 Verification 自己将要生成的结果作为前置条件。
 
 将 test-plan.md 写入磁盘并向用户展示以确认。
 
@@ -59,7 +59,8 @@ options:
 ## 约束
 
 - 每个 checklist 行必须以 `- [ ] cmd:` 或 `- [ ] human:` 开头——其他前缀无效。
-- `cmd:` 条目是自动化测试，必须可在 targetDir 工作目录中运行，无需 sudo 和网络。
+- `cmd:` 条目是自动化测试，必须可在 `.state.json.worktreePath` 工作目录中运行，无需 sudo 和网络。
+- `cmd:` 条目不得读取 verification.log，也不得依赖当前 Verification 运行尚未生成的文件或成功标记。
 - `human:` 条目是功能测试，描述用户应执行的确切步骤和预期观察结果。
 - 每个分组必须以「通过标准」行结尾。
 - spec.md 中的每个 AC-N 必须至少有一个 checklist 条目覆盖。

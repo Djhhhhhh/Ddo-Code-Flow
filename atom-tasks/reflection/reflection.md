@@ -28,10 +28,10 @@ outputSchemaRef: "skill://atom-tasks/reflection/reflection-report.output.schema.
 
 ## 指令
 
-遍历 targetDir 中本次 run 添加或未修改的 TODO、FIXME、XXX 标记。结合本次 run 的决策日志和验证历史，参考 reflection-report.output.schema.json 中的 sections 定义和 example 示例来组织输出格式，生成 reflection-report.md：未完结项、推荐后续动作、经验教训。末尾追加标准的「用户确认」section。
+遍历 `.state.json.worktreePath` 中本次 run 添加或修改的 TODO、FIXME、XXX 标记。结合本次 run 的决策日志和验证历史，参考 reflection-report.output.schema.json 中的 sections 定义和 example 示例来组织输出格式，生成 reflection-report.md：未完结项、推荐后续动作、经验教训。末尾追加标准的「用户确认」section。
 
 ## 约束
 
-- 仅扫描 targetDir；不得在其外部爬取。
+- 仅扫描 `.state.json.worktreePath`；不得扫描主工作树、targetDir 中的其他项目或 skill 目录。
 - 列出 TODO 条目时，引用文件路径和（如果可用）行号。
 - 后续动作应表述为可执行的任务，而非自由文本。
