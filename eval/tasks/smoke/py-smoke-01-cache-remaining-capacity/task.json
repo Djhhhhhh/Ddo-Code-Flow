@@ -1,0 +1,40 @@
+{
+  "$schema": "../../../schema/task.schema.json",
+  "schemaVersion": "1.0",
+  "id": "py-smoke-01-cache-remaining-capacity",
+  "title": "Cache remaining-capacity property",
+  "description": "Easy negative control used to detect routing and workflow overhead regressions.",
+  "track": "negative-control",
+  "language": "python",
+  "difficulty": "easy",
+  "tags": ["public-api", "typing", "cache"],
+  "repository": {
+    "url": "https://github.com/tkem/cachetools.git",
+    "baseCommit": "e164b7020e4211b57d20fe2b252d931af6244ad4",
+    "license": "MIT"
+  },
+  "promptPath": "prompt.md",
+  "setup": {
+    "commands": [
+      ["python3", "-m", "pip", "install", "-e", ".", "pytest", "pytest-cov"]
+    ]
+  },
+  "verifier": {
+    "id": "py-smoke-01-cache-remaining-capacity",
+    "timeoutSeconds": 300
+  },
+  "expectedWorkflow": "lightweight",
+  "acceptanceCriteria": [
+    {"id": "AC-1", "description": "Cache exposes a read-only remaining_capacity property equal to maxsize minus currsize."},
+    {"id": "AC-2", "description": "The property tracks mutations, size-aware caches, eviction, and timed expiry across built-in subclasses."},
+    {"id": "AC-3", "description": "Runtime and public type declarations stay synchronized."},
+    {"id": "AC-4", "description": "The upstream regression suite remains green."}
+  ],
+  "interaction": {"mode": "none"},
+  "interruptions": [],
+  "budgets": {
+    "wallTimeSeconds": 1800,
+    "maxInputTokens": 150000,
+    "maxOutputTokens": 30000
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "$schema": "../../../schema/task.schema.json",
+  "schemaVersion": "1.0",
+  "id": "ts-smoke-03-pqueue-clear-pending",
+  "title": "Settle discarded PQueue tasks",
+  "description": "Long-horizon asynchronous API task spanning source, types, events, tests, and documentation.",
+  "track": "long-horizon",
+  "language": "typescript",
+  "difficulty": "hard",
+  "tags": ["async", "race", "public-api", "types", "events"],
+  "repository": {
+    "url": "https://github.com/sindresorhus/p-queue.git",
+    "baseCommit": "a06fbc928725f074c72716e1ba21106df6822dae",
+    "license": "MIT"
+  },
+  "promptPath": "prompt.md",
+  "setup": {
+    "commands": [
+      ["npm", "ci", "--ignore-scripts"]
+    ],
+    "environment": {"CI": "true"}
+  },
+  "verifier": {
+    "id": "ts-smoke-03-pqueue-clear-pending",
+    "timeoutSeconds": 1200
+  },
+  "expectedWorkflow": "guarded",
+  "acceptanceCriteria": [
+    {"id": "AC-1", "description": "Legacy clear remains unchanged while opt-in rejectPending settles only queued tasks with correct reasons."},
+    {"id": "AC-2", "description": "Abort races, listener cleanup, single settlement, running tasks, custom queues, and rate-limit state are correct."},
+    {"id": "AC-3", "description": "Queue events, exported ClearOptions types, declarations, and documentation remain coherent."},
+    {"id": "AC-4", "description": "The upstream regression and type suites remain green."}
+  ],
+  "interaction": {"mode": "none"},
+  "interruptions": [
+    {"id": "during-coding", "event": "tool-call-count", "value": 16}
+  ],
+  "budgets": {
+    "wallTimeSeconds": 3600,
+    "maxInputTokens": 300000,
+    "maxOutputTokens": 60000
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "$schema": "../schema/suite.schema.json",
+  "schemaVersion": "1.0",
+  "id": "ddoflow-smoke-v0.1",
+  "description": "Six real-repository smoke tasks covering every DdoFlow-specific track.",
+  "tasks": [
+    "../tasks/smoke/py-smoke-01-cache-remaining-capacity/task.json",
+    "../tasks/smoke/py-smoke-02-itsdangerous-input-limit/task.json",
+    "../tasks/smoke/py-smoke-03-tenacity-on-giveup/task.json",
+    "../tasks/smoke/ts-smoke-01-defu-array-replace/task.json",
+    "../tasks/smoke/ts-smoke-02-destr-unsafe-keys/task.json",
+    "../tasks/smoke/ts-smoke-03-pqueue-clear-pending/task.json"
+  ]
+}

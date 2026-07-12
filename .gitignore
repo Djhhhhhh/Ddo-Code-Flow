@@ -1,3 +1,10 @@
 .agents/
 .agent/
 .claude/
+.DS_Store
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.pnpm-store/
+eval/results/
+.eval-private/

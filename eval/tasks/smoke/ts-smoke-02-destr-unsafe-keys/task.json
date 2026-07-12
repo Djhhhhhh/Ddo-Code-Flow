@@ -1,0 +1,44 @@
+{
+  "$schema": "../../../schema/task.schema.json",
+  "schemaVersion": "1.0",
+  "id": "ts-smoke-02-destr-unsafe-keys",
+  "title": "Configurable unsafe-key policy",
+  "description": "Security-sensitive parser policy with scripted public-API clarification.",
+  "track": "guarded-risk",
+  "language": "typescript",
+  "difficulty": "medium",
+  "tags": ["security", "hitl", "parser", "types"],
+  "repository": {
+    "url": "https://github.com/unjs/destr.git",
+    "baseCommit": "541b6f9aeada9fc30de9c5a7e086dbfc1c6fcdc7",
+    "license": "MIT"
+  },
+  "promptPath": "prompt.md",
+  "setup": {
+    "commands": [
+      ["corepack", "pnpm", "install", "--frozen-lockfile", "--ignore-scripts"]
+    ],
+    "environment": {"CI": "true"}
+  },
+  "verifier": {
+    "id": "ts-smoke-02-destr-unsafe-keys",
+    "timeoutSeconds": 600
+  },
+  "expectedWorkflow": "guarded",
+  "acceptanceCriteria": [
+    {"id": "AC-1", "description": "The exported unsafeKeys option implements the clarified drop/error policy and precedence matrix."},
+    {"id": "AC-2", "description": "Warnings, safeDestr, nested and escaped keys, and ordinary invalid JSON preserve the clarified semantics."},
+    {"id": "AC-3", "description": "No prototype pollution is possible and types and documentation are synchronized."},
+    {"id": "AC-4", "description": "The upstream regression, coverage, and format checks remain green."}
+  ],
+  "interaction": {
+    "mode": "scripted",
+    "oracleId": "ts-smoke-02-destr-unsafe-keys"
+  },
+  "interruptions": [],
+  "budgets": {
+    "wallTimeSeconds": 2400,
+    "maxInputTokens": 200000,
+    "maxOutputTokens": 40000
+  }
+}
