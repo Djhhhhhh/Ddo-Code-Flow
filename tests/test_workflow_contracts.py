@@ -130,3 +130,29 @@ def test_done_is_a_terminal_sentinel_with_hard_invariants() -> None:
     assert "terminal sentinel" in skill
     assert "unanswered `human:` checks" in skill
     assert "Never report the run as complete" in skill
+
+
+@pytest.mark.parametrize(
+    ("requirement", "expected"),
+    [
+        ("Update the README documentation", "lightweight"),
+        ("这是一个文档小修", "lightweight"),
+        ("Prevent prototype pollution in the parser", "guarded"),
+        ("Fix an async concurrency race", "guarded"),
+        ("Security update with README documentation", "guarded"),
+        ("Add a normal multi-file feature", "standard"),
+    ],
+)
+def test_bilingual_workflow_routing(requirement: str, expected: str) -> None:
+    config = load_json(ROOT / "config.json")
+    normalized = requirement.lower()
+    selected = None
+    fallback = None
+    for rule in config["workflows"]["selection"]["rules"]:
+        if rule.get("fallback"):
+            fallback = rule["workflow"]
+            continue
+        if any(keyword.lower() in normalized for keyword in rule.get("matchAny", [])):
+            selected = rule["workflow"]
+            break
+    assert (selected or fallback or config["workflows"]["default"]) == expected

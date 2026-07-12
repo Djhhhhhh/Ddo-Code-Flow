@@ -65,7 +65,7 @@ mechanical loop below.
 
 1. Read the resolved `config.workflows` object.
 2. **Explicit parameter**: If the user's skill invocation contains `workflow=<id>`, `mode=<id>`, or `profile=<id>` (one of `config.workflows.selection.argumentNames`), and `allowUserOverride` is true, use that id.
-3. **Rule matching**: Otherwise, iterate `config.workflows.selection.rules` in order. For each rule, check if any keyword in `matchAny` appears in the user's requirement text. First match wins.
+3. **Rule matching**: Otherwise, iterate `config.workflows.selection.rules` in order. Normalize both the requirement and each `matchAny` keyword with Unicode-aware lowercase, then check substring inclusion. First match wins.
 4. **Fallback**: If no rule matched, use the rule with `fallback: true`.
 5. **Default**: If still unresolved, use `config.workflows.default`.
 6. Load the workflow JSON from `config.workflows.items[].path` for the resolved id. This is the **active workflow**.
