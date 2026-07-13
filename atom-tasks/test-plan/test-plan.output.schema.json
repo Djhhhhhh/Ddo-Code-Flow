@@ -35,14 +35,6 @@
       ]
     },
     {
-      "heading": "最终验证",
-      "level": 2,
-      "required": true,
-      "format": "template",
-      "extensible": false,
-      "content": "- [ ] cmd: tail -n 1 verification.log | grep -q \"ALL PASSED\""
-    },
-    {
       "heading": "TDD 测试文件",
       "level": 2,
       "required": false,
@@ -54,19 +46,18 @@
   ],
   "rules": [
     "每个 checklist 行必须以 '- [ ] cmd:' 或 '- [ ] human:' 开头",
-    "cmd: 条目必须是可在 targetDir 中运行的命令，无需 sudo 和网络",
+    "cmd: 条目必须是可在 worktreePath 中运行的命令，无需 sudo 和网络",
     "human: 条目描述用户手动操作步骤和预期结果",
     "每个 G 分组必须以「通过标准」行结尾",
     "spec.md 中的每个 AC-N 必须至少有一个 checklist 条目覆盖",
-    "文档最后一个条目必须是 'cmd: tail -n 1 verification.log | grep -q \"ALL PASSED\"'",
+    "checklist 不得读取 verification.log 或依赖 Verification 尚未生成的成功标记",
     "TDD 模式下仅为 cmd: 条目生成测试桩，human: 条目不生成"
   ],
-  "example": "# MyProject 测试计划\n\n> 基于已确认的 spec.md 生成的验收测试 checklist。\n\n## G1. 主题切换\n\n- [ ] cmd: npm test -- --grep \"theme switch\"\n- [ ] cmd: curl -s http://localhost:3000/api/theme | jq '.current'\n- [ ] human: 在设置页点击「暗色模式」按钮，观察页面背景变为深色\n\n通过标准：所有自动化测试 exit code 为 0，手动操作主题切换正常生效。\n\n## G2. 主题持久化\n\n- [ ] cmd: npm test -- --grep \"theme persistence\"\n- [ ] human: 切换主题后刷新页面，主题保持不变\n\n通过标准：刷新后主题状态保持一致。\n\n## 最终验证\n\n- [ ] cmd: tail -n 1 verification.log | grep -q \"ALL PASSED\"\n\n## TDD 测试文件\n\n| 测试文件 | 关联检查项 | 状态 |\n|---|---|---|\n| tests/theme.test.js | G1 cmd1, G1 cmd2 | Red |",
+  "example": "# MyProject 测试计划\n\n> 基于已确认的 spec.md 生成的验收测试 checklist。\n\n## G1. 主题切换\n\n- [ ] cmd: npm test -- --grep \"theme switch\"\n- [ ] cmd: curl -s http://localhost:3000/api/theme | jq '.current'\n- [ ] human: 在设置页点击「暗色模式」按钮，观察页面背景变为深色\n\n通过标准：所有自动化测试 exit code 为 0，手动操作主题切换正常生效。\n\n## G2. 主题持久化\n\n- [ ] cmd: npm test -- --grep \"theme persistence\"\n- [ ] human: 切换主题后刷新页面，主题保持不变\n\n通过标准：刷新后主题状态保持一致。\n\n## TDD 测试文件\n\n| 测试文件 | 关联检查项 | 状态 |\n|---|---|---|\n| tests/theme.test.js | G1 cmd1, G1 cmd2 | Red |",
   "fieldDocs": {
-    "sections[].format": "内容格式类型。group=测试分组（含 checklist + 通过标准子节）；list=checklist 列表（- [ ] cmd:/human:）；text=通过标准文本；template=固定模板（最终验证）；table=表格（TDD 测试文件）",
-    "sections[].extensible": "是否允许 agent 扩展。true=可增删 checklist 条目或分组；false=结构固定（如最终验证、通过标准）",
+    "sections[].format": "内容格式类型。group=测试分组（含 checklist + 通过标准子节）；list=checklist 列表（- [ ] cmd:/human:）；text=通过标准文本；table=表格（TDD 测试文件）",
+    "sections[].extensible": "是否允许 agent 扩展。true=可增删 checklist 条目或分组；false=结构固定（如通过标准）",
     "sections[].subsections": "group 格式下的子 section。测试分组包含 Checklist（list）和通过标准（text）两个子节",
-    "sections[].content": "template 格式的固定文本，如最终验证的 cmd 命令，agent 必须原样输出",
     "sections[].columns": "table 格式的列名定义，如 [\"测试文件\", \"关联检查项\", \"状态\"]",
     "sections[0].heading": "测试分组标题格式为 G{N}. {{ 分组名称 }}，G 编号从 1 递增",
     "sections[0].subsections[0].format": "Checklist 使用 list 格式，每行以 - [ ] cmd: 或 - [ ] human: 开头",

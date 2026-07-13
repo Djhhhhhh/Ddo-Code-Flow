@@ -5,6 +5,10 @@
   "$comment": "Reference existence (atom-task names) and DAG no-cycle are enforced by the loader (UI schema.js + dag.js, and the Agent's runtime). They are NOT expressible in pure JSON Schema.",
   "type": "object",
   "required": ["version", "base", "atomTaskOverrides"],
+  "oneOf": [
+    { "required": ["pipeline"] },
+    { "required": ["workflows"] }
+  ],
   "additionalProperties": false,
   "properties": {
     "$schema": { "type": "string" },
@@ -19,7 +23,6 @@
         "contextPaths",
         "contextOptional",
         "respGenerator",
-        "confirmationGates",
         "metrics"
       ],
       "additionalProperties": false,
@@ -222,7 +225,7 @@
     },
     "workflowDefinition": {
       "type": "object",
-      "required": ["id", "name", "pipeline"],
+      "required": ["id", "version", "name", "confirmationGates", "pipeline", "atomTaskOverrides"],
       "additionalProperties": false,
       "properties": {
         "$schema": { "type": "string" },
@@ -230,6 +233,8 @@
         "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
         "name": { "type": "string", "minLength": 1 },
         "description": { "type": "string" },
+        "descriptionEn": { "type": "string" },
+        "descriptionZh": { "type": "string" },
         "confirmationGates": {
           "type": "array",
           "uniqueItems": true,

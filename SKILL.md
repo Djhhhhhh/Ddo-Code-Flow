@@ -24,10 +24,18 @@ require the full pipeline.
 ## Inputs
 
 - An inline user prompt describing the requirement (the message that triggered this skill).
-- `config.json` — workflow index + global runtime settings (project root, **唯一事实来源**).
-- `config.schema.json` — JSON Schema for validation (project root). Also defines `$defs/workflowDefinition` for workflow JSON files.
+- `config.json` — workflow index + global runtime settings (`skillRoot`, **唯一事实来源**).
+- `config.schema.json` — JSON Schema for validation (`skillRoot`). Also defines `$defs/workflowDefinition` for workflow JSON files.
 - `workflows/*.json` — workflow definitions (pipeline, confirmationGates, atomTaskOverrides per mode).
-- `atom-tasks/<name>/<name>.md` — atom-task definitions (YAML frontmatter + markdown body, project root). **渐进式读取：只在进入该 node 时才加载。**
+- `atom-tasks/<name>/<name>.md` — atom-task definitions (YAML frontmatter + markdown body, `skillRoot`). **渐进式读取：只在进入该 node 时才加载。**
+
+Runtime path vocabulary is fixed:
+
+- `skillRoot`: directory containing this `SKILL.md`, `config.json`, workflows, and atom tasks; read-only during a run.
+- `projectRoot`: target Git repository present when the skill is invoked.
+- `targetDir`: parent container in which sibling worktrees are created; never a code-editing working directory.
+- `worktreePath`: isolated Git worktree for this run and the only directory where source edits and project commands are allowed.
+- `artifactDir`: `<worktreePath>/docs/<type>/<dateDescription>`.
 
 ## Execution (read top-to-bottom each session)
 
@@ -37,7 +45,7 @@ mechanical loop below.
 
 ### Step 1 — Load and validate
 
-1. Read `config.json` and `config.schema.json` from the project root.
+1. Read `config.json` and `config.schema.json` from `skillRoot`; record the current target Git repository as `projectRoot`.
 2. Validate `config.json` against the schema. Reject and abort on failure.
 3. **Auto-migration (v2 → v3)**: If `config.json` has a top-level `pipeline` field and no `workflows` field, perform automatic migration:
    a. Create `workflows/` directory if it doesn't exist.
@@ -57,7 +65,7 @@ mechanical loop below.
 
 1. Read the resolved `config.workflows` object.
 2. **Explicit parameter**: If the user's skill invocation contains `workflow=<id>`, `mode=<id>`, or `profile=<id>` (one of `config.workflows.selection.argumentNames`), and `allowUserOverride` is true, use that id.
-3. **Rule matching**: Otherwise, iterate `config.workflows.selection.rules` in order. For each rule, check if any keyword in `matchAny` appears in the user's requirement text. First match wins.
+3. **Rule matching**: Otherwise, iterate `config.workflows.selection.rules` in order. Normalize both the requirement and each `matchAny` keyword with Unicode-aware lowercase, then check substring inclusion. First match wins.
 4. **Fallback**: If no rule matched, use the rule with `fallback: true`.
 5. **Default**: If still unresolved, use `config.workflows.default`.
 6. Load the workflow JSON from `config.workflows.items[].path` for the resolved id. This is the **active workflow**.
@@ -71,9 +79,14 @@ mechanical loop below.
 > during pipeline execution. This ensures all artifacts — including early-stage
 > outputs like `context-summary.md` — are written to a single unified directory.
 
-1. Resolve `targetDir` relative to the current working directory.
+1. Resolve `targetDir` relative to `projectRoot`.
 2. Search `targetDir` for an existing `.state.json` (any subdirectory matching
-   `*/docs/*/.state.json`). If found, read it and resume from `currentStage`.
+   `*/docs/*/*/.state.json`). A candidate is resumable only when its
+   `currentStage != "done"`, its recorded `projectRoot` equals this run's
+   `projectRoot`, its `worktreePath` exists, and the state file is inside the
+   recorded `artifactDir`. If multiple candidates remain, stop and require an
+   explicit run/state selection; never resume an arbitrary match. If exactly
+   one candidate remains, read it and resume from `currentStage`.
    Append a `resumed` entry to `.state.json.history`. If `pendingOutputs`
    exists and `worktreePath` is set, flush all pending outputs to disk
    (write each entry to its resolved path under `worktreePath`) and remove
@@ -84,6 +97,8 @@ mechanical loop below.
    {
      "runId": null,
      "createdAt": "<ISO 8601>",
+     "projectRoot": "<absolute target Git repository>",
+     "skillRoot": "<absolute skill directory>",
      "userRequirement": "<verbatim user prompt>",
      "currentStage": "context",
      "stages": {},
@@ -102,11 +117,11 @@ mechanical loop below.
 
 | Prefix | Resolves to | When |
 |---|---|---|
-| `skill://<path>` | Project root `/<path>` (read-only) | Always |
+| `skill://<path>` | `<skillRoot>/<path>` (read-only) | Always |
 | `run://<path>` | `<worktreePath>/<path>` | After git-worktree sets `worktreePath` |
 | `run://docs/{type}/{dateDescription}/<path>` | `<worktreePath>/docs/<type>/<dateDescription>/<path>` | After git-worktree sets `worktreePath`, `type`, and `dateDescription` |
 | `run://<path>` | Hold in memory (pending write) | Before `worktreePath` exists |
-| `run://../<path>` | `<target>/<path>` (project root) | Always |
+| `run://../<path>` | `<projectRoot>/<path>` | Always |
 
 **Directory structure**:
 
@@ -161,7 +176,7 @@ No delayed write is needed.
 from git-worktree creating it), invoke the Metrics Runtime Plugin when
 `config.base.metrics.enabled == true`:
 ```
-node scripts/metrics/plugin.js runStart --run-dir <worktreePath>/docs/<type> --config config.json --skill-root .
+node <skillRoot>/scripts/metrics/plugin.js runStart --run-dir <artifactDir> --config <skillRoot>/config.json --skill-root <skillRoot>
 ```
 If `.state.json.metrics.snapshotBefore` already exists (resume), the plugin
 skips re-capture. On failure, record `metrics.status: failed` and **continue**
@@ -179,6 +194,9 @@ For each `stageDef` in the **active workflow's `pipeline`**, in order, skipping 
 > **Override 合并优先级**: workflow 级 `atomTaskOverrides` > config 全局 `atomTaskOverrides` > atom-task 自身默认值。
 
 1. **Resolve effective DAG**:
+   - If `stageDef.stage == "done"` and its entry is empty, treat it as a
+     terminal sentinel: run the Step 5 terminal invariants and set its status
+     to `done` only if they pass. Do not mark the terminal sentinel `skipped`.
    - Start from `stageDef.atomTasks`.
    - Drop every node whose effective `enabled == false`. The effective value
      is `atomTaskOverrides[name].enabled` if present, else the atom-task
@@ -240,7 +258,7 @@ For each `stageDef` in the **active workflow's `pipeline`**, in order, skipping 
      `.state.json` and write it to disk before continuing.
    - For the initial write (before `worktreePath` exists), write `.state.json`
      to a temporary location in memory. Once `worktreePath` and `type` are set,
-     flush it to `<worktreePath>/docs/<type>/.state.json`.
+     flush it to `<artifactDir>/.state.json`.
 
 ### Step 4 — Stage-level failure recovery
 
@@ -252,19 +270,31 @@ recovery targets — they are fully defined in the atom-task .md file.
 
 ### Step 5 — Finalize
 
-After all stages in the **active workflow's `pipeline`** have completed (i.e., the last stage's
-status is `done` in `.state.json`):
+Before marking the terminal sentinel `done`, enforce all of these invariants:
+
+- Every enabled non-terminal stage is `done` or legitimately `skipped`.
+- Every required confirmation gate is explicitly approved.
+- No task is `running`, `failed`, or pending rework.
+- Verification, when enabled, ends with `ALL PASSED`; there are no failed or
+  unanswered `human:` checks.
+- No pending outputs or unresolved confirmations remain.
+
+If any invariant fails, keep `currentStage` at the blocking stage, persist a
+`waiting-confirmation`, `waiting-human`, or `failed` status as appropriate, and
+stop. Never report the run as complete.
+
+After the terminal sentinel status is `done` in `.state.json`:
 1. Invoke the **Metrics Runtime Plugin (runFinish)** when
    `config.base.metrics.enabled == true`:
    - Command:
-     `node scripts/metrics/plugin.js runFinish --run-dir <worktreePath>/docs/<type> --config config.json --skill-root .`
+     `node <skillRoot>/scripts/metrics/plugin.js runFinish --run-dir <artifactDir> --config <skillRoot>/config.json --skill-root <skillRoot>`
    - Writes `metrics.snapshotAfter`, computes `metrics.runTotal` (delta from
-     snapshots), and optionally `<worktreePath>/docs/<type>/metrics-report.md`
+     snapshots), and optionally `<artifactDir>/metrics-report.md`
      when `metrics.report.enabled == true`.
    - Metrics failure does **not** revert workflow success; run stays COMPLETED.
 2. Tell the user the run is complete and point them to
    `<worktreePath>/docs/{type}/{dateDescription}/execution-report.md`
-   (and `<worktreePath>/metrics-report.md` when generated).
+   (and `<artifactDir>/metrics-report.md` when generated).
 
 ## Metrics Runtime Plugin (observability)
 
@@ -278,11 +308,11 @@ plugin invoked at run start and run finish only. See `docs/metrics.md` and
 
 ## Outputs to maintain
 
-- `<worktreePath>/docs/<type>/.state.json` — pipeline state machine. Updated at
+- `<artifactDir>/.state.json` — pipeline state machine. Updated at
   every transition. The `worktreePath` field is set by the `git-worktree` atom-task
   and points to the absolute path of the worktree directory. The `type` field
   records the branch prefix (feat/fix/...).
-- `<worktreePath>/docs/<type>/worktree-info.json` — branch metadata written by
+- `<artifactDir>/worktree-info.json` — branch metadata written by
   the `git-worktree` atom-task.
 - All other outputs are defined in each atom-task's `io.outputs[*].ref`.
   The runtime resolves `run://docs/{type}/{dateDescription}/` paths to
@@ -290,7 +320,7 @@ plugin invoked at run start and run finish only. See `docs/metrics.md` and
   `{type}` and `{dateDescription}` are resolved from `.state.json`
   (set by the `git-worktree` atom-task from the branch name).
   Before `worktreePath` is set, outputs are held in memory (delayed write).
-- `<worktreePath>/metrics-report.md` — optional; produced by the Metrics
+- `<artifactDir>/metrics-report.md` — optional; produced by the Metrics
   Runtime Plugin when `config.base.metrics.report.enabled == true`.
 
 ## Failure modes (recap)
