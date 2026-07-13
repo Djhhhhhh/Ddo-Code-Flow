@@ -29,7 +29,7 @@ outputSchemaRef: "skill://atom-tasks/review/review-report.output.schema.json"
 
 ## 指令
 
-生成一个 sub-agent（或将自己视为 sub-agent），逐条遍历 check-list.md。对每个条目，对照产出物（targetDir 中的代码和 run 目录中的文档）进行评估。将 review-report.md 写入磁盘，每个 checklist 条目一个 section：`## <条目>` 后跟结论（通过/不通过/不适用）和备注。
+生成一个 sub-agent（或将自己视为 sub-agent），逐条遍历 check-list.md。对每个条目，对照产出物（`.state.json.worktreePath` 中的代码和 artifactDir 中的文档）进行评估。将 review-report.md 写入磁盘，每个 checklist 条目一个 section：`## <条目>` 后跟结论（通过/不通过/不适用）和备注。
 
 ## 约束
 

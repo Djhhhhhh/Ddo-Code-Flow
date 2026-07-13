@@ -26,7 +26,7 @@ outputSchemaRef: "skill://atom-tasks/context/context.output.schema.json"
 
 ## 指令
 
-读取 AGENTS.md（默认输入）以及 config.base.contextPaths 中用户配置的额外路径。对于每个缺失的输入（required=false），将其记录到「上下文缺失」列表中。生成 context-summary.md，包含两个 section：「已加载来源」（文件路径 + 一行摘要）和「上下文缺失」（声明了但实际不存在的文件列表）。contextPaths 中的路径相对于 targetDir 解析。
+读取 AGENTS.md（默认输入）以及 config.base.contextPaths 中用户配置的额外路径。对于每个缺失的输入（required=false），将其记录到「上下文缺失」列表中。生成 context-summary.md，包含两个 section：「已加载来源」（文件路径 + 一行摘要）和「上下文缺失」（声明了但实际不存在的文件列表）。contextPaths 中的路径相对于本次目标项目的 `projectRoot` 解析；不得相对于工作树父目录 targetDir 解析。
 
 ## 约束
 

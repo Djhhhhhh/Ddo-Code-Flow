@@ -31,8 +31,38 @@
       "allowUserOverride": true,
       "argumentNames": ["workflow", "mode", "profile"],
       "rules": [
-        { "workflow": "lightweight", "matchAny": ["docs", "文档", "调研", "小修"] },
-        { "workflow": "guarded", "matchAny": ["安全", "数据迁移", "公开接口", "性能", "并发"] },
+        {
+          "workflow": "guarded",
+          "matchAny": [
+            "安全",
+            "security",
+            "prototype",
+            "数据迁移",
+            "migration",
+            "公开接口",
+            "public api",
+            "性能",
+            "performance",
+            "并发",
+            "concurrency",
+            "async",
+            "race"
+          ]
+        },
+        {
+          "workflow": "lightweight",
+          "matchAny": [
+            "docs",
+            "documentation",
+            "readme",
+            "文档",
+            "调研",
+            "research",
+            "小修",
+            "small fix",
+            "minor fix"
+          ]
+        },
         { "workflow": "standard", "fallback": true }
       ]
     },
