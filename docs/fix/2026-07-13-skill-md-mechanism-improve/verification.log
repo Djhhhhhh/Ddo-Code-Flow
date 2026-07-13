@@ -1,0 +1,60 @@
+=== G1. 步骤编号与结构修复 ===
+[PASS] G1-cmd1: grep -c "^### Step [0-9]" SKILL.md | test $(cat) -eq 5
+[PASS] G1-cmd2: grep "^### Step" SKILL.md | sort | uniq -d | test $(wc -l) -eq 0
+[PASS] G1-human1: Step 1~5 编号连续，无重复无跳号
+[PASS] G1-cmd3: grep -c "路径解析规则" SKILL.md | test $(cat) -le 1
+[PASS] G1-human2: 路径解析规则表只在 Step 3 中出现一次
+GROUP G1 PASSED
+
+=== G2. .state.json 初始化模板增强 ===
+[PASS] G2-cmd1: grep -q '"workflowId"' SKILL.md
+[PASS] G2-cmd2: grep -q '"configPath"' SKILL.md
+[PASS] G2-cmd3: grep -q '"workflowPath"' SKILL.md
+[PASS] G2-cmd4: grep -q '"historyMeta"' SKILL.md
+[PASS] G2-human1: .state.json 初始化模板包含 workflowId/configPath/workflowPath/historyMeta
+GROUP G2 PASSED
+
+=== G3. Step 1 验证范围收窄 ===
+[PASS] G3-human1: Step 1 不再遍历 workflows.items[] 做全量校验
+[PASS] G3-human2: Step 1 仅保留 config.json schema 校验和引用完整性检查
+[PASS] G3-human3: Step 2 包含 workflow JSON 加载、schema 校验、DAG 无环检查
+GROUP G3 PASSED
+
+=== G4. 恢复逻辑整合 ===
+[PASS] G4-human1: 恢复逻辑集中在 Step 3 一个连续段落中
+[PASS] G4-human2: Step 2 不再有 Resume override 和 Record workflowId
+[PASS] G4-human3: 恢复逻辑包含 search→read→override→validate→resume
+GROUP G4 PASSED
+
+=== G5. history 事件日志规范 ===
+[PASS] G5-cmd1: grep -c "gate-pending|gate-approved|gate-rejected|rollback-triggered|rollback-analyzed" SKILL.md >= 5
+[PASS] G5-human1: 定义了 history 事件类型集合（15 种事件）
+[PASS] G5-human2: history 条目结构包含 note、feedback、target 三个可选字段
+[PASS] G5-human3: feedback 格式定义为"第x轮反馈：（反馈具体内容）"
+[PASS] G5-human4: 有确认门完整事件链的示例
+[PASS] G5-cmd6: grep -q "historyMeta" SKILL.md
+[PASS] G5-human5: historyMeta 包含 version/eventTypes/feedbackFormat/feedbackScope/rules
+GROUP G5 PASSED
+
+=== G6. 通过 .state.json 直接恢复工作流 ===
+[PASS] G6-human1: 描述了通过 .state.json 直接恢复工作流的流程
+[PASS] G6-human2: 恢复流程包含读 configPath→读 workflowPath→校验→继续执行
+[PASS] G6-human3: 直接恢复不需要重新执行 Step 1 和 Step 2
+GROUP G6 PASSED
+
+=== G7. 文档版本归档（_del 目录）===
+[PASS] G7-human1: SKILL.md 中包含 _del 目录相关描述
+[PASS] G7-human2: _del 目录位于 .state.json 同级目录下
+[PASS] G7-human3: 归档文件命名格式为 <原文件名>.<ISO 8601>.md
+[PASS] G7-human4: 归档时机定义完整
+GROUP G7 PASSED
+
+=== G8. 跨阶段回滚机制 ===
+[PASS] G8-human1: 定义了确认门跨阶段回滚的判断标准
+[PASS] G8-human2: 回滚判断标准包含增删FR、修改AC、调整范围→回滚到spec
+[PASS] G8-human3: 回滚后 .state.json 状态变更规则完整
+[PASS] G8-human4: 有回滚场景的 history 示例（含 rollback-analyzed 和 rollback-triggered）
+[PASS] G8-human5: 回滚后重新经过的阶段必须重新走确认门
+GROUP G8 PASSED
+
+ALL PASSED
