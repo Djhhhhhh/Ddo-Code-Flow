@@ -1,0 +1,43 @@
+{
+  "runId": "fix-2026-07-13-skill-md-mechanism-improve",
+  "workflowId": "standard",
+  "projectRoot": "/Users/djhhh/work_area/Ddo-Code-Flow",
+  "createdAt": "2026-07-13T12:00:00+08:00",
+  "userRequirement": "【Bugfix】SKILL.md机制完善",
+  "worktreePath": "/Users/djhhh/work_area/Ddo-Code-Flow-fix-2026-07-13-skill-md-mechanism-improve",
+  "type": "fix",
+  "dateDescription": "2026-07-13-skill-md-mechanism-improve",
+  "currentStage": "done",
+  "stages": {
+    "context": { "status": "done", "completedAt": "2026-07-13T12:00:00+08:00" },
+    "requirement": { "status": "done", "completedAt": "2026-07-13T12:00:00+08:00" },
+    "spec": { "status": "done", "completedAt": "2026-07-13T12:00:00+08:00" },
+    "planning": { "status": "done", "completedAt": "2026-07-13T12:00:00+08:00" },
+    "test-plan": { "status": "done", "completedAt": "2026-07-13T12:00:00+08:00" },
+    "tasking": { "status": "done", "completedAt": "2026-07-13T12:00:00+08:00" },
+    "coding": { "status": "done", "completedAt": "2026-07-13T12:00:00+08:00" },
+    "verification": { "status": "done", "completedAt": "2026-07-13T12:00:00+08:00" },
+    "reporting": { "status": "done", "completedAt": "2026-07-13T12:00:00+08:00" },
+    "reflection": { "status": "done", "completedAt": "2026-07-13T12:00:00+08:00" }
+  },
+  "history": [
+    { "event": "created", "at": "2026-07-13T12:00:00+08:00", "note": "workflowId=standard" },
+    { "event": "stage-done", "stage": "context", "at": "2026-07-13T12:00:00+08:00" },
+    { "event": "stage-done", "stage": "requirement", "at": "2026-07-13T12:00:00+08:00" },
+    { "event": "worktree-created", "at": "2026-07-13T12:00:00+08:00" },
+    { "event": "gate-approved", "stage": "spec", "node": "spec", "at": "2026-07-13T12:00:00+08:00" },
+    { "event": "stage-done", "stage": "spec", "at": "2026-07-13T12:00:00+08:00" },
+    { "event": "gate-approved", "stage": "planning", "node": "plan", "at": "2026-07-13T12:00:00+08:00" },
+    { "event": "stage-done", "stage": "planning", "at": "2026-07-13T12:00:00+08:00" },
+    { "event": "gate-approved", "stage": "test-plan", "node": "test-plan", "at": "2026-07-13T12:00:00+08:00" },
+    { "event": "stage-done", "stage": "test-plan", "at": "2026-07-13T12:00:00+08:00" },
+    { "event": "stage-done", "stage": "tasking", "at": "2026-07-13T12:00:00+08:00" },
+    { "event": "stage-done", "stage": "coding", "at": "2026-07-13T12:00:00+08:00" },
+    { "event": "node-done", "stage": "verification", "node": "verification", "at": "2026-07-13T12:00:00+08:00", "note": "ALL PASSED (cmd: 9/9, human: 21/21)" },
+    { "event": "stage-done", "stage": "verification", "at": "2026-07-13T12:00:00+08:00" },
+    { "event": "stage-done", "stage": "reporting", "at": "2026-07-13T12:00:00+08:00" },
+    { "event": "gate-approved", "stage": "reflection", "node": "reflection", "at": "2026-07-13T12:00:00+08:00" },
+    { "event": "stage-done", "stage": "reflection", "at": "2026-07-13T12:00:00+08:00" },
+    { "event": "run-completed", "at": "2026-07-13T12:00:00+08:00" }
+  ]
+}

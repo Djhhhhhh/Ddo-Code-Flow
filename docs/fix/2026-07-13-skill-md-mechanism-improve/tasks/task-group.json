@@ -1,0 +1,41 @@
+{
+  "version": "1.0.0",
+  "tasks": [
+    {
+      "id": "task-01",
+      "file": "task-01.md",
+      "title": "SKILL.md 步骤结构修复（合并 Step 3、收窄 Step 1、整合恢复逻辑）",
+      "dependsOn": []
+    },
+    {
+      "id": "task-02",
+      "file": "task-02.md",
+      "title": ".state.json 模板增强与 history 事件日志规范",
+      "dependsOn": ["task-01"]
+    },
+    {
+      "id": "task-03",
+      "file": "task-03.md",
+      "title": "新增 .state.json 直接恢复流程",
+      "dependsOn": ["task-02"]
+    },
+    {
+      "id": "task-04",
+      "file": "task-04.md",
+      "title": "新增文档版本归档与跨阶段回滚机制",
+      "dependsOn": ["task-02"]
+    },
+    {
+      "id": "task-05",
+      "file": "task-05.md",
+      "title": "全文检查与最终验证",
+      "dependsOn": ["task-03", "task-04"]
+    }
+  ],
+  "parallelGroups": [
+    ["task-01"],
+    ["task-02"],
+    ["task-03", "task-04"],
+    ["task-05"]
+  ]
+}
