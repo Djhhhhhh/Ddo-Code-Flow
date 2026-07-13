@@ -1,0 +1,43 @@
+{
+  "$schema": "../../../schema/task.schema.json",
+  "schemaVersion": "1.0",
+  "id": "py-smoke-02-itsdangerous-input-limit",
+  "title": "Signed-input size policy with scripted clarification",
+  "description": "Ambiguous security requirement whose public semantics are supplied by a shared user oracle.",
+  "track": "ambiguous-hitl",
+  "language": "python",
+  "difficulty": "medium",
+  "tags": ["security", "hitl", "public-api", "typing"],
+  "repository": {
+    "url": "https://github.com/pallets/itsdangerous.git",
+    "baseCommit": "672971d66a2ef9f85151e53283113f33d642dabd",
+    "license": "BSD-3-Clause"
+  },
+  "promptPath": "prompt.md",
+  "setup": {
+    "commands": [
+      ["python3", "-m", "pip", "install", "-e", ".", "pytest", "freezegun"]
+    ]
+  },
+  "verifier": {
+    "id": "py-smoke-02-itsdangerous-input-limit",
+    "timeoutSeconds": 300
+  },
+  "expectedWorkflow": "guarded",
+  "acceptanceCriteria": [
+    {"id": "AC-1", "description": "All serializer variants expose the clarified keyword-only max_input_size API with strict argument validation."},
+    {"id": "AC-2", "description": "All four load entry points reject oversized complete tokens before expensive processing with PayloadTooLarge."},
+    {"id": "AC-3", "description": "Boundary, Unicode-byte, inheritance, unsafe-method, exception-export, and default-unlimited semantics match the oracle."},
+    {"id": "AC-4", "description": "Typing and the upstream regression suite remain correct."}
+  ],
+  "interaction": {
+    "mode": "scripted",
+    "oracleId": "py-smoke-02-itsdangerous-input-limit"
+  },
+  "interruptions": [],
+  "budgets": {
+    "wallTimeSeconds": 2400,
+    "maxInputTokens": 200000,
+    "maxOutputTokens": 40000
+  }
+}

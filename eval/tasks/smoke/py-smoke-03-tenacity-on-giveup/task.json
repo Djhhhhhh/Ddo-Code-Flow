@@ -1,0 +1,42 @@
+{
+  "$schema": "../../../schema/task.schema.json",
+  "schemaVersion": "1.0",
+  "id": "py-smoke-03-tenacity-on-giveup",
+  "title": "Tenacity terminal on_giveup hook",
+  "description": "Public sync/async API task used to smoke-test persisted stage recovery.",
+  "track": "recovery",
+  "language": "python",
+  "difficulty": "medium",
+  "tags": ["async", "public-api", "recovery", "typing"],
+  "repository": {
+    "url": "https://github.com/jd/tenacity.git",
+    "baseCommit": "b2cd0274c67610d615019ab4745f521504a0576d",
+    "license": "Apache-2.0"
+  },
+  "promptPath": "prompt.md",
+  "setup": {
+    "commands": [
+      ["python3", "-m", "pip", "install", "-e", ".[test]", "trio"]
+    ]
+  },
+  "verifier": {
+    "id": "py-smoke-03-tenacity-on-giveup",
+    "timeoutSeconds": 600
+  },
+  "expectedWorkflow": "guarded",
+  "acceptanceCriteria": [
+    {"id": "AC-1", "description": "The terminal hook executes exactly once with the final RetryCallState and correct ordering."},
+    {"id": "AC-2", "description": "Retrying and AsyncRetrying correctly support synchronous and asynchronous hooks."},
+    {"id": "AC-3", "description": "Copy, decorators, retry_with, error propagation, and disabled or non-retryable paths preserve the specified semantics."},
+    {"id": "AC-4", "description": "Typing, documentation, and the upstream regression suite remain correct."}
+  ],
+  "interaction": {"mode": "none"},
+  "interruptions": [
+    {"id": "after-tasking", "event": "stage-completed", "value": "tasking"}
+  ],
+  "budgets": {
+    "wallTimeSeconds": 3000,
+    "maxInputTokens": 250000,
+    "maxOutputTokens": 50000
+  }
+}

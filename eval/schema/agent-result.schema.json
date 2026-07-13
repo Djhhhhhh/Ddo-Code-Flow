@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ddo-code-flow.dev/eval/agent-result.schema.json",
+  "title": "Structured final response from an evaluated agent",
+  "type": "object",
+  "required": ["status", "summary"],
+  "additionalProperties": false,
+  "properties": {
+    "status": { "enum": ["completed", "blocked"] },
+    "summary": { "type": "string" }
+  }
+}

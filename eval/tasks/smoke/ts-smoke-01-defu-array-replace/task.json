@@ -1,0 +1,41 @@
+{
+  "$schema": "../../../schema/task.schema.json",
+  "schemaVersion": "1.0",
+  "id": "ts-smoke-01-defu-array-replace",
+  "title": "Defu array-replacement merge export",
+  "description": "TypeScript API change used to smoke-test automatic guarded routing.",
+  "track": "routing",
+  "language": "typescript",
+  "difficulty": "easy",
+  "tags": ["routing", "public-api", "types", "build"],
+  "repository": {
+    "url": "https://github.com/unjs/defu.git",
+    "baseCommit": "82632b66f5914e9946edce300e10633a3d5c0cb7",
+    "license": "MIT"
+  },
+  "promptPath": "prompt.md",
+  "setup": {
+    "commands": [
+      ["corepack", "pnpm", "install", "--frozen-lockfile", "--ignore-scripts"]
+    ],
+    "environment": {"CI": "true"}
+  },
+  "verifier": {
+    "id": "ts-smoke-01-defu-array-replace",
+    "timeoutSeconds": 600
+  },
+  "expectedWorkflow": "guarded",
+  "acceptanceCriteria": [
+    {"id": "AC-1", "description": "The named defuArrayReplace export replaces arrays recursively with correct multi-default priority."},
+    {"id": "AC-2", "description": "Nullish, non-array, immutability, and prototype-pollution behavior remains compatible."},
+    {"id": "AC-3", "description": "Types, ESM/CJS exports, build output, and documentation expose the new API."},
+    {"id": "AC-4", "description": "The upstream regression suite remains green."}
+  ],
+  "interaction": {"mode": "none"},
+  "interruptions": [],
+  "budgets": {
+    "wallTimeSeconds": 1800,
+    "maxInputTokens": 150000,
+    "maxOutputTokens": 30000
+  }
+}

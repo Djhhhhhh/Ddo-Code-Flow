@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ddo-code-flow.dev/eval/run-result.schema.json",
+  "title": "DdoFlow-Eval run result",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "runId",
+    "suiteId",
+    "taskId",
+    "track",
+    "language",
+    "difficulty",
+    "condition",
+    "repeat",
+    "startedAt",
+    "finishedAt",
+    "status",
+    "durationSeconds",
+    "taskBaseCommit"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "schemaVersion": { "const": "1.0" },
+    "runId": { "type": "string", "minLength": 1 },
+    "suiteId": { "type": "string", "minLength": 1 },
+    "taskId": { "type": "string", "minLength": 1 },
+    "track": { "type": "string", "minLength": 1 },
+    "language": { "enum": ["python", "typescript"] },
+    "difficulty": { "enum": ["easy", "medium", "hard"] },
+    "condition": { "type": "string", "minLength": 1 },
+    "repeat": { "type": "integer", "minimum": 1 },
+    "model": { "type": ["string", "null"] },
+    "startedAt": { "type": "string" },
+    "finishedAt": { "type": "string" },
+    "status": {
+      "enum": ["completed", "agent-failure", "infrastructure-failure"]
+    },
+    "durationSeconds": { "type": "number", "minimum": 0 },
+    "taskBaseCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "falseCompletion": { "type": "boolean" },
+    "interactions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["turn", "matchedFactCount", "usedFallback"],
+        "additionalProperties": false,
+        "properties": {
+          "turn": { "type": "integer", "minimum": 1 },
+          "matchedFactCount": { "type": "integer", "minimum": 0 },
+          "usedFallback": { "type": "boolean" }
+        }
+      }
+    },
+    "external": {
+      "type": "object",
+      "required": ["passed", "acceptance"],
+      "additionalProperties": false,
+      "properties": {
+        "passed": { "type": "boolean" },
+        "acceptance": {
+          "type": "object",
+          "additionalProperties": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ddo-code-flow.dev/eval/task.schema.json",
+  "title": "DdoFlow-Eval task manifest",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "id",
+    "title",
+    "track",
+    "language",
+    "difficulty",
+    "repository",
+    "promptPath",
+    "setup",
+    "verifier",
+    "expectedWorkflow",
+    "acceptanceCriteria",
+    "interaction",
+    "interruptions",
+    "budgets"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": { "const": "1.0" },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{2,95}$"
+    },
+    "title": { "type": "string", "minLength": 3 },
+    "description": { "type": "string" },
+    "track": {
+      "enum": [
+        "negative-control",
+        "long-horizon",
+        "ambiguous-hitl",
+        "guarded-risk",
+        "recovery",
+        "routing"
+      ]
+    },
+    "language": { "enum": ["python", "typescript"] },
+    "difficulty": { "enum": ["easy", "medium", "hard"] },
+    "tags": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "repository": {
+      "type": "object",
+      "required": ["url", "baseCommit", "license"],
+      "additionalProperties": false,
+      "properties": {
+        "url": { "type": "string", "minLength": 1 },
+        "baseCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "license": { "type": "string", "minLength": 1 }
+      }
+    },
+    "promptPath": { "type": "string", "minLength": 1 },
+    "setup": {
+      "type": "object",
+      "required": ["commands"],
+      "additionalProperties": false,
+      "properties": {
+        "commands": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/command" }
+        },
+        "environment": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    },
+    "verifier": {
+      "type": "object",
+      "required": ["id", "timeoutSeconds"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]+$" },
+        "timeoutSeconds": { "type": "integer", "minimum": 1, "maximum": 7200 }
+      }
+    },
+    "expectedWorkflow": { "enum": ["lightweight", "standard", "guarded"] },
+    "acceptanceCriteria": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "description"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^AC-[0-9]+$" },
+          "description": { "type": "string", "minLength": 3 }
+        }
+      }
+    },
+    "interaction": {
+      "type": "object",
+      "required": ["mode"],
+      "additionalProperties": false,
+      "properties": {
+        "mode": { "enum": ["none", "scripted"] },
+        "oracleId": { "type": "string", "minLength": 1 }
+      }
+    },
+    "interruptions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "event", "value"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "event": { "enum": ["stage-completed", "stage-started", "tool-call-count"] },
+          "value": { "type": ["string", "integer"] }
+        }
+      }
+    },
+    "budgets": {
+      "type": "object",
+      "required": ["wallTimeSeconds", "maxInputTokens", "maxOutputTokens"],
+      "additionalProperties": false,
+      "properties": {
+        "wallTimeSeconds": { "type": "integer", "minimum": 60, "maximum": 14400 },
+        "maxInputTokens": { "type": "integer", "minimum": 1000 },
+        "maxOutputTokens": { "type": "integer", "minimum": 1000 }
+      }
+    }
+  },
+  "$defs": {
+    "command": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string" }
+    }
+  }
+}

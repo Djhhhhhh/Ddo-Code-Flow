@@ -1,324 +1,654 @@
-# Ddo-Code-Flow 评测方案
+# DdoFlow-Eval 评测集
 
-## 评测目的
-
-评测围绕三个核心命题展开，每个命题对应一组评测维度：
-
-| 命题 | 回答的问题 | 对外价值 |
-|------|-----------|---------|
-| **有效性** | 这套工作流能不能用？产出质量如何？ | 证明工作流值得采用 |
-| **优越性** | 和其他方式相比，好在哪？ | 证明工作流不可替代 |
-| **稳定性** | 换模型、换场景、遇到异常，还能不能稳定工作？ | 证明工作流可信赖 |
-
-> 三个命题的证明顺序：先证有效 → 再证优越 → 最后证稳定。
+_Ddo-Code-Flow 的 Codex 对照评测框架与六任务 Smoke 评测集（v0.1）_
 
 ---
 
-## 命题一 · 有效性
+## 📋 评测集定位
 
-> **核心主张：Ddo-Code-Flow 能从需求出发，产出可直接使用的代码和文档，且配置灵活、人机交互可靠。**
+DdoFlow-Eval 用于测量：在相同 Codex、相同任务、相同仓库版本和相同外部验证器下，加载 Ddo-Code-Flow 后是否能提高软件工程任务的完成质量。
 
----
+当前版本首先提供 6 个 Smoke 任务。Smoke 是小规模、覆盖关键风险的前置评测，主要用于验证：
 
-#### D1 · 端到端成功率
+- Direct 与 Ddo 两条实验链路能否完整运行
+- 隐藏验证器能否区分原始代码和正确实现
+- Ddo 是否在复杂任务上带来能力收益
+- Ddo 是否在简单任务上产生不必要的时间与 Token 开销
+- 自动路由、脚本化 HITL、安全工作流和长链任务机制是否正常
+- 结果是否能够被隔离、记录并进行配对分析
 
-| 字段 | 内容 |
-|------|------|
-| **核心问题** | 需求输入 → 最终产物，全程无错完成的比例？ |
-| **评测范围** | 端到端全流程 |
-| **评测对象** | 完整管线（planner → doc-writer → ... → dev-ops） |
-| **输入数据** | 固定评测用例集（user_req 格式） |
-| **输出数据** | 首次成功率（%）、3 次重试内最终成功率（%）、失败节点分布、错误类型统计 |
-| **评测方法** | 跑完整管线，记录每步 exit code 和错误信息；Verification 失败时允许自动回退重跑，最多 3 次 |
-| **指标类型** | `确定性` |
-| **依赖维度** | 无 |
-| **判定标准** | 首次成功率 ≥ 80%，3 次重试内最终成功率 = 100% |
+Smoke 不是最终的大规模 Benchmark。当前 6 个任务可以在可信、受控的本地环境中产生工程 Smoke/Pilot 数据，但不能单独支撑“Ddo 对软件工程任务普遍显著优于 Direct”的强结论；正式 Held-out Benchmark 还需要增加操作系统或容器级的隐藏资产隔离。
 
----
+| 阶段 | 建议规模 | 主要目的 | 结论强度 |
+| --- | ---: | --- | --- |
+| Smoke | 当前 6 个任务 | 验证链路、发现明显问题、观察初步趋势 | 不支持普遍性结论 |
+| Pilot | 约 18 个任务 | 调整任务分布、估计方差、修正指标 | 支持有限趋势判断 |
+| Held-out Benchmark | 约 48 个私有任务 | 检验泛化性并进行正式比较 | 满足抽样与统计前提时，可支持更强结论 |
 
-#### D2 · 产物质量（端到端）
+当前实现状态：
 
-| 字段 | 内容 |
-|------|------|
-| **核心问题** | 完整管线产出的代码和文档，质量有多高？ |
-| **评测范围** | 端到端最终产物 |
-| **评测对象** | docs/ 和 src/ 的最终输出 |
-| **输入数据** | 固定评测用例集 |
-| **输出数据** | 各维度质量评分（1-5）、总分、质量分布、**单元测试通过率** |
-| **评测方法** | 1. LLM-as-judge 按 rubric 多维度打分；2. 为生成的代码编写单元测试，执行并统计通过率 |
-| **指标类型** | `LLM-as-judge` `确定性` |
-| **依赖维度** | D1 |
-| **判定标准** | 平均评分 ≥ 3.5，无维度低于 2.0；单元测试通过率 ≥ 90% |
+- 3 个 Python 任务和 3 个 TypeScript 任务
+- 6 类任务 Track
+- 5 种 Codex 实验条件
+- 固定仓库 Commit 和隔离工作区
+- Direct/Ddo 共享隐藏验证器与脚本化用户 Oracle
+- Base 必须失败、Reference 必须通过的双向验证器审计
+- Pass@1、虚假完成、Token、路由和任务级配对分析
+- 公共回归测试 `32/32` 通过
+- 隐藏验证器审计 `6/6` 通过
 
----
+## ⚙️ 评测执行流程
 
-#### D3 · 原子任务质量（隔离）
+```mermaid
+flowchart TB
+    accTitle: DdoFlow 评测执行流程
+    accDescr: 每个任务从固定仓库提交创建隔离工作区，分别运行 Direct Codex 或注入 Ddo 的 Codex，再由相同的隐藏验证器评分并生成配对分析报告。
 
-| 字段 | 内容 |
-|------|------|
-| **核心问题** | 单个 atom-task 独立运行时，输出质量如何？ |
-| **评测范围** | 单个 atom-task 节点 |
-| **评测对象** | 被测的 atom-task（如 doc-writer、code-writer） |
-| **输入数据** | 固定的 mock 上游输入（理想化的上游输出） |
-| **输出数据** | 该节点的质量评分 |
-| **评测方法** | mock 上游输出，隔离跑单个节点，LLM-as-judge 打分 |
-| **指标类型** | `确定性` `LLM-as-judge` |
-| **依赖维度** | 无 |
-| **判定标准** | 该节点质量评分不下降 |
+    task_manifest([📋 固定任务清单]) --> clone_workspace[📦 创建隔离工作区]
+    clone_workspace --> choose_condition{选择实验条件}
+    choose_condition -->|Direct| direct_agent[🤖 运行原生 Codex]
+    choose_condition -->|Ddo| ddo_agent[⚙️ 注入 Ddo 工作流]
+    direct_agent --> hidden_verifier[🧪 运行隐藏验证器]
+    ddo_agent --> hidden_verifier
+    hidden_verifier --> public_result[(📊 写入结果 JSONL)]
+    public_result --> analyze_report([✅ 生成对比报告])
 
----
+    classDef input_style fill:#f3f4f6,stroke:#6b7280,stroke-width:2px,color:#1f2937
+    classDef process_style fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#1e3a5f
+    classDef success_style fill:#dcfce7,stroke:#16a34a,stroke-width:2px,color:#14532d
 
-#### D4 · 错误恢复能力
-
-| 字段 | 内容 |
-|------|------|
-| **核心问题** | 上游输出质量差时，下游节点能否自愈？ |
-| **评测范围** | 两两相邻节点 |
-| **评测对象** | 相邻的两个 atom-task（如 code-reviewer → code-writer） |
-| **输入数据** | 注入缺陷的上游输出（故意注入错误 / 缺失） |
-| **输出数据** | 下游节点修复后的质量评分 |
-| **评测方法** | 向上游输出注入预定义缺陷，跑下游节点，评估修复效果 |
-| **指标类型** | `LLM-as-judge` |
-| **依赖维度** | D3 |
-| **判定标准** | 修复后质量评分 ≥ 无缺陷场景的 80% |
-
----
-
-#### D5 · 产物可用性
-
-| 字段 | 内容 |
-|------|------|
-| **核心问题** | 最终产物人工 review 后能否直接使用？ |
-| **评测范围** | 端到端最终产物 |
-| **评测对象** | docs/ 和 src/ 的最终输出 |
-| **输入数据** | 端到端评测的产物 |
-| **输出数据** | 人工评分（1-5）、可用 / 需修改 / 不可用 的分类 |
-| **评测方法** | 人工 review 随机抽样产物，与 LLM-as-judge 评分做校准 |
-| **指标类型** | `人工` |
-| **依赖维度** | D1、D2 |
-| **判定标准** | 人工评分 ≥ 4.0 的比例 ≥ 80% |
-
----
-
-#### D-Config · 配置与拓扑有效性
-
-| 字段 | 内容 |
-|------|------|
-| **核心问题** | 修改 config.json（增删 stage / 调整 DAG 依赖 / 禁用 atom-task）后，流水线能否按预期拓扑执行？ |
-| **评测范围** | 配置解析、DAG 调度器 |
-| **评测对象** | config.json 的 stage 定义、parallel 依赖、atom-task 开关 |
-| **输入数据** | 3 类配置变体：①禁用中间节点 ②同一 stage 挂 3 个并行任务 ③设置依赖链 A→B→C |
-| **输出数据** | 执行顺序日志、并行批次时间戳、被禁用节点是否真正跳过 |
-| **评测方法** | 解析执行日志中的时间线和依赖 ID，与 DAG 定义做拓扑比对 |
-| **指标类型** | `确定性` |
-| **依赖维度** | D1 |
-| **判定标准** | 执行顺序严格满足 DAG 依赖；并行批次无串行等待；禁用节点无任何 LLM 调用 |
-
----
-
-#### D-HITL · 人机确认门准确率
-
-| 字段 | 内容 |
-|------|------|
-| **核心问题** | 在 Specification / Planning / Test-Planning / Reflection 四个确认门，对用户输入的分流（同意 vs 修改意见）是否准确？ |
-| **评测范围** | 确认门拦截器 |
-| **评测对象** | 4 个 HITL 门的输入分流逻辑 |
-| **输入数据** | 预设 20 条用户反馈：10 条纯"同意"（含变体措辞）、10 条含"修改：xxx"（含多种措辞变体） |
-| **输出数据** | 分流准确率（%）、误判类型（假阳性 / 假阴性） |
-| **评测方法** | 模拟用户输入，检查状态机跳转（进入下一阶段 vs 回退重做） |
-| **指标类型** | `确定性` |
-| **依赖维度** | 无 |
-| **判定标准** | 分流准确率 = 100%（此处不容错，否则会静默偏离用户意图） |
-
----
-
-## 命题二 · 优越性
-
-> **核心主张：相比其他开发方式，Ddo-Code-Flow 在质量、成本、效率上具有可量化的优势。**
-
----
-
-#### D6 · 对比基线：单次生成（无管线）
-
-| 字段 | 内容 |
-|------|------|
-| **核心问题** | 和"直接让模型一次性生成代码+文档"相比，管线化是否带来质量提升？ |
-| **评测范围** | 端到端 |
-| **对比对象** | Ddo-Code-Flow vs 同模型单次 prompt 直接生成（output 限制 16k tokens） |
-| **输入数据** | 同一组评测用例 |
-| **输出数据** | 两者质量评分差异、各维度分项对比 |
-| **评测方法** | 同一用例分别用管线和单次生成跑，LLM-as-judge 盲评对比 |
-| **指标类型** | `LLM-as-judge` `确定性` |
-| **依赖维度** | D2 |
-| **判定标准** | 管线产物质量评分显著高于单次生成（p < 0.05） |
-
----
-
-#### D7 · 对比基线：其他多步工作流
-
-| 字段 | 内容 |
-|------|------|
-| **核心问题** | 和其他多步编码工作流相比，优劣如何？ |
-| **评测范围** | 端到端 |
-| **对比对象** | Ddo-Code-Flow vs **Cursor Composer Agent 模式** vs **Aider architect 模式** |
-| **输入数据** | 同一组评测用例（需适配各工具的输入格式） |
-| **输出数据** | 质量评分对比、成本对比、延迟对比 |
-| **评测方法** | 同一用例用不同工具跑，统一评分标准对比 |
-| **指标类型** | `LLM-as-judge` `确定性` |
-| **依赖维度** | D2 |
-| **判定标准** | 至少在一个核心维度（质量 / 成本 / 效率）上显著领先 |
-
-> **选型理由**：Cursor Composer Agent 和 Aider architect 与 Ddo-Code-Flow 的"规划→编码"理念最接近，且无需额外基建成本。不选 Devin（太贵且黑盒）。
-
----
-
-#### D8 · 成本效率
-
-| 字段 | 内容 |
-|------|------|
-| **核心问题** | 同一质量水平下，Ddo-Code-Flow 的 token 消耗和费用是否合理？ |
-| **评测范围** | 端到端全流程 |
-| **评测对象** | 完整管线 |
-| **输入数据** | 固定评测用例集 |
-| **输出数据** | quality-per-dollar、quality-per-second、token 消耗分布 |
-| **评测方法** | 多配置跑同一用例集，计算质量 / 成本比 |
-| **计算公式** | `quality_per_dollar = (LLM_judge_score / total_token_cost_usd) * 1000` |
-| **指标类型** | `确定性` |
-| **依赖维度** | D2、D6 |
-| **判定标准** | 不设硬阈值，用于排名对比 |
-
----
-
-#### D9 · 工作流迭代回归
-
-| 字段 | 内容 |
-|------|------|
-| **核心问题** | 工作流变更（prompt / config / SKILL）后是否为正面优化？ |
-| **评测范围** | 端到端全流程 |
-| **评测对象** | SKILL.md、config.json、atom-task prompts |
-| **输入数据** | 固定评测用例集 |
-| **输出数据** | 变更前后的质量评分差异、统计显著性 p 值 |
-| **评测方法** | 同一用例集跑两版工作流，配对比较（Wilcoxon signed-rank test） |
-| **指标类型** | `确定性` `LLM-as-judge` |
-| **依赖维度** | 无 |
-| **判定标准** | 质量评分不下降；p < 0.05 时判定为显著变更 |
-
----
-
-## 命题三 · 稳定性
-
-> **核心主张：Ddo-Code-Flow 的产出质量不依赖于特定模型，跨模型、跨场景、遇到异常时表现稳定。**
-
----
-
-#### D10 · 跨模型一致性
-
-| 字段 | 内容 |
-|------|------|
-| **核心问题** | 不同模型跑同一工作流，产物质量的方差有多大？ |
-| **评测范围** | 端到端全流程 |
-| **评测对象** | 完整管线 |
-| **输入数据** | 固定评测用例集，跑 N 个模型（N ≥ 3） |
-| **输出数据** | 各模型质量评分、跨模型标准差、评分分布 |
-| **评测方法** | 多模型并行跑同一用例集，LLM-as-judge 统一打分，统计方差 |
-| **指标类型** | `确定性` `LLM-as-judge` |
-| **依赖维度** | 无 |
-| **判定标准** | 跨模型标准差 ≤ 15% 均值 |
-
----
-
-#### D11 · 单模型可靠性
-
-| 字段 | 内容 |
-|------|------|
-| **核心问题** | 同一模型、同一输入跑 N 次，输出质量方差多大？ |
-| **评测范围** | 端到端全流程 |
-| **评测对象** | 完整管线 |
-| **输入数据** | 同一用例跑 N 次（N ≥ 5） |
-| **输出数据** | 质量评分标准差、输出语义相似度、失败率 |
-| **评测方法** | 同一用例重复跑 N 次，统计方差 |
-| **指标类型** | `确定性` |
-| **依赖维度** | D1 |
-| **判定标准** | 标准差 ≤ 15% 均值，失败率 ≤ 5% |
-
----
-
-#### D-Recovery · 状态恢复一致性
-
-| 字段 | 内容 |
-|------|------|
-| **核心问题** | 在任意阶段强行中断，基于 .state.json 恢复后，产物和进度是否与未中断时完全一致？ |
-| **评测范围** | 状态持久化与恢复逻辑 |
-| **评测对象** | .state.json 的读写、stage 指针恢复、产物完整性 |
-| **输入数据** | 在 Stage 5（Coding）、Stage 8（Verification）、Stage 10 分别中断，重启恢复 |
-| **输出数据** | 恢复后的 stage 指针、已生成产物 hash、最终终态产物 hash |
-| **评测方法** | 完整跑一遍得到基准产物；中断恢复后再跑一遍；对比所有产物的哈希值 |
-| **指标类型** | `确定性` |
-| **依赖维度** | D1 |
-| **判定标准** | 恢复后最终产物与基准 100% 一致；无重复 LLM 调用（token 不浪费） |
-
----
-
-## 通用说明
-
-### 指标类型
-
-| 类型 | 说明 | 示例 |
-|------|------|------|
-| **确定性** | 可脚本自动计算，无主观性 | 行数、注释率、lint 通过率、token 数、延迟、exit code、单元测试通过率 |
-| **LLM-as-judge** | 用另一个模型按 rubric 打分，有主观性但可规模化 | 文档完整性、代码可维护性、逻辑正确性 |
-| **人工** | 人工 review，最准确但成本高 | 产物能否直接使用、架构合理性 |
-
-### 维度间依赖关系
-
-```
-命题一（有效性）：
-  D1 (端到端成功率) ──→ D2 (产物质量) ──→ D5 (产物可用性)
-  D3 (原子任务质量) ──→ D4 (错误恢复)
-  D1 (端到端成功率) ──→ D-Config (配置拓扑)
-
-命题二（优越性）：
-  D2 (产物质量) ──→ D6 (vs 单次生成)
-  D2 (产物质量) ──→ D7 (vs 其他工作流)
-  D2 + D6 ──→ D8 (成本效率)
-
-命题三（稳定性）：
-  D1 (端到端成功率) ──→ D11 (单模型可靠性)
-  D1 (端到端成功率) ──→ D-Recovery (状态恢复)
+    class task_manifest,clone_workspace input_style
+    class choose_condition,direct_agent,ddo_agent,hidden_verifier process_style
+    class public_result,analyze_report success_style
 ```
 
-### 评测用例集分类
+每次运行依次执行：
 
-评测用例按命题需求分为三类：
+1. 读取公开 Suite 和任务清单
+2. 从固定 Git Commit 创建全新隔离工作区
+3. 安装任务所需依赖
+4. 使用指定 Condition 运行 Codex
+5. 收集 Agent 最终工作区与代码补丁
+6. 在 Agent 结束后运行外部隐藏验证器
+7. 记录正确性、Token、时间、路由、交互和错误
+8. 将公开结果追加到 JSONL
+9. 对 Direct 与 Ddo 进行任务级配对分析
 
-| 用例类型 | 服务的命题 | 说明 | 建议数量 |
-|---------|-----------|------|---------|
-| **标准用例** | 有效性、稳定性 | 覆盖简单 / 中等 / 复杂需求，衡量工作流的基础能力 | 30-50 个 |
-| **对比用例** | 优越性 | 同一需求适配多种工具的输入格式，用于横向对比 | 10-20 个 |
-| **压力用例** | 稳定性 | 边界场景：需求模糊、技术栈冷门、规模极大 | 5-10 个 |
+真正决定任务是否成功的是外部隐藏验证器，而不是 Agent 自己声明完成、Ddo 生成的 `test-plan.md`、Agent 自己添加的测试或 LLM 主观评分。
 
----
+## 📦 目录与隐私边界
 
-## LLM-as-Judge 校准机制
+公开评测框架位于 `eval/`：
 
-> LLM-as-judge 存在偏见（位置偏见、冗长偏见、自我偏见），必须定期校准。
+```text
+eval/
+├── README.md                 # 本说明
+├── run.py                    # CLI 入口
+├── ddoflow_eval/             # Runner、Adapter、评分和分析实现
+├── schema/                   # Suite、Task、Oracle、Verifier 与结果 Schema
+├── suites/smoke.json         # 六任务 Smoke Suite
+├── tasks/smoke/              # 公开任务清单与 Prompt
+└── tests/                    # 评测框架公共回归测试
+```
 
-| 机制 | 说明 |
-|------|------|
-| **对照样本** | 每 50 次 LLM 评测，插入 5 个已知评分的人工标注样本作为对照 |
-| **偏离告警** | Judge 评分偏离人工评分超过 0.5 分时，暂停使用该 Judge，人工校准后再继续 |
-| **Judge 模型隔离** | Judge 模型 ≠ 被评测模型（避免自我偏见） |
-| **盲评** | 评测时随机打乱产物顺序呈现给 Judge（避免位置偏见） |
+每个公开任务包含：
 
----
+- 仓库 URL、许可证与固定 40 位 Git Commit
+- 用户需求 Prompt
+- Python 或 TypeScript 环境安装命令
+- 难度、Track 与标签
+- 预期工作流
+- 公开验收标准
+- HITL 和中断场景元数据
+- Agent 时间和 Token 预算
+- 对应隐藏 Verifier 的标识符
 
-## 评分标准（待讨论）
+私有资产位于 Git 忽略目录 `.eval-private/`：
 
-- [ ] 结构性指标（确定性）：行数、注释率、格式合规、必要章节存在
-- [ ] 质量指标（LLM-as-judge）：文档完整性、代码可维护性、逻辑正确性
-- [ ] 端到端指标：测试通过率、lint 通过率、产物可运行性
-- [ ] LLM-as-judge 用哪个模型？judge 的 prompt 如何设计？
+```text
+.eval-private/
+├── verifiers/                # 外部验证器和隐藏测试
+├── oracles/                  # 脚本化 HITL 用户事实
+├── references/               # 参考正确补丁
+├── base/                     # 原始 Base 工作区
+├── work/                     # Reference 工作区
+└── audit-runs/               # 验证器审计日志
+```
 
----
+`.eval-private/` 不会提交到 Git，也不会复制进 Ddo Skill Overlay。从 GitHub 重新克隆项目时，需要单独恢复该目录，才能运行完整评测。
 
-*待讨论确认后，逐步补充具体实现方案。*
+> ⚠️ **当前隐私边界不是物理隔离：** Codex 使用 `workspace-write` 沙箱运行，该模式限制写入范围，但仍可能读取宿主机上的其他路径。因此 v0.1 主要依靠不向 Agent 提供私有路径和 Prompt 约束来保持隐藏，不能抵抗主动搜索隐藏资产的 Agent。正式 Held-out Benchmark 应将 Agent 放入仅挂载目标工作区和 Skill Overlay 的容器，或由独立评测服务在 Agent 退出后执行私有验证。
+
+对于 Oracle 和隐藏 Verifier 等私有内容，公开结果 JSONL 只暴露以下摘要：
+
+- 总体是否通过
+- 每个公开验收标准是否通过
+- HITL 每轮命中事实数量
+- 是否使用 Oracle fallback
+
+完整的隐藏测试输出、Verifier 日志、Agent 问题、Oracle 回答和事实 ID 只保存在私有 `runs-root`，不应公开。
+
+`bootstrapFiles` 会在 Agent 运行前复制到目标工作区，因此其中只能放置允许 Agent 看到的依赖文件，不能放置隐藏测试或答案。当前仅 PQueue 任务使用经过 SHA-256 校验的依赖锁文件。
+
+## 🧪 六个 Smoke 任务
+
+| 任务 | Track / 难度 | 仓库与 Commit | 预期工作流 | 核心检测点 |
+| --- | --- | --- | --- | --- |
+| cachetools `remaining_capacity` | negative-control / easy | `tkem/cachetools@e164b702` | lightweight | 简单任务正确性与工作流额外开销 |
+| itsdangerous 输入限制 | ambiguous-hitl / medium | `pallets/itsdangerous@672971d6` | guarded | 模糊安全需求、澄清和边界语义 |
+| Tenacity `on_giveup` | recovery / medium | `jd/tenacity@b2cd0274` | guarded | 同步/异步 API 与恢复场景定义 |
+| defu 数组替换 | routing / easy | `unjs/defu@82632b66` | guarded | 自动路由与多表面 API 修改 |
+| destr 不安全键策略 | guarded-risk / medium | `unjs/destr@541b6f9a` | guarded | 原型污染、安全策略与 HITL |
+| PQueue 清理等待任务 | long-horizon / hard | `sindresorhus/p-queue@a06fbc92` | guarded | 异步竞态、资源清理和长链修改 |
+
+### cachetools：剩余容量属性
+
+任务 ID：`py-smoke-01-cache-remaining-capacity`
+
+固定 Commit：`e164b7020e4211b57d20fe2b252d931af6244ad4`
+
+任务要求给 `Cache` 增加只读的 `remaining_capacity` 属性：
+
+```text
+remaining_capacity = maxsize - currsize
+```
+
+同时要求：
+
+- 不强制转换或截断数值
+- 支持所有内置 Cache 子类和定时 Cache
+- 反映插入、替换、删除、清空、驱逐和过期
+- 尊重自定义 `getsizeof`
+- 保持运行时 API 与公开类型声明同步
+- 保持上游回归测试通过
+
+该任务是 negative-control，主要检测 Ddo 是否能在小任务上正确选择 lightweight，以及是否引入不必要的规划、HITL、时间和 Token 开销。它的价值不是证明复杂任务收益，而是发现工作流的额外成本回归。
+
+### itsdangerous：输入大小限制
+
+任务 ID：`py-smoke-02-itsdangerous-input-limit`
+
+固定 Commit：`672971d66a2ef9f85151e53283113f33d642dabd`
+
+任务要求为来自不可信客户端的签名值增加可选输入大小限制，并在昂贵的验证、解码或解压操作之前拒绝超限输入。未配置限制时必须完全兼容现有行为。
+
+公开需求故意没有完整指定：
+
+- API 应位于哪个对象或入口
+- 使用字符数还是字节数
+- 边界值是否接受
+- 哪些加载入口受影响
+- 使用什么异常和参数校验规则
+
+Direct 和 Ddo 使用相同私有 Oracle。该任务用于观察 Agent 是否识别关键歧义、是否触发脚本化澄清，以及澄清结论能否贯穿运行时实现、类型、异常、边界和默认兼容行为。
+
+公开 Prompt 要求 Agent 在实现前澄清，但当前 Harness 没有保存“首次编辑前”的强制检查点，因此不能证明 Agent 一定先问后改。当前能记录交互轮数、命中事实数量、fallback 次数和最终正确性，但尚未对问题措辞和信息价值进行人工评分。
+
+### Tenacity：`on_giveup` 终止 Hook
+
+任务 ID：`py-smoke-03-tenacity-on-giveup`
+
+固定 Commit：`b2cd0274c67610d615019ab4745f521504a0576d`
+
+任务要求为公共重试配置增加 `on_giveup` Hook，并保证：
+
+- 最终可重试结果被 stop policy 终止时只执行一次
+- 与 `after`、错误回调和最终异常保持正确顺序
+- `Retrying` 和 `AsyncRetrying` 均支持
+- 异步重试能够等待异步 Hook，同时接受同步 Hook
+- `copy()`、装饰器和 `retry_with()` 正确继承、覆盖或禁用 Hook
+- Hook 抛出的异常直接传播
+- 成功、禁用重试或非重试结果不能调用 Hook
+- 类型和文档保持同步
+
+该任务检测跨同步/异步路径、多个公共 API 和异常顺序的一致性。任务清单已定义“tasking 阶段完成后中断”的场景，但 v0.1 Runner 尚未自动执行 kill/resume，因此当前不能把它作为已经实测的中断恢复结果。
+
+### defu：数组替换导出
+
+任务 ID：`ts-smoke-01-defu-array-replace`
+
+固定 Commit：`82632b66f5914e9946edce300e10633a3d5c0cb7`
+
+任务要求增加命名导出 `defuArrayReplace`：当高优先级值和默认值都是数组时，完整使用高优先级数组替换默认数组，而不是拼接。
+
+同时要求：
+
+- 支持嵌套对象和多个 defaults
+- 保持 nullish 规则和输入不可变
+- 保持原型污染防护
+- 保持泛型返回类型
+- 同步 ESM/CJS 导出、构建结果和 README
+- 保持现有测试、格式和构建通过
+
+该任务用于检测 `ddo-auto` 是否按照当前版本路由配置选择 `guarded`。`routingCorrect=true` 只表示选中的工作流符合版本化配置，不代表该路由策略本身一定最优。
+
+### destr：不安全键策略
+
+任务 ID：`ts-smoke-02-destr-unsafe-keys`
+
+固定 Commit：`541b6f9aeada9fc30de9c5a7e086dbfc1c6fcdc7`
+
+任务涉及 Prototype Pollution 防护，需要把不安全键处理策略与一般严格 JSON 解析分离，并增加可配置的 drop/error 行为。
+
+公开需求要求 Agent 在实现前澄清：
+
+- 新选项允许的取值
+- 与原有 `strict` 的优先级
+- 删除危险键时的警告行为
+- `safeDestr` 应如何处理
+- 如何保持现有默认行为
+
+该任务检测安全敏感变更是否进入 guarded 工作流、是否触发 HITL，以及 Agent 是否能正确处理优先级矩阵、默认兼容、嵌套或转义危险键、类型、文档、格式、覆盖率和构建。
+
+### PQueue：清理等待任务并结算 Promise
+
+任务 ID：`ts-smoke-03-pqueue-clear-pending`
+
+固定 Commit：`a06fbc928725f074c72716e1ba21106df6822dae`
+
+任务要求扩展：
+
+```typescript
+queue.clear({rejectPending: true, reason?})
+```
+
+同时保证：
+
+- 无参数 `clear()` 完全保持旧行为
+- 只拒绝尚未启动的任务
+- 已经开始的任务继续正常运行
+- 默认使用名称为 `AbortError` 的 `DOMException`
+- 自定义 reason 保持对象身份
+- 清理排队任务的 `AbortSignal` Listener
+- abort/clear 竞态不能重复结算
+- 保持自定义队列、限速状态和事件行为
+- 导出 `ClearOptions` 并更新文档
+- 保持上游回归和类型测试通过
+
+该任务检测长链工程任务中的异步竞态、资源清理、Promise 单次结算，以及源码、类型、事件、测试和文档的一致性。任务定义了“第 16 次工具调用时中断”，但 v0.1 尚未启用自动中断注入。
+
+## 🔧 实验条件与公平性
+
+Runner 支持五种 Condition：
+
+| Condition | 含义 |
+| --- | --- |
+| `direct` | 不加载 Ddo；Codex 仍可读代码、修改、添加测试、运行测试和迭代 |
+| `ddo-lightweight` | 强制加载 Ddo lightweight 工作流 |
+| `ddo-standard` | 强制加载 Ddo standard 工作流 |
+| `ddo-guarded` | 强制加载 Ddo guarded 工作流 |
+| `ddo-auto` | 加载 Ddo，并由版本化配置自动选择工作流 |
+
+Direct 不是被刻意削弱的一次性生成。Direct 与 Ddo 都能完整检查仓库、修改代码、运行测试并反复迭代。核心处理差异是是否注入 Ddo Skill。
+
+推荐分别回答两个问题：
+
+1. `direct` 对 `ddo-standard`：估计加载固定 Ddo 工作流的因果效果，减少自动路由这一额外变量
+2. `direct` 对 `ddo-auto`：评估用户实际使用时“路由策略 + 被选工作流”的整体效果
+
+当前公平性控制包括：
+
+- 两组使用相同模型、公开 Prompt、固定 Commit、安装命令、预算和隐藏 Verifier
+- 每次运行从共享 Git Mirror 创建独立 Clone，并 detached 到固定 Commit
+- Python 每次运行创建独立虚拟环境
+- Python worktree-aware 导入逻辑优先加载当前 Ddo Worktree，而不是 setup 阶段的原 Checkout
+- TypeScript 为 Ddo Worktree 复用同一次运行安装的 `node_modules`
+- Ddo Skill 被复制为运行专属只读 Overlay，并排除 `.git`、`eval/` 和 `.eval-private/`
+- Direct 与 Ddo 的脚本化 HITL 使用相同私有 Oracle
+- Ddo 必须产生且只能产生一个位于当前 Run 目录下的 Worktree
+- 找不到 Ddo Worktree 或 Worktree 存在歧义会计为处理组失败，而不会从分母中删除
+- 最终补丁统一从固定 Base Commit 生成
+- Runner 按重复轮次反转条件顺序，减少固定时间顺序偏差
+
+为了无人值守运行，评测 Overlay 会预先批准确认门、关闭 Ddo 自身 Metrics，并关闭 test-plan 的 TDD Gate。因此当前测量的是“自动批准的 Ddo 工作流”，不完全等同于真实人工确认门体验。
+
+## 📊 记录字段与分析指标
+
+每条 JSONL 结果主要记录：
+
+- 身份：`runId`、`suiteId`、`taskId`、`track`、`language`、`difficulty`
+- 条件：`condition`、`repeat`、`model`
+- 版本：`taskBaseCommit`、`skillCommit`
+- 环境：操作系统、Python、Node.js 和 Codex CLI 版本
+- 时间：开始时间、结束时间、总耗时、Agent 耗时、Verifier 耗时
+- 执行：Agent 退出码、轮数、声明状态和协议错误
+- 路由：`selectedWorkflow`、`expectedWorkflow`、`routingCorrect`
+- HITL：命中事实数和是否使用 fallback
+- Token：输入、缓存输入和输出 Token
+- 外部评分：`external.passed` 和每个公开 `AC-*` 的布尔结果
+- 虚假完成：`falseCompletion`
+
+### 功能正确性与 Pass@1
+
+最终正确性由以下字段决定：
+
+```text
+external.passed
+```
+
+单条件总体成功率：
+
+```text
+Pass@1 = 通过外部验证的有效运行数 / 有效运行数
+```
+
+对于每个任务 `i`，先计算两条件的任务级成功率差：
+
+```text
+Delta_i = PassRate_i(Ddo) - PassRate_i(Direct)
+```
+
+内置报告中的主对比指标是所有任务 Delta 的等权平均：
+
+```text
+Delta Pass@1 = mean(Delta_i)
+```
+
+因此，`pairedComparison.deltaPassAt1` 不一定等于 `conditions` 中两个总体 `passRate` 的直接相减，尤其是在不同任务有效运行次数不一致时。正值表示 Ddo 的任务级平均通过率更高，负值表示更低。
+
+### 虚假完成率
+
+如果 Agent 声称 `status=completed`，但隐藏验证失败，则：
+
+```text
+falseCompletion = true
+```
+
+它用于检测模型是否“认为任务已经完成”，实际却没有满足外部验收标准。
+
+### 成本与效率
+
+每条运行记录会保存输入、缓存输入和输出 Token。v0.1 的内置 `analyze` 只聚合输入与输出 Token，并计算：
+
+```text
+tokensPerResolved = 总输入与输出 Token / 成功解决任务数
+```
+
+时间字段已经记录在单次 JSONL 中，但 v0.1 的内置 `analyze` 尚未聚合平均延迟，需要后续单独统计。
+
+### 路由与 HITL
+
+`routing.accuracy` 仅统计 `ddo-auto`：
+
+```text
+routingCorrect = selectedWorkflow == expectedWorkflow
+```
+
+当前六任务预期路由分布为：
+
+- `lightweight`：1 个
+- `guarded`：5 个
+- `standard`：0 个
+
+因此当前 Smoke 能检测 lightweight/guarded 路由，但尚未覆盖自动选择 standard 的任务。`routingCorrect` 衡量的是对当前配置的遵循程度，不证明路由策略最优。
+
+脚本化 HITL 的公开结果记录交互轮数、事实命中数量、fallback 使用情况和澄清后的最终正确性。Runner 只有在某一轮结构化结果为 `blocked` 时才会调用 Oracle，但公开 JSONL 不保存每轮完整状态，也不能证明提问发生在任何代码编辑之前；这些细节只能结合私有 Transcript 审计。
+
+### 失败归因
+
+结果状态包括：
+
+| 状态 | 含义 | 是否进入有效分母 |
+| --- | --- | --- |
+| `completed` | Agent 进程和结构化输出协议正常 | 是 |
+| `agent-failure` | Agent 超时、非零退出或协议失败 | 是 |
+| `infrastructure-failure` | Provider 限流、认证、连接或 Harness 故障 | 否 |
+
+`status=completed` 只表示进程和协议正常，不代表任务功能正确；功能结果必须查看 `external.passed`。
+
+分析报告还包括：
+
+- `scheduled`、`valid` 和 `infrastructureFailures`
+- `passed`、`passRate`
+- `falseCompletions`、`falseCompletionRate`
+- 输入和输出 Token 总数
+- `tokensPerResolved`
+- 按 Track 统计的 `byTrack`
+- `routing.accuracy`
+- 每个任务的 `taskDeltas`
+- `wins`、`ties`、`losses`
+- 基于任务聚类的 10,000 次 Bootstrap 95% 置信区间
+
+## 🚀 使用方法
+
+以下命令均从项目根目录运行。
+
+### 1. 检查依赖与登录状态
+
+```bash
+cd /path/to/Ddo-Code-Flow
+
+python3 -m pip install -r requirements-dev.txt
+
+codex login status
+git --version
+node --version
+npm --version
+corepack --version
+```
+
+运行前还必须确认 `.eval-private/` 已恢复。`eval/results/` 默认被 Git 忽略。
+
+### 2. 运行公共回归测试
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 pytest -q tests eval/tests
+```
+
+### 3. 校验公开任务与私有资产
+
+```bash
+python3 eval/run.py validate \
+  --suite eval/suites/smoke.json \
+  --private-root .eval-private
+```
+
+成功输出：
+
+```text
+VALID ddoflow-smoke-v0.1: 6 tasks
+```
+
+### 4. 准备固定提交仓库镜像
+
+第一次联网准备：
+
+```bash
+python3 eval/run.py prepare \
+  --suite eval/suites/smoke.json \
+  --cache-root /private/tmp/ddoflow-eval-cache
+```
+
+仓库镜像准备完成后，可以要求只复用已有 Git Mirror：
+
+```bash
+python3 eval/run.py prepare \
+  --suite eval/suites/smoke.json \
+  --cache-root /private/tmp/ddoflow-eval-cache \
+  --offline
+```
+
+`--offline` 只约束 Git Mirror，不会自动为 `pip`、`npm` 或 `pnpm` 启用物理离线模式。依赖安装是否联网仍取决于本机缓存和包管理器配置。
+
+### 5. 审计隐藏验证器
+
+```bash
+python3 eval/run.py audit-verifiers \
+  --suite eval/suites/smoke.json \
+  --private-root .eval-private \
+  --base-root .eval-private/base \
+  --reference-root .eval-private/work \
+  --runs-root .eval-private/audit-runs
+```
+
+每个任务必须满足：
+
+```text
+base=False reference=True
+```
+
+这表示原始仓库确实没有实现需求，而参考正确实现能够通过隐藏测试和上游回归。若 Base 通过或 Reference 失败，该任务不应进入正式实验。
+
+`grade-reference` 可以只检查参考工作区，但正式评测前应优先使用更严格的 `audit-verifiers`。
+
+### 6. 运行最小诊断
+
+先选择最简单任务，执行两次 Codex 运行：
+
+```bash
+python3 eval/run.py run \
+  --suite eval/suites/smoke.json \
+  --private-root .eval-private \
+  --cache-root /private/tmp/ddoflow-eval-cache \
+  --runs-root /private/tmp/ddoflow-eval-runs \
+  --results eval/results/diagnostic.jsonl \
+  --conditions direct,ddo-auto \
+  --tasks py-smoke-01-cache-remaining-capacity \
+  --repeats 1 \
+  --model MODEL_ID \
+  --offline
+```
+
+用实际模型 ID 替换 `MODEL_ID`。不要依赖可能随 Codex CLI 版本变化的默认模型。
+
+### 7. 运行完整基础设施 Smoke
+
+```bash
+python3 eval/run.py run \
+  --suite eval/suites/smoke.json \
+  --private-root .eval-private \
+  --cache-root /private/tmp/ddoflow-eval-cache \
+  --runs-root /private/tmp/ddoflow-eval-runs \
+  --results eval/results/smoke.jsonl \
+  --conditions direct,ddo-auto \
+  --repeats 1 \
+  --model MODEL_ID \
+  --offline
+```
+
+运行数量：
+
+```text
+6 个任务 × 2 个条件 × 1 次 = 12 次 Codex 运行
+```
+
+结果文件采用追加写入。重新开始一组实验时应使用新的结果文件名，避免旧结果与新结果混合。
+
+### 8. 分析 Smoke 结果
+
+```bash
+python3 eval/run.py analyze \
+  --results eval/results/smoke.jsonl \
+  --baseline direct \
+  --treatment ddo-auto \
+  --output eval/results/smoke-report.json
+```
+
+重点检查：
+
+- `conditions` 中两组的 `passRate`
+- `pairedComparison.deltaPassAt1`
+- `wins`、`ties`、`losses`
+- `falseCompletionRate`
+- `tokensPerResolved`
+- `routing.accuracy`
+- `byTrack`
+
+### 9. 运行固定工作流配对实验
+
+基础设施 Smoke 通过后，再运行固定 Ddo 工作流对照：
+
+```bash
+python3 eval/run.py run \
+  --suite eval/suites/smoke.json \
+  --private-root .eval-private \
+  --cache-root /private/tmp/ddoflow-eval-cache \
+  --runs-root /private/tmp/ddoflow-eval-runs \
+  --results eval/results/paired.jsonl \
+  --conditions direct,ddo-standard \
+  --repeats 4 \
+  --model MODEL_ID \
+  --offline
+```
+
+运行数量：
+
+```text
+6 个任务 × 2 个条件 × 4 次 = 48 次 Codex 运行
+```
+
+分析命令：
+
+```bash
+python3 eval/run.py analyze \
+  --results eval/results/paired.jsonl \
+  --baseline direct \
+  --treatment ddo-standard \
+  --output eval/results/paired-report.json
+```
+
+## 🔍 结果解读
+
+不要只查看一个总体平均值。建议依次检查：
+
+1. 是否存在基础设施故障
+2. Direct 与 Ddo 的 Pass@1 是否不同
+3. 每个任务分别是胜、平还是负
+4. 是否只有一个任务贡献了全部提升
+5. Ddo 是否减少虚假完成
+6. 每成功解决一个任务的 Token 成本是否合理
+7. negative-control 上是否产生过高额外开销
+8. ambiguous-hitl 和 guarded-risk 是否获得能力收益
+9. `ddo-auto` 是否符合当前配置的路由预期
+
+典型解释方式：
+
+- Ddo 多通过复杂任务，同时简单任务成本只小幅增加，说明工作流可能有实际价值
+- 两组正确率相同，但 Ddo Token 增加数倍，说明工作流效率需要优化
+- Ddo 自报完成更多，但外部通过率没有增加，说明虚假完成问题严重
+- Ddo 只在 itsdangerous 和 destr 上更好，优势可能主要来自 HITL，而不是完整流水线
+- Ddo 在 PQueue 上更好，可能说明规划与复审对长链异步任务有效
+
+报告结论时必须同时给出：
+
+- 总体 Pass@1 与 Delta Pass@1
+- 任务级 wins/ties/losses
+- 每个 Track 的结果
+- 虚假完成率
+- Token 成本
+- negative-control 额外开销
+- 基础设施失败数量
+- 路由结果
+
+不要把正确性、成本、文档、HITL 和路由混合成一个不可解释的总分。
+
+## ⚠️ 已知限制
+
+当前 v0.1 存在以下明确边界：
+
+- 只有 6 个任务，每个 Track 只有 1 个样本
+- 自动路由预期只有 1 个 lightweight 和 5 个 guarded，没有 standard 样本
+- `.eval-private/` 尚未与 Agent 建立操作系统、容器或独立服务级的物理读隔离
+- `interruptions` 已写入任务元数据，但 Runner 尚未执行自动 kill/resume
+- `maxInputTokens` 和 `maxOutputTokens` 目前只是记录预算，没有被 Codex CLI 硬性截断
+- `--offline` 只约束 Git Mirror，不保证依赖安装完全离线
+- 内置分析报告尚未聚合平均延迟
+- HITL 尚未对澄清问题本身进行人工质量评分
+- 尚未加入系统性的人工可维护性或代码可读性评估
+- 尚未跨多个模型验证稳定性
+- Ddo 使用自动批准确认门的评测 Overlay，不完全等同于真实人工交互体验
+- 6 个任务的任务聚类 Bootstrap 置信区间不稳定
+- 当前任务参与过评测集设计与调试，不属于完全未见的最终 Held-out 集
+
+因此，当前评测集的准确定位是：
+
+> 这是一套可在可信、受控本地环境中运行的工程 Smoke/Pilot 评测集，用于验证 Ddo 是否出现明确收益、明显退化和基础设施缺陷；在完成隐藏资产物理隔离和扩大任务规模前，它不是用于证明普遍优越性的正式 Held-out Benchmark。
+
+后续扩展应优先补充：
+
+1. Agent 与 `.eval-private/` 的操作系统、容器或独立服务级读隔离
+2. 自动路由到 standard 的任务
+3. 可执行的 kill/resume 中断注入
+4. 约 18 个 Pilot 任务
+5. 完全私有持出的约 48 个正式任务
+6. 多模型、多运行环境和人工可维护性评估
