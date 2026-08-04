@@ -1,0 +1,79 @@
+# Verification Log
+
+> 验收时间: 2026-08-04T00:00:00Z
+
+## G1. Issue 触发与认领
+
+- [PASS] cmd: issue-fetch.md 存在
+- [PASS] cmd: issue-fetch.output.schema.json 存在
+- [PASS] cmd: issue-driven.json 存在
+- [PASS] cmd: issue-driven.json id 正确
+
+GROUP G1 PASSED
+
+## G2. 远端确认门
+
+- [PASS] cmd: remote-gate.md 存在
+- [PASS] cmd: remote-gate.output.schema.json 存在
+- [PASS] cmd: 远端门节点存在（remote-gate-spec, remote-gate-plan, remote-gate-test-plan）
+- [PASS] cmd: Monitor 配置正确
+
+GROUP G2 PASSED
+
+## G3. Loop 自检
+
+- [PASS] cmd: maxSelfCheckRounds 参数存在
+- [PASS] cmd: maxRetries 参数存在
+- [PASS] cmd: coding 使用 ddo:failed
+- [PASS] cmd: verification 使用 ddo:failed
+
+GROUP G3 PASSED
+
+## G4. 交付与 PR 闭环
+
+- [PASS] cmd: delivery-doc.md 存在
+- [PASS] cmd: delivery-doc.output.schema.json 存在
+- [PASS] cmd: create-pr.md 存在
+- [PASS] cmd: create-pr.output.schema.json 存在
+- [PASS] cmd: create-pr 包含 Closes # 引用
+- [PASS] cmd: create-pr 使用 ddo:completed
+
+GROUP G4 PASSED
+
+## G5. 节点级模型路由
+
+- [PASS] cmd: atomTaskOverrides 支持 model 键
+- [PASS] cmd: coding 支持 model option
+- [PASS] cmd: SKILL.md 包含模型路由文档
+
+GROUP G5 PASSED
+
+## G6. 多模型评审扇出
+
+- [PASS] cmd: review 支持 models option
+- [PASS] cmd: review 包含合并策略
+
+GROUP G6 PASSED
+
+## G7. 向后兼容性
+
+- [PASS] cmd: standard.json 未修改
+- [PASS] cmd: guarded.json 未修改
+- [PASS] cmd: lightweight.json 未修改
+- [PASS] cmd: issue-driven 已添加到 config.json
+
+GROUP G7 PASSED
+
+## G8. 幂等性与错误处理
+
+- [PASS] cmd: gh-watcher.sh 存在
+- [PASS] cmd: gh-watcher.sh 可执行
+- [PASS] cmd: SKILL.md 包含远端门文档
+- [PASS] cmd: SKILL.md 包含远端门失败模式
+- [PASS] cmd: SKILL.md 包含模型路由失败模式
+
+GROUP G8 PASSED
+
+---
+
+ALL PASSED

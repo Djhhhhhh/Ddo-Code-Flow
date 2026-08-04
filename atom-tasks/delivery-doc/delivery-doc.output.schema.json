@@ -1,0 +1,76 @@
+{
+  "description": "delivery-doc.md 输出规范",
+  "outputFormat": "markdown",
+  "document": {
+    "title": "交付文档",
+    "titleFormat": "固定文本",
+    "description": "项目交付文档，包含需求回溯、变更清单、风险说明和验证结论。",
+    "separators": true
+  },
+  "sections": [
+    {
+      "heading": "项目概述",
+      "level": 2,
+      "required": true,
+      "format": "prose",
+      "description": "项目名称和一句话定义"
+    },
+    {
+      "heading": "需求回溯",
+      "level": 2,
+      "required": true,
+      "format": "group",
+      "subsections": [
+        {
+          "heading": "原始需求",
+          "level": 3,
+          "required": true,
+          "format": "prose",
+          "description": "功能需求列表"
+        },
+        {
+          "heading": "验收标准",
+          "level": 3,
+          "required": true,
+          "format": "list",
+          "description": "验收标准列表"
+        },
+        {
+          "heading": "验证结果",
+          "level": 3,
+          "required": false,
+          "format": "prose",
+          "description": "验证阶段的结果摘要"
+        }
+      ]
+    },
+    {
+      "heading": "变更清单",
+      "level": 2,
+      "required": true,
+      "format": "list",
+      "description": "本次变更涉及的文件和改动"
+    },
+    {
+      "heading": "风险说明",
+      "level": 2,
+      "required": true,
+      "format": "table",
+      "columns": ["风险", "级别", "处置"],
+      "description": "已识别的风险及缓解措施"
+    },
+    {
+      "heading": "产物链接",
+      "level": 2,
+      "required": true,
+      "format": "list",
+      "description": "相关产物文件的链接"
+    }
+  ],
+  "rules": [
+    "内容必须自包含，可在 PR 页面直接查看",
+    "不得包含敏感信息",
+    "必须包含需求回溯和验证结论",
+    "变更清单必须列出所有修改的文件"
+  ]
+}

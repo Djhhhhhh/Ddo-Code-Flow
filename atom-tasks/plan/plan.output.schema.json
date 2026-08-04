@@ -1,168 +1,281 @@
 {
-  "description": "plan.md 输出规范",
+  "description": "详细技术 Plan 输出规范；支持 single 和 split 两种文档模式，并可派生简化归档文档。",
   "outputFormat": "markdown",
+  "options": {
+    "split-threshold": {
+      "type": "integer",
+      "default": 12000,
+      "minimum": 4000,
+      "countUnit": "normalized LF Unicode code point"
+    }
+  },
+  "documentModes": {
+    "single": {
+      "condition": "draftCodePoints <= split-threshold",
+      "entry": "plan.md",
+      "partsDirectory": null,
+      "rules": [
+        "plan.md 包含完整详细 Plan",
+        "不创建 plans/",
+        "不得把旧分册标记为 current"
+      ]
+    },
+    "split": {
+      "condition": "draftCodePoints > split-threshold",
+      "entry": "plan.md",
+      "partsDirectory": "plans/",
+      "partPattern": "plans/NN-<semantic-slug>.md",
+      "rules": [
+        "plan.md 是稳定入口和唯一确认入口",
+        "manifest 列出全部 current parts、职责、字符数和 revision",
+        "按语义拆分，不切断 Markdown 表格、Mermaid、Decision、接口、schema 或 DDL 契约",
+        "旧 revision 分册必须移出 current 集合或标记 stale"
+      ]
+    }
+  },
   "document": {
-    "title": "{{ 项目名称 }} Plan",
+    "title": "{{ 项目名称 }} 技术 Plan",
     "titleFormat": "占位符",
-    "description": "基于已确认的 spec.md 做技术决策：定 schema、定通信方式、定运行时模型、定关键算法、定取舍。不写代码，但对每个开放问题给出唯一确定答案。",
+    "description": "以仓库事实、技术决策和实现契约指导 Test-Planning、Tasking、Coding、Verification 与 Review。",
     "separators": true
   },
+  "humanReadableFirst": true,
+  "aiIndexPlacement": "table-last-column-or-paragraph-tail",
   "sections": [
     {
-      "heading": "决策原则",
+      "heading": "执行摘要",
+      "level": 2,
+      "required": true,
+      "format": "prose",
+      "description": "说明目标、范围、关键结论、文档模式和 revision。"
+    },
+    {
+      "heading": "范围与非目标",
       "level": 2,
       "required": true,
       "format": "table",
-      "columns": ["#", "原则", "落地体现"],
-      "extensible": true,
-      "description": "指导本次技术决策的核心原则"
+      "columns": [
+        "事项",
+        "说明",
+        "AI 索引"
+      ],
+      "description": "只覆盖当前仓库/服务和直接依赖；不写人员、排期或无关服务内部设计。"
     },
     {
-      "heading": "整体架构",
+      "heading": "现有设计与复用基线",
       "level": 2,
       "required": true,
-      "format": "group",
-      "extensible": false,
-      "subsections": [
-        {
-          "heading": "架构图",
-          "level": 3,
-          "required": true,
-          "format": "code",
-          "language": "text",
-          "description": "ASCII 架构图"
-        },
-        {
-          "heading": "关键事实",
-          "level": 3,
-          "required": true,
-          "format": "list",
-          "description": "架构的关键特征"
-        }
+      "format": "table",
+      "columns": [
+        "能力",
+        "文件路径",
+        "符号",
+        "证据类型",
+        "采用方式",
+        "适用边界",
+        "AI 索引"
+      ],
+      "allowedEvidence": [
+        "Repository Fact",
+        "Assumption"
+      ],
+      "allowedAdoption": [
+        "复用现有实现",
+        "扩展现有实现",
+        "新增实现",
+        "不适用"
       ]
     },
     {
-      "heading": "目录与命名（最终定版）",
+      "heading": "整体架构与流程",
       "level": 2,
-      "required": false,
-      "format": "code",
-      "language": "text",
-      "extensible": false,
-      "description": "最终确定的文件系统树形结构"
+      "required": true,
+      "format": "group",
+      "diagramSyntax": "Mermaid flowchart",
+      "description": "仅描述当前改动直接相关的参与方、边界和主/异常流程。"
     },
     {
-      "heading": "核心 Schema（必填，若适用）",
+      "heading": "技术选型与方案对比",
       "level": 2,
-      "required": false,
+      "required": true,
+      "format": "table",
+      "columns": [
+        "方案",
+        "来源",
+        "仓库适配性",
+        "代价与风险",
+        "状态",
+        "结论",
+        "AI 索引"
+      ],
+      "candidateSources": [
+        "初始 Plan",
+        "用户修改"
+      ],
+      "candidateStates": [
+        "candidate",
+        "accepted",
+        "rejected",
+        "superseded"
+      ],
+      "description": "只比较真实候选，不强制凑方案数量。"
+    },
+    {
+      "heading": "数据模型设计",
+      "level": 2,
+      "required": true,
       "format": "group",
-      "extensible": true,
       "subsections": [
-        {
-          "heading": "{{ Schema name }}",
-          "level": 3,
-          "required": false,
-          "format": "code",
-          "language": "jsonc",
-          "description": "Schema 示例"
-        },
-        {
-          "heading": "字段语义约束",
-          "level": 3,
-          "required": false,
-          "format": "structured-list",
-          "idPrefix": "",
-          "idPattern": "{{ field }}",
-          "description": "每个字段的语义说明"
-        },
-        {
-          "heading": "校验",
-          "level": 3,
-          "required": false,
-          "format": "list",
-          "description": "校验规则"
-        }
+        "实体与字段",
+        "schema 与 DDL（如适用）",
+        "状态与不变量",
+        "迁移、兼容与回滚"
       ]
     },
     {
-      "heading": "关键算法 / 流程",
+      "heading": "API 接口设计",
       "level": 2,
-      "required": false,
-      "format": "group",
-      "extensible": true,
-      "subsections": [
-        {
-          "heading": "{{ algorithm name }}",
-          "level": 3,
-          "required": false,
-          "format": "prose",
-          "description": "伪代码或步骤列表"
-        }
+      "required": true,
+      "format": "table",
+      "columns": [
+        "接口/入口",
+        "请求",
+        "响应",
+        "错误与幂等",
+        "复用标准",
+        "实现职责",
+        "AI 索引"
       ]
     },
     {
-      "heading": "错误处理与回退",
+      "heading": "算法设计",
       "level": 2,
-      "required": false,
-      "format": "table",
-      "columns": ["触发条件", "行为"],
-      "extensible": true
+      "required": true,
+      "format": "group",
+      "description": "仅对非平凡逻辑说明输入、输出、不变量、步骤、复杂度和边界；不得提供逐行实现。"
     },
     {
-      "heading": "风险与权衡",
+      "heading": "文件变更计划",
       "level": 2,
       "required": true,
       "format": "table",
-      "columns": ["#", "风险", "描述", "处置"],
-      "extensible": true,
-      "description": "已识别的风险及缓解措施"
+      "columns": [
+        "文件/目录",
+        "变更职责",
+        "复用或依赖",
+        "AI 索引"
+      ]
     },
     {
-      "heading": "实施次序（高层路线，供 Tasking 拆分参考）",
-      "level": 2,
-      "required": true,
-      "format": "list",
-      "extensible": true,
-      "description": "按顺序排列的实施阶段"
-    },
-    {
-      "heading": "与 spec 的开放问题对应表",
+      "heading": "兼容、稳定性与回滚",
       "level": 2,
       "required": true,
       "format": "table",
-      "columns": ["spec Open Question", "plan 中的落地"],
-      "extensible": true,
-      "description": "spec 中每个 Q-N 在本 plan 中的解决位置"
+      "columns": [
+        "关注点",
+        "适用性",
+        "设计/理由",
+        "回滚信号",
+        "AI 索引"
+      ]
+    },
+    {
+      "heading": "Verification Anchor",
+      "level": 2,
+      "required": true,
+      "format": "table",
+      "columns": [
+        "需验证契约",
+        "可观察结果",
+        "证据位置",
+        "AI 索引"
+      ],
+      "description": "只交付验证锚点，不生成测试用例或 test-plan。"
+    },
+    {
+      "heading": "开放问题与 Spec 对应",
+      "level": 2,
+      "required": true,
+      "format": "table",
+      "columns": [
+        "问题",
+        "确定答案或阻塞原因",
+        "解决位置",
+        "AI 索引"
+      ]
+    },
+    {
+      "heading": "风险与下游交接",
+      "level": 2,
+      "required": true,
+      "format": "group",
+      "description": "说明风险、缓解、Tasking/Coding 读取范围和事实失效处理。"
     },
     {
       "heading": "用户确认",
       "level": 2,
       "required": true,
-      "format": "template",
-      "extensible": false,
-      "content": "请确认以下任一选项：\n\n- ✅ **同意**：本 plan 符合预期，可进入 **Test-Planning** 阶段生成 `test-plan.md`。\n- ❌ **修改**：请在下方/对话中列出需要调整的章节与意见，AI 将基于反馈重新生成本文档。"
+      "format": "list",
+      "commands": [
+        "同意",
+        "修改：<反馈>",
+        "提问：<问题>",
+        "归档",
+        "归档：<模板名>"
+      ]
     }
   ],
+  "splitManifest": {
+    "heading": "Parts Manifest",
+    "requiredWhen": "documentMode == split",
+    "columns": [
+      "#",
+      "文档",
+      "职责",
+      "字符数",
+      "状态",
+      "AI 索引"
+    ],
+    "currentStatus": "current",
+    "staleStatus": "stale"
+  },
+  "archive": {
+    "listCommand": "归档",
+    "generateCommand": "归档：<模板名>",
+    "templatesDirectory": "atom-tasks/plan/references/",
+    "templatePattern": "*.md",
+    "selectionMode": "exact filename or basename",
+    "selectionRules": [
+      "归档 only lists available template names and does not generate output",
+      "归档：<模板名> resolves only within templatesDirectory",
+      "directory segments, wildcards, and traversal paths are rejected",
+      "template content, external source path, and hash are not validated",
+      "the selected template is read-only during archive generation"
+    ],
+    "output": "tech-design.md",
+    "source": "current detailed Plan revision",
+    "recordInOutput": [
+      "template name",
+      "Plan revision"
+    ],
+    "drivesDownstream": false,
+    "staleWhenPlanRevisionChanges": true
+  },
+  "staticCheck": {
+    "scope": "Markdown and Mermaid structure only",
+    "maxExecutionsPerRevision": 1,
+    "autoRetry": false,
+    "reloadContextOnFailure": false,
+    "failureTypes": [
+      "content_error",
+      "checker_execution_error"
+    ]
+  },
   "rules": [
-    "每个 {{ 占位符 }} 必须替换为具体内容",
-    "spec 中的每个开放问题必须在对应表中有且仅有一个答案",
-    "不得写可执行代码，仅描述 schema、接口和算法",
-    "引用 spec 的 FR ID 原文",
-    "每个重大决策必须写出权衡理由",
-    "用户确认 section 文本不得修改"
-  ],
-  "example": "# MyProject Plan\n\n> 基于已确认的 spec.md 做技术决策。\n\n---\n\n## 1. 决策原则\n\n| # | 原则 | 落地体现 |\n|---|------|----------|\n| P-1 | 简单优先 | 选择最简单的方案，避免过度设计 |\n\n---\n\n## 2. 整体架构\n\n```\n┌─────────┐     ┌─────────┐\n│  前端    │────▶│  后端    │\n└─────────┘     └─────────┘\n```\n\n关键事实：\n- 采用前后端分离架构\n- RESTful API 通信\n\n---\n\n## 9. 与 spec 的开放问题对应表\n\n| spec Open Question | plan 中的落地 |\n|---|---|\n| Q-1 主题切换是否需要动画？ | 第 5 节：使用 CSS transition，300ms |\n\n---\n\n## 10. 用户确认\n\n请确认以下任一选项：\n\n- ✅ **同意**：本 plan 符合预期，可进入 **Test-Planning** 阶段生成 `test-plan.md`。\n- ❌ **修改**：请在下方/对话中列出需要调整的章节与意见，AI 将基于反馈重新生成本文档。",
-  "fieldDocs": {
-    "sections[].format": "内容格式类型。table=表格（需 columns）；group=含子节的分组（需 subsections）；code=代码/文本块（需 language）；prose=完整段落叙述；list=有序/无序列表；template=固定模板文本（需 content）",
-    "sections[].extensible": "是否允许 agent 扩展。true=可增删行/条目；false=结构固定不变",
-    "sections[].columns": "table 格式的列名定义数组，如 [\"#\", \"原则\", \"落地体现\"]",
-    "sections[].subsections": "group 格式下的子 section 定义数组，每个子 section 有独立的 heading、format、description",
-    "sections[].content": "template 格式的固定文本内容，agent 必须原样输出",
-    "sections[].language": "code 格式的语言标识。text=纯文本（架构图、目录树）；jsonc=带注释的 JSON（Schema 示例）",
-    "document.titleFormat": "标题格式。占位符={{ 项目名称 }} 需替换为实际项目名，如 \"MyProject Plan\"",
-    "sections[1].subsections": "整体架构分组：架构图（ASCII art）+ 关键事实（列表）",
-    "sections[3].subsections": "核心 Schema 分组：Schema 示例（jsonc 代码块）+ 字段语义约束（structured-list）+ 校验规则（list）",
-    "sections[4].subsections": "关键算法/流程分组：每个算法一个 prose 子节，描述伪代码或步骤",
-    "sections[8].format": "与 spec 开放问题的对应表，确保每个 Q-N 在 plan 中有唯一确定答案",
-    "sections[9].content": "用户确认固定模板，提供同意/修改两个选项，agent 不得修改此文本"
-  }
+    "数据模型设计必须位于 API 接口设计之前，API 接口设计必须位于算法设计之前",
+    "FR/AC/DEC/Q 等 AI 索引不得作为表格第一列",
+    "所有正式图使用 Mermaid 流程图语法",
+    "Plan 不承担完整测试计划职责",
+    "不得新增 Plan 专属验证脚本"
+  ]
 }

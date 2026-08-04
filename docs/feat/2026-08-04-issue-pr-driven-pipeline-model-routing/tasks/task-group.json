@@ -1,0 +1,77 @@
+{
+  "version": "1.0.0",
+  "tasks": [
+    {
+      "id": "task-01",
+      "file": "task-01.md",
+      "title": "Label 协议定义 + config.schema.json 更新",
+      "dependsOn": []
+    },
+    {
+      "id": "task-02",
+      "file": "task-02.md",
+      "title": "issue-fetch 原子任务",
+      "dependsOn": ["task-01"]
+    },
+    {
+      "id": "task-03",
+      "file": "task-03.md",
+      "title": "remote-gate 原子任务",
+      "dependsOn": ["task-01"]
+    },
+    {
+      "id": "task-04",
+      "file": "task-04.md",
+      "title": "issue-driven.json 工作流定义",
+      "dependsOn": ["task-01", "task-02", "task-03"]
+    },
+    {
+      "id": "task-05",
+      "file": "task-05.md",
+      "title": "coding/verification 更新（Loop 自检）",
+      "dependsOn": ["task-01"]
+    },
+    {
+      "id": "task-06",
+      "file": "task-06.md",
+      "title": "delivery-doc 原子任务",
+      "dependsOn": ["task-01"]
+    },
+    {
+      "id": "task-07",
+      "file": "task-07.md",
+      "title": "create-pr 原子任务",
+      "dependsOn": ["task-01", "task-06"]
+    },
+    {
+      "id": "task-08",
+      "file": "task-08.md",
+      "title": "节点级模型路由 Runtime",
+      "dependsOn": ["task-01"]
+    },
+    {
+      "id": "task-09",
+      "file": "task-09.md",
+      "title": "多模型评审扇出",
+      "dependsOn": ["task-08"]
+    },
+    {
+      "id": "task-10",
+      "file": "task-10.md",
+      "title": "gh-watcher.sh 轮询脚本",
+      "dependsOn": ["task-03"]
+    },
+    {
+      "id": "task-11",
+      "file": "task-11.md",
+      "title": "SKILL.md 更新",
+      "dependsOn": ["task-01", "task-02", "task-03", "task-04", "task-05", "task-06", "task-07", "task-08", "task-09", "task-10"]
+    }
+  ],
+  "parallelGroups": [
+    ["task-01"],
+    ["task-02", "task-03", "task-05", "task-06", "task-08"],
+    ["task-04", "task-07", "task-09", "task-10"],
+    ["task-11"]
+  ]
+}

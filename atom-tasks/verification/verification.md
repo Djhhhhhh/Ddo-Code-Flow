@@ -21,6 +21,11 @@ io:
     - ref: "run://docs/{type}/{dateDescription}/verification.log"
       kind: text
 outputSchemaRef: "skill://atom-tasks/verification/verification.output.schema.json"
+options:
+  - name: maxRetries
+    type: integer
+    default: 2
+    description: "最大重试次数"
 ---
 
 # verification
@@ -33,7 +38,18 @@ outputSchemaRef: "skill://atom-tasks/verification/verification.output.schema.jso
 
 如果 test-plan.md 不存在（例如 lightweight 工作流），读取 spec.md 与 plan.md，从仓库已有配置和文档中发现最小、确定性的现有测试或静态检查命令，并在工作树中执行；同时逐项核对 spec.md 的验收条件是否被实现。将这些检查作为 `LIGHTWEIGHT` 分组写入 verification.log。不得仅因 test-plan.md 缺失而跳过验证或宣告成功。
 
-如果所有自动检查和已确认的人工检查都通过，追加最终行 `ALL PASSED`。如果存在任何失败，将失败分组及命令记录到 verification.log，将相关 Coding 任务重新置为 `pending`、Coding stage 置为 `pending`、Verification stage 置为 `failed`，清除尚未开始或已经生成的 Reporting/Reflection/Done 下游状态，并将 `currentStage` 设置为 `coding` 后重新修复；不得写 `ALL PASSED`。最多自动修复 3 轮，达到上限后将 run 标记为 `failed` 并停止。若仅存在尚未确认的人工检查，将 Verification 标记为 `waiting-human` 并暂停，不得进入后续阶段。
+如果所有自动检查和已确认的人工检查都通过，追加最终行 `ALL PASSED`。如果存在任何失败，将失败分组及命令记录到 verification.log，将相关 Coding 任务重新置为 `pending`、Coding stage 置为 `pending`、Verification stage 置为 `failed`，清除尚未开始或已经生成的 Reporting/Reflection/Done 下游状态，并将 `currentStage` 设置为 `coding` 后重新修复；不得写 `ALL PASSED`。最多自动修复 `options.maxRetries` 轮（默认 2），达到上限后将 run 标记为 `failed` 并停止。若仅存在尚未确认的人工检查，将 Verification 标记为 `waiting-human` 并暂停，不得进入后续阶段。
+
+### 重试超限处理（options.maxRetries）
+
+当重试次数达到 `options.maxRetries` 上限时：
+- 如果当前是 issue-driven 工作流：
+  ```
+  gh issue edit <issueNumber> --add-label "ddo:failed"
+  gh issue comment <issueNumber> --body "验收超限（第 {retry} 轮），转人工：{失败原因}"
+  ```
+- 暂停，等待人工介入
+- 记录重试轮次到 `.state.json.stages.verification.retryCount`
 
 ## 约束
 

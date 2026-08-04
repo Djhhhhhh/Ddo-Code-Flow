@@ -441,6 +441,91 @@ git-worktree 创建工作目录时，同步在 `.state.json` 同级目录下创�
 
 **test-plan 阶段的回滚**同理：反馈涉及 spec 变更则回滚到 spec，涉及 plan 变更则回滚到 planning。
 
+## 远端确认门（Remote Gate）
+
+远端确认门是 issue-driven 工作流的核心机制，替代本地对话确认。
+
+### 定义
+
+远端确认门是一个幂等、可重入的原子任务（`remote-gate`），用于在 GitHub issue 上进行异步审核。
+
+### 首次进入流程
+
+1. 读取本阶段产物摘要（gate-artifact.md）
+2. 评论产物摘要到 issue
+3. 打审核 label：`ddo:pending-review:<stageName>`
+4. 在 .state.json 写入 gatePending 记录
+5. 启动 Monitor（persistent: true）轮询 GitHub label 变化
+6. 持久化，等待信号
+
+### 恢复重入流程
+
+1. 读取 .state.json.gatePending
+2. 检查 GitHub labels：
+   - `ddo:approved` → 摘审核 label，放行
+   - `ddo:changes-requested` → 读取白名单作者评论，带反馈重生
+   - 无信号 → 判超时（催办/挂起/终止）
+
+### 白名单作者
+
+- 配置：`remote-gate` 的 `whitelistAuthors` option
+- 默认：repo collaborators（write 权限以上）
+- 只接受白名单作者的反馈评论
+
+### 超时处理
+
+- 默认：72 小时后挂起（suspend）
+- 可配：`timeoutAction` = suspend | abort
+- 催办：超时前 24 小时评论催办提醒
+
+## 节点级模型路由（Model Routing）
+
+### 概述
+
+节点级模型路由允许不同原子任务使用不同模型，通过 subagent 委派实现。
+
+### 关键事实
+
+- Claude Code 主会话的模型无法被程序化切换
+- subagent 委派是原生能力，每次委派都能指定模型
+- 确认门仍由父会话主持，subagent 不与用户交互
+
+### 模型值解析
+
+优先级：workflow 级 atomTaskOverrides > config 全局 atomTaskOverrides > atom-task 默认值 > 继承
+
+```
+输入：atomTaskName
+1. 检查 workflow 级 atomTaskOverrides[atomTaskName].model
+2. ELSE 检查 config 全局 atomTaskOverrides[atomTaskName].model
+3. ELSE 检查 atom-task 默认 options.model
+4. ELSE modelValue = "inherit"
+```
+
+### 双路径
+
+1. **档位别名**（opus/sonnet/haiku/fable）：直接作为 subagent 模型参数
+2. **完整模型名**：写入 subagent 定义文件 model 字段，再按名委派
+
+### subagent 定义文件
+
+- 策略：运行时动态生成
+- 位置：`<worktreePath>/.subagents/<atomTaskName>-<modelAlias>.md`
+- 不预生成，避免维护负担
+
+### 多模型评审扇出
+
+- 配置：review 节点的 `models[]` 参数
+- 流程：按列表逐个委派 subagent 独立评审
+- 合并：简单拼接 + 共识提取 + 冲突标记
+- 每个 subagent 只回结论级摘要
+
+### 失败回退
+
+- 模型路由失败时回退为继承模式
+- 记录警告，不中断流水线
+- 实施前置检查确认全局 subagent 模型覆盖变量未设置
+
 ## Outputs to maintain
 
 - `<artifactDir>/.state.json` — pipeline state machine. Updated at
@@ -468,6 +553,13 @@ git-worktree 创建工作目录时，同步在 `.state.json` 同级目录下创�
 | Run directory name collides | Append `-2`, `-3`, ... to the suffix until unique. Record the final name in `.state.json.runId`. |
 | Schema or DAG validation fails | Abort with a clear error message; do not produce any artifacts. |
 | Atom-task with `rejectAction: "abort"` fails | Abort the pipeline. Report the error to the user. The `rejectAction` is read from the atom-task .md frontmatter, not hardcoded. |
+| Remote gate timeout | Default: suspend after 72h. Configurable via `timeoutAction` (suspend/abort). Comment reminder 24h before timeout. |
+| Remote gate feedback from non-whitelisted author | Ignore the comment, continue waiting for valid feedback. |
+| gh CLI command failure | Immediately terminate and report error. Do not silently ignore. |
+| Model routing failure | Fallback to inherit mode, record warning, do not interrupt pipeline. |
+| LLM gateway unavailable | Model routing falls back to inherit, record warning. |
+| Self-check rounds exceeded | Add `ddo:failed` label, comment failure reason, pause for human intervention. |
+| Verification retries exceeded | Add `ddo:failed` label, comment failure reason, pause for human intervention. |
 
 ## What this skill does NOT do
 
