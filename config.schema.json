@@ -197,10 +197,15 @@
       "type": "object",
       "additionalProperties": {
         "type": "object",
-        "required": ["enabled"],
         "additionalProperties": true,
         "properties": {
-          "enabled": { "type": "boolean" }
+          "enabled": { "type": "boolean" },
+          "model": {
+            "oneOf": [
+              { "type": "string" },
+              { "type": "array", "items": { "type": "string" } }
+            ]
+          }
         }
       }
     }
@@ -293,10 +298,15 @@
           "type": "object",
           "additionalProperties": {
             "type": "object",
-            "required": ["enabled"],
             "additionalProperties": true,
             "properties": {
-              "enabled": { "type": "boolean" }
+              "enabled": { "type": "boolean" },
+              "model": {
+                "oneOf": [
+                  { "type": "string" },
+                  { "type": "array", "items": { "type": "string" } }
+                ]
+              }
             }
           }
         }

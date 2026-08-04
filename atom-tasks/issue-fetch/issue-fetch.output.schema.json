@@ -1,0 +1,46 @@
+{
+  "description": "issue-context.md 输出规范",
+  "outputFormat": "markdown",
+  "document": {
+    "title": "Issue #{{ issueNumber }}: {{ title }}",
+    "titleFormat": "占位符",
+    "description": "从 GitHub issue 拉取的上下文信息，用于后续流水线阶段。",
+    "separators": true
+  },
+  "sections": [
+    {
+      "heading": "原始需求",
+      "level": 2,
+      "required": true,
+      "format": "prose",
+      "description": "Issue 正文内容"
+    },
+    {
+      "heading": "Labels",
+      "level": 2,
+      "required": true,
+      "format": "list",
+      "description": "Issue 的 label 列表"
+    },
+    {
+      "heading": "Comments",
+      "level": 2,
+      "required": false,
+      "format": "prose",
+      "description": "Issue 的评论列表（如有）"
+    },
+    {
+      "heading": "认领信息",
+      "level": 2,
+      "required": true,
+      "format": "list",
+      "description": "认领时间和 label 信息"
+    }
+  ],
+  "rules": [
+    "title 格式必须为 Issue #<number>: <title>",
+    "原始需求 section 必须包含 issue 正文",
+    "Labels section 必须列出所有 label",
+    "认领信息 section 必须包含认领时间"
+  ]
+}

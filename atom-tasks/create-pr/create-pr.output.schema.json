@@ -1,0 +1,24 @@
+{
+  "description": "pr-info.md 输出规范",
+  "outputFormat": "markdown",
+  "document": {
+    "title": "PR 信息",
+    "titleFormat": "固定文本",
+    "description": "创建的 Pull Request 信息。",
+    "separators": true
+  },
+  "sections": [
+    {
+      "heading": "PR 信息",
+      "level": 2,
+      "required": true,
+      "format": "list",
+      "description": "PR 编号、URL、关联 Issue、分支、类型、创建时间"
+    }
+  ],
+  "rules": [
+    "必须包含 PR 编号和 URL",
+    "必须包含关联 Issue 编号",
+    "必须包含分支信息"
+  ]
+}

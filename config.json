@@ -63,13 +63,25 @@
             "minor fix"
           ]
         },
+        {
+          "workflow": "issue-driven",
+          "matchAny": [
+            "issue",
+            "issue-driven",
+            "issue driven",
+            "ddo:trigger",
+            "远端门",
+            "remote gate"
+          ]
+        },
         { "workflow": "standard", "fallback": true }
       ]
     },
     "items": [
       { "id": "lightweight", "name": "Lightweight", "path": "workflows/lightweight.json" },
       { "id": "standard", "name": "Standard", "path": "workflows/standard.json" },
-      { "id": "guarded", "name": "Guarded", "path": "workflows/guarded.json" }
+      { "id": "guarded", "name": "Guarded", "path": "workflows/guarded.json" },
+      { "id": "issue-driven", "name": "Issue Driven", "path": "workflows/issue-driven.json" }
     ]
   },
   "atomTaskOverrides": {}

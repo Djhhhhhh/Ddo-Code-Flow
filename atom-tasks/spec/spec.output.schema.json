@@ -1,137 +1,137 @@
 {
-  "description": "spec.md 输出规范",
+  "description": "Alignment Spec 输出规范：以唯一标准支持用户与 agent 的需求对齐、阻塞歧义处理、可观察成功结果和明确确认。",
   "outputFormat": "markdown",
   "document": {
-    "title": "{{ 项目名称 }} Specification",
-    "titleFormat": "占位符",
-    "description": "AI 基于用户原始需求与 context-summary.md 对需求的规约化理解。仅描述 What / Why 与验收标准；技术方案见 plan.md。",
+    "title": "Spec",
+    "titleFormat": "<具体需求主题> Spec",
+    "description": "用于确认 agent 是否正确理解用户需求。",
     "separators": true
   },
   "sections": [
     {
-      "heading": "项目概述",
+      "heading": "对齐摘要",
+      "level": 2,
+      "required": true,
+      "format": "list",
+      "extensible": true,
+      "description": "用 3～6 条说明用户目标、期望交付、关键边界和当前确认状态；不得写背景长文。"
+    },
+    {
+      "heading": "用户目标",
+      "level": 2,
+      "required": true,
+      "format": "list",
+      "extensible": true,
+      "description": "保留用户明确目标、期望价值和关键术语；不得替用户发明业务价值。"
+    },
+    {
+      "heading": "范围与非目标",
       "level": 2,
       "required": true,
       "format": "group",
       "extensible": false,
-      "subsections": [
-        {
-          "heading": "项目名称",
-          "level": 3,
-          "required": true,
-          "format": "text",
-          "placeholder": "{{ project-name }}"
-        },
-        {
-          "heading": "一句话定义",
-          "level": 3,
-          "required": true,
-          "format": "text",
-          "placeholder": "{{ one-line definition }}"
-        },
-        {
-          "heading": "设计意图",
-          "level": 3,
-          "required": true,
-          "format": "list"
-        }
-      ]
-    },
-    {
-      "heading": "术语表（Glossary）",
-      "level": 2,
-      "required": false,
-      "format": "table",
-      "columns": ["术语", "定义"],
-      "extensible": true,
-      "description": "项目中使用的专业术语定义"
-    },
-    {
-      "heading": "功能需求（Functional Requirements）",
-      "level": 2,
-      "required": true,
-      "format": "structured-list",
-      "idPrefix": "FR",
-      "idPattern": "FR-{PREFIX}-{N}",
-      "extensible": true,
-      "description": "按模块分组的功能需求，每条用 FR-{PREFIX}-{N} 编号"
-    },
-    {
-      "heading": "产物与目录结构（What gets created）",
-      "level": 2,
-      "required": false,
-      "format": "code",
-      "language": "text",
-      "extensible": false,
-      "description": "文件系统树形结构"
-    },
-    {
-      "heading": "关键流程",
-      "level": 2,
-      "required": false,
-      "format": "code",
-      "language": "text",
-      "extensible": false,
-      "description": "ASCII 或伪代码流程图"
-    },
-    {
-      "heading": "约束与原则",
-      "level": 2,
-      "required": false,
-      "format": "structured-list",
-      "idPrefix": "C",
-      "idPattern": "C-{N}",
-      "extensible": true
-    },
-    {
-      "heading": "验收标准（Acceptance Criteria）",
-      "level": 2,
-      "required": true,
-      "format": "structured-list",
-      "idPrefix": "AC",
-      "idPattern": "AC-{N}",
-      "extensible": true,
-      "description": "spec 层的高层验收点，后续在 test-plan.md 中细化为 checklist"
-    },
-    {
-      "heading": "非功能需求（Non-Functional）",
-      "level": 2,
-      "required": false,
-      "format": "structured-list",
-      "idPrefix": "NFR",
-      "idPattern": "NFR-{N}",
-      "extensible": true
-    },
-    {
-      "heading": "范围说明（In / Out of Scope）",
-      "level": 2,
-      "required": false,
-      "format": "group",
-      "extensible": false,
+      "description": "明确 agent 会做什么和不会擅自扩展什么；简单需求也保留简短版本。",
       "subsections": [
         {
           "heading": "In Scope",
           "level": 3,
           "required": true,
-          "format": "list"
+          "format": "list",
+          "extensible": true
         },
         {
-          "heading": "Out of Scope",
+          "heading": "Non-goals",
           "level": 3,
           "required": true,
-          "format": "list"
+          "format": "list",
+          "extensible": true
         }
       ]
     },
     {
-      "heading": "开放问题（Open Questions，待 Plan 阶段决策）",
+      "heading": "需求对齐",
       "level": 2,
       "required": true,
-      "format": "structured-list",
-      "idPrefix": "Q",
-      "idPattern": "Q-{N}",
+      "format": "table",
+      "extensible": false,
+      "columns": [
+        "ID",
+        "Agent 对需求的理解",
+        "来源",
+        "成功结果"
+      ],
+      "description": "每行一个稳定 FR。理解必须可由用户判断对错；来源使用用户原始要求、用户修订、项目事实、agent 解释或 agent 假设；成功结果关联 AC。"
+    },
+    {
+      "heading": "约束与保留术语",
+      "level": 2,
+      "required": false,
+      "format": "list",
       "extensible": true,
-      "description": "留给 plan.md 解决的未决问题"
+      "description": "只记录用户明确约束、项目事实约束和必须原样保留的领域术语；没有真实内容时省略整个 section。"
+    },
+    {
+      "heading": "解释与假设",
+      "level": 2,
+      "required": false,
+      "format": "table",
+      "extensible": false,
+      "columns": [
+        "类型",
+        "内容",
+        "依据或原因",
+        "若错误的影响"
+      ],
+      "description": "展示非用户原话的 Interpretation、Assumption 或 Conflict；高影响假设必须转为阻塞问题。没有内容时省略。"
+    },
+    {
+      "heading": "对齐变化摘要",
+      "level": 2,
+      "required": false,
+      "format": "table",
+      "extensible": false,
+      "columns": [
+        "变更类型",
+        "ID",
+        "修改前",
+        "修改后",
+        "依据"
+      ],
+      "description": "仅在修改后的 revision 中出现，列出新增、修改、删除和已解决问题；初始版本省略。"
+    },
+    {
+      "heading": "需要用户确认",
+      "level": 2,
+      "required": false,
+      "format": "structured-list",
+      "extensible": true,
+      "idPrefix": "BQ",
+      "idPattern": "BQ-{N}",
+      "description": "只列会改变目标、范围、明确约束或成功结果的阻塞问题。每项说明不同答案会改变什么；存在未解决 BQ 时不能批准。没有真实问题时省略。"
+    },
+    {
+      "heading": "留给 Planning",
+      "level": 2,
+      "required": false,
+      "format": "structured-list",
+      "extensible": true,
+      "idPrefix": "PD",
+      "idPattern": "PD-{N}",
+      "description": "记录只影响实现方式、不改变 What/Why 的技术决策。不得混入产品歧义；没有内容时省略。"
+    },
+    {
+      "heading": "成功结果",
+      "level": 2,
+      "required": true,
+      "format": "table",
+      "extensible": false,
+      "columns": [
+        "ID",
+        "用户可观察的结果",
+        "Validates",
+        "来源"
+      ],
+      "description": "每行一个稳定 AC。结果必须可由用户判断成功或失败，并关联一个或多个 FR；推导结果必须标记 agent 解释。"
     },
     {
       "heading": "用户确认",
@@ -139,31 +139,54 @@
       "required": true,
       "format": "template",
       "extensible": false,
-      "content": "请确认以下任一选项：\n\n- ✅ **同意**：本 spec 符合预期，可进入 **Planning** 阶段生成 `plan.md`。\n- ❌ **修改**：请在下方/对话中列出需要调整的条款编号与意见，AI 将基于反馈重新生成本文档。"
+      "content": "若存在未解决 BQ：当前 spec 暂不能批准。请使用 `回答 BQ-N：<答案>` 提供决定；agent 必须把答案作为最新的显式用户需求证据写回，更新所有受影响的对齐内容，包括目标、范围、FR、AC、约束、术语、解释/假设和 BQ 状态，展示对齐变化摘要并重新请求确认。BQ 答案不等同于批准。`修改：<反馈>` 用于修改 spec；`提问：<问题>` 仅答疑，不修改文档或确认状态。`提问` 答复后，如需改动必须再明确使用 `修改：...`。`提问` 中若包含修改命令，agent 不执行修改并提示改用 `修改：...`。\n\n若不存在未解决 BQ，请确认以下任一选项：\n\n- ✅ **同意**：批准当前 spec，进入 **Planning**。\n- ❌ **修改：<反馈>**：修改当前 spec，展示对齐变化摘要后重新确认。\n- ❓ **提问：<问题>**：仅回答问题，不修改 spec、revision、确认状态或修订历史；答复后询问是否需要转为 `修改`。"
     }
   ],
   "rules": [
-    "每个 {{ 占位符 }} 必须替换为具体内容或删除整个子节",
-    "功能需求必须有唯一稳定 ID（FR-{PREFIX}-{N} 格式）",
-    "开放问题 section 必须存在，至少列出一个待决问题",
-    "用户确认 section 文本不得修改",
-    "不得包含任何实现选择（库名、框架、文件路径等）"
+    "所有输入只使用一个 Alignment Spec 生成标准；不得生成 level、profile、mode、overlay 或模板选择结果。",
+    "证据优先级依次为：用户最新明确反馈、requirement.md、context-summary.md 中的项目事实、显式 agent 解释或假设。",
+    "对齐摘要、用户目标、范围与非目标、需求对齐、成功结果和用户确认必须存在。",
+    "约束与保留术语、解释与假设、需要用户确认、留给 Planning 没有真实内容时必须省略整个 section；对齐变化摘要只在发生写回修改后的 revision 中出现。",
+    "需求对齐中的每个 FR 必须使用稳定唯一 ID，只表达一个主要义务，并标明来源和关联成功结果。",
+    "来源只能使用用户原始要求、用户修订、项目事实、agent 解释、agent 假设等可辨认标签；agent 解释和假设不得伪装成 Explicit。",
+    "不得凭常识或惯例增加用户未要求且项目事实未约束的功能、性能、安全、兼容性、持久化或验收项。",
+    "只有不同答案会改变目标、范围、明确约束或成功结果的问题才能使用 BQ；不得强制生成开放问题。",
+    "存在未解决 BQ 或 Conflict 时，当前确认状态必须是待澄清，不能提供可批准结论。",
+    "收到 `回答 BQ-N：<答案>` 时，必须将答案作为最新显式用户需求证据写回，更新所有受影响的对齐内容，包括目标、范围、FR、AC、约束、术语、解释/假设和 BQ 状态；保持未受影响内容与 ID 稳定，展示对齐变化摘要并重新请求确认；BQ 答案不得视为同意。",
+    "纯实现选择使用 PD 留给 Planning，不得用技术选择阻塞需求批准。",
+    "每个 AC 必须是用户可观察的成功或失败结果，使用稳定 ID，并通过 Validates 关联一个或多个 FR。",
+    "spec 只描述 What / Why；除用户明确要求的外部契约外，不得包含库、框架、内部文件路径或实现算法。",
+    "Coverage：用户每项重要明确要求都必须映射到目标、范围、FR、约束、AC 或 BQ。",
+    "No invention：每项 FR、约束和 AC 必须有证据或显式 Interpretation/Assumption 标签。",
+    "Terminology：保留用户领域术语；规范化定义不得偷换含义。",
+    "Scope：In Scope 与 Non-goals 不得冲突，也不得无依据扩大。",
+    "Atomicity：每项 FR 只表达一个主要义务。",
+    "Observable outcome：每项 AC 必须让用户能够判断成功或失败。",
+    "Question necessity：每个 BQ 必须说明不同答案会改变什么。",
+    "Conciseness：删除空 section、重复解释和只为匹配模板存在的内容。",
+    "Revision stability：修订时保留未受反馈影响的 FR、AC、BQ 和 PD ID 与语义。",
+    "初始版本省略对齐变化摘要；发生修改后必须列出新增、修改、删除和已解决问题，并说明依据。",
+    "Confirmation integrity：只有同意才批准；只有 `修改：...` 和 `回答 BQ-N：...` 是显式写回动作。`提问：...` 仅答疑，不改变 spec、ID、revision、确认状态或修订历史。",
+    "若提问内容实际是修改命令，或答疑暴露遗漏、冲突或错误，agent 仍不得自动写回；必须提示用户后续明确使用修改动作。",
+    "用户确认 section 的三路动作及其语义不得修改。"
   ],
-  "example": "# MyProject Specification\n\n> AI 基于用户原始需求与 context-summary.md 对需求的规约化理解。\n> 仅描述 What / Why 与验收标准；技术方案见 plan.md。\n\n---\n\n## 1. 项目概述\n\n### 1.1 项目名称\nMyProject\n\n### 1.2 一句话定义\n为应用添加暗色模式支持。\n\n### 1.3 设计意图\n- 提升用户体验\n- 减少夜间视觉疲劳\n\n---\n\n## 2. 术语表（Glossary）\n\n| 术语 | 定义 |\n|---|---|\n| 暗色模式 | 背景深色、文字浅色的显示方案 |\n\n---\n\n## 3. 功能需求（Functional Requirements）\n\n### 3.1 主题管理\n\n- **FR-THEME-1**：系统应支持浅色/暗色主题切换\n- **FR-THEME-2**：切换后所有页面立即生效\n\n---\n\n## 7. 验收标准（Acceptance Criteria）\n\n- **AC-1**：用户可在设置页切换主题\n- **AC-2**：切换后无需刷新页面\n\n---\n\n## 10. 开放问题（Open Questions，待 Plan 阶段决策）\n\n- **Q-1**：主题切换是否需要动画过渡？——留给 plan.md。\n\n---\n\n## 11. 用户确认\n\n请确认以下任一选项：\n\n- ✅ **同意**：本 spec 符合预期，可进入 **Planning** 阶段生成 `plan.md`。\n- ❌ **修改**：请在下方/对话中列出需要调整的条款编号与意见，AI 将基于反馈重新生成本文档。",
+  "example": "# Dark Mode Spec\n\n> 本文档用于确认 agent 是否正确理解用户关于“为应用添加暗色模式支持”的需求。\n\n---\n\n## 对齐摘要\n\n- 用户目标：让应用支持暗色模式。\n- 期望交付：应用具备可被启用的暗色显示状态。\n- 当前状态：存在一个会影响功能范围的待确认问题，用户确认后才能批准本 spec。\n\n---\n\n## 用户目标\n\n- 为应用增加暗色模式能力。\n\n---\n\n## 范围与非目标\n\n### In Scope\n\n- 为应用增加暗色模式能力。\n\n### Non-goals\n\n- 用户未要求动画效果，本次不将动画作为默认范围。\n\n---\n\n## 需求对齐\n\n| ID | Agent 对需求的理解 | 来源 | 成功结果 |\n|---|---|---|---|\n| FR-THEME-1 | 应用应支持暗色模式。 | 用户原始要求 | AC-1 |\n\n---\n\n## 约束与保留术语\n\n- 保留用户术语：`暗色模式`。\n\n---\n\n## 解释与假设\n\n| 类型 | 内容 | 依据或原因 | 若错误的影响 |\n|---|---|---|---|\n| Interpretation | “支持暗色模式”表示应用存在可被启用的暗色显示状态。 | 对用户原始要求的最小等价解释。 | 若用户只要求设计稿或调研，交付物类型会不同。 |\n| Assumption | 当前不假设具体启用方式。 | 用户未说明手动切换或跟随系统。 | 不同选择会改变功能范围和成功结果，因此转为 BQ-1。 |\n\n---\n\n## 需要用户确认\n\n- **BQ-1**：暗色模式应由用户手动切换、自动跟随系统，还是两者都支持？不同答案会改变功能范围和成功结果。\n\n---\n\n## 成功结果\n\n| ID | 用户可观察的结果 | Validates | 来源 |\n|---|---|---|---|\n| AC-1 | 当暗色模式按用户确认的方式启用后，应用呈现暗色显示状态。 | FR-THEME-1 | agent 解释；依赖 BQ-1 |\n\n---\n\n## 用户确认\n\n当前存在 BQ-1，暂不能批准。用户可以：\n\n- 📝 **回答 BQ-1：<答案>**：agent 将答案写回本 spec，随后重新请求确认。\n- ❌ **修改：<反馈>**：按反馈修改本 spec，展示变化后重新确认。\n- ❓ **提问：<问题>**：仅回答问题，不修改本 spec，也不改变当前确认状态。回答后，agent 会询问是否需要转为 `修改`。\n\nBQ-1 解决并写回后，本 section 显示：\n\n- ✅ **同意**：批准当前 spec，进入 Planning。\n- ❌ **修改：<反馈>**：修改当前 spec，展示变化后重新确认。\n- ❓ **提问：<问题>**：仅答疑；如需据此改动，必须随后明确选择 `修改`。",
   "fieldDocs": {
-    "sections[].format": "内容格式类型。group=含子节的分组；table=表格（需 columns）；structured-list=带编号的结构化列表（需 idPrefix/idPattern）；code=代码/文本块（需 language）；template=固定模板文本（需 content）；text=简短文本；list=无序列表",
-    "sections[].extensible": "是否允许 agent 扩展。true=可增删条目（如功能需求、验收标准）；false=结构固定（如项目概述、用户确认）",
-    "sections[].idPrefix": "structured-list 的 ID 前缀，如 FR、AC、C、NFR、Q。用于生成 FR-THEME-1、AC-1 等唯一标识",
-    "sections[].idPattern": "ID 生成模式。{PREFIX} 替换为模块前缀，{N} 替换为自增序号。如 FR-{PREFIX}-{N} 生成 FR-THEME-1",
-    "sections[].content": "template 格式的固定文本内容，agent 必须原样输出，不得修改",
-    "sections[].subsections": "group 格式下的子 section 定义，每个子 section 有自己的格式和约束",
-    "sections[].columns": "table 格式的列名定义数组",
-    "sections[].language": "code 格式的语言标识，如 text（纯文本树形结构）、jsonc（带注释的 JSON）",
-    "sections[].placeholder": "text 格式的占位符提示，agent 需替换为实际内容",
-    "document.titleFormat": "标题格式。占位符={{ 项目名称 }} 需替换为实际项目名，如 \"MyProject Specification\"",
-    "sections[0].subsections": "项目概述分组，包含项目名称、一句话定义、设计意图三个子节",
-    "sections[2].idPrefix": "功能需求使用 FR 前缀，结合模块名如 FR-THEME-1、FR-AUTH-1",
-    "sections[6].idPrefix": "验收标准使用 AC 前缀，编号为 AC-1、AC-2 等，后续在 test-plan.md 中细化",
-    "sections[9].content": "用户确认是固定模板，提供同意/修改两个选项，agent 不得修改此文本"
+    "document.title": "生成文档的 H1 格式为“<具体需求主题> Spec”，例如 Dark Mode Spec。",
+    "sections[].required": "required=true 表示 Alignment Core；required=false 表示仅在存在真实内容时出现的条件 section。required/optional 不代表不同生成等级。",
+    "sections[].extensible": "列表可按真实需求增减条目；核心表格列和确认模板不得扩展，以保持来源、关联和确认语义稳定。",
+    "sections[0]": "对齐摘要使用 3～6 条简短陈述，包含目标、交付、关键边界和当前确认状态。",
+    "sections[1]": "用户目标只保留用户明确目标、价值和术语，不补写常见业务收益。",
+    "sections[2]": "范围与非目标始终存在；Non-goals 用于阻止 agent 对未要求内容进行合理化扩写。",
+    "sections[3].columns": "需求对齐固定为 ID、Agent 对需求的理解、来源、成功结果四列。FR 必须稳定、原子且可由用户判断。",
+    "sections[4]": "约束与保留术语是条件 section，只记录有证据的限制和领域原词。",
+    "sections[5].columns": "解释与假设固定展示类型、内容、依据或原因、错误影响；允许 Interpretation、Assumption、Conflict。",
+    "sections[6].columns": "对齐变化摘要只在修订版本出现，固定展示变更类型、ID、修改前、修改后和依据。",
+    "sections[7].idPrefix": "阻塞问题使用 BQ 前缀；只有答案会改变交付结果的问题才能进入此 section。",
+    "sections[8].idPrefix": "Planning Decision 使用 PD 前缀，仅记录实现选择，不得包含待用户决定的产品歧义。",
+    "sections[9].columns": "成功结果固定为 ID、用户可观察的结果、Validates、来源四列；每个 AC 至少关联一个 FR。",
+    "sections[10].content": "不存在阻塞问题时提供同意、修改、提问；存在未解决 BQ 时提供回答 BQ、修改、提问且不得批准。回答 BQ 是显式需求决定并写回，提问永远不写回。",
+    "rules": "rules 同时承担唯一生成标准、证据边界、Fidelity Self-Check、修订摘要、ID 稳定和确认完整性的约束。",
+    "example": "只保留一份完整的 Alignment Spec 示例。示例中的暗色模式需求展示关键歧义、来源标签、FR→AC 关联和提问只读语义。"
   }
 }

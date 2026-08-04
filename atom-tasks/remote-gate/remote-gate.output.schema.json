@@ -1,0 +1,38 @@
+{
+  "description": "gate-result.md 输出规范",
+  "outputFormat": "markdown",
+  "document": {
+    "title": "远端确认门结果：{{ stageName }}",
+    "titleFormat": "占位符",
+    "description": "远端确认门的审核结果，包含状态和反馈。",
+    "separators": true
+  },
+  "sections": [
+    {
+      "heading": "审核状态",
+      "level": 2,
+      "required": true,
+      "format": "text",
+      "description": "approved / rejected / timeout"
+    },
+    {
+      "heading": "审核信息",
+      "level": 2,
+      "required": true,
+      "format": "list",
+      "description": "审核作者、审核时间"
+    },
+    {
+      "heading": "反馈内容",
+      "level": 2,
+      "required": false,
+      "format": "prose",
+      "description": "否决时的反馈内容（仅 rejected 状态）"
+    }
+  ],
+  "rules": [
+    "审核状态必须为 approved / rejected / timeout 之一",
+    "审核信息必须包含作者和时间",
+    "反馈内容仅在 rejected 状态下出现"
+  ]
+}
