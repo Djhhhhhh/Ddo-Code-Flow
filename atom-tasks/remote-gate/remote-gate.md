@@ -20,12 +20,20 @@ io:
 options:
   - name: issueNumber
     type: integer
-    required: true
-    description: "目标 issue 编号"
+    required: false
+    description: "目标 issue 编号（空=从 .state.json.issueContext.issueNumber 读取）"
+  - name: repo
+    type: string
+    required: false
+    description: "目标仓库 (owner/repo)，空=从 .state.json.issueContext.repo 或当前仓库读取"
   - name: stageName
     type: string
     required: true
     description: "当前阶段名（用于 label）"
+  - name: localMode
+    type: boolean
+    default: false
+    description: "本地模式：跳过 GitHub label 轮询，直接放行"
   - name: timeoutHours
     type: integer
     default: 72
@@ -47,6 +55,21 @@ options:
 > 远端确认门：幂等、可重入的原子任务。首次进入时评论产物摘要并打审核 label；恢复时读取 GitHub 信号决定放行或否决。
 
 ## 指令
+
+### 0. 解析参数
+
+- **issueNumber**: If `options.issueNumber` is set, use it. Else read `.state.json.issueContext.issueNumber`. If neither exists, abort.
+- **repo**: If `options.repo` is set, use `--repo <repo>` for all `gh` commands. Else read `.state.json.issueContext.repo`. If neither, use current repo.
+- **repoFlag**: `--repo <repo>` if repo is resolved, else `""`.
+
+### localMode 行为
+
+When `options.localMode == true`:
+1. Read `gate-artifact.md` as normal
+2. **Skip** all GitHub operations (no comment, no label, no Monitor)
+3. Write `gate-result.md` with status `approved` and note "localMode auto-approved"
+4. Record `gate-approved` in `.state.json.history` with `note: "localMode"`
+5. Continue to next node immediately
 
 ### 首次进入（.state.json 中无 gatePending 记录）
 
@@ -127,3 +150,5 @@ ELSE：
 - 反馈评论限白名单作者
 - Monitor 保持会话存活，信号到达立即恢复
 - 会话意外退出时，.state.json 已持久化，手动恢复即可
+- `localMode` 下跳过所有 GitHub 交互，直接放行，不写入 gatePending 记录
+- `issueNumber` 和 `repo` 优先从 options 读取，fallback 到 `.state.json.issueContext`

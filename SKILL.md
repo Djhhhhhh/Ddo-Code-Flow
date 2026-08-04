@@ -24,6 +24,12 @@ require the full pipeline.
 ## Inputs
 
 - An inline user prompt describing the requirement (the message that triggered this skill).
+- **Arguments** (`--key value` format): Structured parameters passed after the skill name.
+  - `/Ddo-Code-Flow --model issue` → `parsedArgs = { model: "issue" }` → resolves to `issue-driven` workflow
+  - `/Ddo-Code-Flow --workflow guarded` → `parsedArgs = { workflow: "guarded" }` → uses `guarded` workflow directly
+  - `/Ddo-Code-Flow --model issue --repo owner/repo` → arguments are also available to atom-tasks as runtime context
+  - Recognized keys: `workflow`, `mode`, `profile`, `model` (defined in `config.workflows.selection.argumentNames`)
+  - Additional keys (e.g., `--repo`, `--issue`) are stored in `.state.json.args` for atom-task consumption
 - `config.json` — workflow index + global runtime settings (`skillRoot`, **唯一事实来源**).
 - `config.schema.json` — JSON Schema for validation (`skillRoot`). Also defines `$defs/workflowDefinition` for workflow JSON files.
 - `workflows/*.json` — workflow definitions (pipeline, confirmationGates, atomTaskOverrides per mode).
@@ -61,14 +67,23 @@ mechanical loop below.
 > **Workflow 选择算法**：解析顺序固定如下，第一条命中即停止。
 
 1. Read the resolved `config.workflows` object.
-2. **Explicit parameter**: If the user's skill invocation contains `workflow=<id>`, `mode=<id>`, or `profile=<id>` (one of `config.workflows.selection.argumentNames`), and `allowUserOverride` is true, use that id.
-3. **Rule matching**: Otherwise, iterate `config.workflows.selection.rules` in order. Normalize both the requirement and each `matchAny` keyword with Unicode-aware lowercase, then check substring inclusion. First match wins.
-4. **Fallback**: If no rule matched, use the rule with `fallback: true`.
-5. **Default**: If still unresolved, use `config.workflows.default`.
-6. Load the workflow JSON from `config.workflows.items[].path` for the resolved id.
-7. Validate the loaded workflow JSON against `$defs/workflowDefinition` in `config.schema.json`. Reject and abort on failure.
-8. Run the DAG no-cycle check on every stage's `atomTasks.entry` + `atomTasks.nodes[*].next`. Reject and abort on any cycle.
-9. This is the **active workflow**.
+2. **Argument parsing**: Parse the user's skill invocation arguments using `--key value` format. For each `--<key> <value>` pair found in the arguments, record it as `parsedArgs[key] = value`.
+   - Example: `/Ddo-Code-Flow --model issue` → `parsedArgs = { model: "issue" }`
+   - Example: `/Ddo-Code-Flow --workflow guarded --mode strict` → `parsedArgs = { workflow: "guarded", mode: "strict" }`
+   - Also support legacy `key=value` format for backward compatibility: `workflow=issue-driven` → `parsedArgs = { workflow: "issue-driven" }`
+   - Store all `parsedArgs` in `.state.json.args` for atom-task consumption (e.g., `--repo` can be read by `issue-fetch` as `state.args.repo`).
+3. **Explicit workflow id**: If `parsedArgs.workflow` exists and matches a `config.workflows.items[].id`, use that workflow directly.
+4. **Argument-based rule matching**: If no explicit workflow id was found, use the argument values (in priority order: `mode` > `profile` > `model`) as the **requirement text** for rule matching. Iterate `config.workflows.selection.rules` in order; normalize both the argument value and each `matchAny` keyword with Unicode-aware lowercase, then check substring inclusion. First match wins.
+   - Example: `--model issue` → requirement text = `"issue"` → matches rule with `matchAny: ["issue", ...]` → resolves to `issue-driven`.
+5. **Text-based rule matching**: If still unresolved, use the user's full original prompt (excluding `--key value` pairs) as requirement text for the same rule-matching algorithm.
+6. **Fallback**: If no rule matched, use the rule with `fallback: true`.
+7. **Default**: If still unresolved, use `config.workflows.default`.
+5. **Fallback**: If no rule matched, use the rule with `fallback: true`.
+6. **Default**: If still unresolved, use `config.workflows.default`.
+7. Load the workflow JSON from `config.workflows.items[].path` for the resolved id.
+8. Validate the loaded workflow JSON against `$defs/workflowDefinition` in `config.schema.json`. Reject and abort on failure.
+9. Run the DAG no-cycle check on every stage's `atomTasks.entry` + `atomTasks.nodes[*].next`. Reject and abort on any cycle.
+10. This is the **active workflow**.
 
 ### Step 3 — Initialize state and execute pipeline
 
@@ -108,6 +123,7 @@ mechanical loop below.
      "projectRoot": "<absolute target Git repository>",
      "skillRoot": "<absolute skill directory>",
      "userRequirement": "<verbatim user prompt>",
+     "args": {},
      "currentStage": "context",
      "stages": {},
      "history": [{ "event": "created", "at": "<ISO 8601>", "note": "workflowId=<id>" }],
@@ -155,6 +171,13 @@ directly (e.g., "resume from this .state.json"), the agent can skip Step 1 and S
 | `run://docs/{type}/{dateDescription}/<path>` | `<worktreePath>/docs/<type>/<dateDescription>/<path>` | After git-worktree sets `worktreePath`, `type`, and `dateDescription` |
 | `run://<path>` | Hold in memory (pending write) | Before `worktreePath` exists |
 | `run://../<path>` | `<projectRoot>/<path>` | Always |
+
+**State sharing via `.state.json`**: Atom-tasks can write structured data to `.state.json` for downstream consumption. Conventional fields:
+
+- `.state.json.issueContext.issueNumber` — Set by `issue-fetch`, read by `remote-gate` and `create-pr`
+- `.state.json.issueContext.repo` — Set by `issue-fetch`, read by downstream tasks that call `gh`
+
+When an atom-task option has `required: true` but no value is provided through `atomTaskOverrides` or `node.options`, the runtime checks `.state.json` for a matching field before raising an error.
 
 **Directory structure**:
 
@@ -243,16 +266,25 @@ For each `stageDef` in the **active workflow's `pipeline`**, in order, skipping 
    - For each layer, in order:
      a. For every node in the layer (you may produce outputs for the whole
         layer in a single response when possible):
-        - Load `atom-tasks/<name>/<name>.md`. Parse the YAML frontmatter
+        - Load `atom-tasks/<effectiveName>/<effectiveName>.md` where
+          `effectiveName = node.taskRef` if the DAG node declares `taskRef`,
+          else the node name from the DAG. Parse the YAML frontmatter
           (between the `---` delimiters) to extract metadata: `name`, `version`,
           `stage`, `enabled`, `io`, `options`, `confirmation`, `concurrency`,
           `timeoutSec`, `outputSchemaRef`. The markdown body contains:
           `## 指令` (instruction) and `## 约束` (guardrails).
+          When `taskRef` is used, the node's `io.inputs` (if present) overrides
+          the referenced atom-task's `io.inputs` — use the node-level inputs
+          for path resolution instead of the task-level defaults.
         - Resolve every `io.inputs[*].ref` and `io.outputs[*].ref` using the
           path resolution table above.
-        - Resolve effective options: merge `atomTaskOverrides[name]` (all keys
-          except `enabled`) over `options[*].default` values. The merged
-          object is available as `options.<key>` inside the instruction.
+        - Resolve effective options: merge `atomTaskOverrides[<node_name>]` (all keys
+          except `enabled`) over `node.options` values over `options[*].default`
+          values. Priority: `atomTaskOverrides[node_name]` > `node.options` >
+          `atom-task defaults`. The merged object is available as `options.<key>`
+          inside the instruction. Note: `atomTaskOverrides` keys on the **node
+          name** in the DAG (not `taskRef`), so each parameterized instance can
+          be independently overridden.
         - Execute the node's instruction (from `## 指令` section) with the
           resolved inputs and effective options, honoring constraints
           (from `## 约束` section).

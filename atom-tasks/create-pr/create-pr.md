@@ -20,8 +20,12 @@ io:
 options:
   - name: issueNumber
     type: integer
-    required: true
-    description: "关联 issue 编号"
+    required: false
+    description: "关联 issue 编号（空=从 .state.json.issueContext.issueNumber 读取）"
+  - name: repo
+    type: string
+    required: false
+    description: "目标仓库 (owner/repo)，空=从 .state.json.issueContext.repo 或当前仓库读取"
   - name: baseBranch
     type: string
     default: "main"
@@ -37,6 +41,12 @@ options:
 > 推送特性分支，创建 draft PR，评论 PR 链接到 issue，更新 issue label 为 ddo:completed。
 
 ## 指令
+
+### 0. 解析参数
+
+- **issueNumber**: If `options.issueNumber` is set, use it. Else read `.state.json.issueContext.issueNumber`. If neither exists, abort.
+- **repo**: If `options.repo` is set, use it. Else read `.state.json.issueContext.repo`. If neither, use current repo.
+- **repoFlag**: `--repo <repo>` if repo is resolved, else `""`.
 
 1. 推送特性分支到远程：
    ```
@@ -54,13 +64,13 @@ options:
 
 3. 评论 PR 链接到 issue：
    ```
-   gh issue comment <issueNumber> --body "✅ PR 已创建：$(gh pr view --json url --jq '.url')"
+   gh issue comment <issueNumber> --body "✅ PR 已创建：$(gh pr view --json url --jq '.url')" <repoFlag>
    ```
 
 4. 更新 issue label：
    ```
-   gh issue edit <issueNumber> --add-label "ddo:completed"
-   gh issue edit <issueNumber> --remove-label "ddo:in-progress"
+   gh issue edit <issueNumber> --add-label "ddo:completed" <repoFlag>
+   gh issue edit <issueNumber> --remove-label "ddo:in-progress" <repoFlag>
    ```
 
 5. 输出 pr-info.md：

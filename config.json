@@ -29,7 +29,7 @@
     "default": "standard",
     "selection": {
       "allowUserOverride": true,
-      "argumentNames": ["workflow", "mode", "profile"],
+      "argumentNames": ["workflow", "mode", "profile", "model"],
       "rules": [
         {
           "workflow": "guarded",
