@@ -431,6 +431,26 @@ def test_root_show_case_is_current_v4_contract() -> None:
     assert "task-group.json / .md" not in root_show_case
 
 
+def test_readme_describes_current_v4_contract() -> None:
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    required_terms = [
+        "show_case.md",
+        "state.schema.json",
+        "atom-tasks/artifacts.json",
+        ".state.json.artifacts",
+        "{{inputs.<role>}}",
+        "`runId` starts as `null`",
+        "`git-worktree`",
+        "docs/feat/2026-08-05-project-consistency-audit/show-case.md",
+    ]
+    for term in required_terms:
+        assert term in readme
+    assert "run://docs/{type}/{dateDescription}" not in readme
+    assert '"userRequirement"' not in readme
+    assert "worktree-info.json / .md" not in readme
+    assert "task-group.json / .md" not in readme
+
+
 def test_ui_uses_default_config_without_legacy_pipeline_injection() -> None:
     studio = (ROOT / "ui/studio.js").read_text(encoding="utf-8")
     assert 'FS.readJSON("config.default.json")' in studio
