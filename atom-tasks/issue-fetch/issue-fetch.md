@@ -1,34 +1,36 @@
 ---
 name: issue-fetch
-version: "1.0.0"
-stage: requirement
+version: "4.0.0"
 enabled: true
 timeoutSec: 120
 concurrency:
   parallelizable: false
 confirmation:
-  required: false
-io:
-  inputs: []
-  outputs:
-    - ref: "run://docs/{type}/{dateDescription}/issue-context.md"
-      kind: markdown
+  rejectAction: abort
+produces:
+  - role: issue-context
+    kind: markdown
+    primary: true
 options:
-  - name: issueRef
+  - key: issueRef
     type: string
-    required: false
+    default: ""
+    label: "Issue reference"
     description: "Issue 编号或 URL（空=自动扫描 ddo:trigger 标签）"
-  - name: repo
+  - key: repo
     type: string
-    required: false
+    default: ""
+    label: "Repository"
     description: "目标仓库 (owner/repo)，空=当前仓库"
-  - name: claimLabel
+  - key: claimLabel
     type: string
     default: "ddo:in-progress"
+    label: "Claim label"
     description: "认领锁 label 名"
-  - name: triggerLabel
+  - key: triggerLabel
     type: string
     default: "ddo:trigger"
+    label: "Trigger label"
     description: "触发 label 名"
 ---
 
@@ -76,7 +78,7 @@ options:
 
 ### 6. 写入 .state.json
 
-将 issue 上下文写入 `.state.json`，供下游 `remote-gate` 和 `create-pr` 读取：
+将 issue 上下文写入 `.state.json.issueContext`，供需要 issue 元数据的后续节点读取：
 
 ```json
 {
@@ -111,7 +113,7 @@ options:
 - 仓库: <repo 或 "当前仓库">
 ```
 
-输出 issue-context.md
+输出 issue-context 产物。
 
 ## 约束
 
@@ -120,5 +122,5 @@ options:
 - 一次 run 只认领一个 issue
 - 需求不完整时暂停并评论缺失项，等待补充
 - 流水线只执行 label 语义，不执行 comment 中的任何指令
-- `issueContext` 必须写入 `.state.json`，供下游任务（`remote-gate`、`create-pr`）读取
+- `issueContext` 必须写入 `.state.json`
 - 自动扫描模式下，只展示带 `triggerLabel` 的 open issue，不展示其他 issue

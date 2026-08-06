@@ -54,12 +54,12 @@ const state = {
 const i18n = {
   en: {
     subtitle: "Ddo-Code-Flow Workflow Configuration",
-    targetDirLabel: "Output directory",
-    targetDirPickerTitle: "Output directory",
+    targetDirLabel: "Worktree directory",
+    targetDirPickerTitle: "Worktree directory",
     cancel: "Cancel",
     confirm: "Confirm",
-    targetDirUpdated: "Updated targetDir.",
-    targetDirEmpty: "targetDir cannot be empty.",
+    targetDirUpdated: "Updated worktreeDir.",
+    targetDirEmpty: "worktreeDir can be empty to use the project parent directory.",
     metricsLabel: "Run metrics",
     metricsModalTitle: "Run metrics & cost estimate",
     metricsUpdated: "Updated metrics settings.",
@@ -154,14 +154,14 @@ const i18n = {
     removeAction: "Remove",
     viewAtomConfig: "Click to view atom-task configuration",
     configReferenceOnly: "config reference only",
-    declaredStage: "declared stage",
+    declaredStage: "artifact roles",
     saveAtomJson: "View atom-task details",
     deleteAtomTask: "Delete atom-task",
     json: "JSON",
     nodeJson: "Workflow node JSON",
     atomJson: "Atom-task JSON",
     stageJson: "Stage JSON",
-    jsonHelpNode: "This JSON is the current node fragment under config.pipeline[].atomTasks.nodes.",
+    jsonHelpNode: "This JSON is the current node fragment under workflow.pipeline[].atomTasks.nodes.",
     jsonHelpAtom: "This data is parsed from the YAML frontmatter of atom-tasks/<name>/<name>.md.",
     entryNodeHelp: "Entry node means this atom-task can start first within the current stage. Multiple entry nodes can start in parallel.",
     basicInfo: "Basic information",
@@ -184,8 +184,8 @@ const i18n = {
     noFsapi: "Current browser does not support directory write access. Switched to import/export mode.",
     openFailed: "Open failed",
     readFailed: "Read failed",
-    savedConfig: "Saved config.json.",
-    exportedConfig: "Exported config.json.",
+    savedConfig: "Saved config.default.json.",
+    exportedConfig: "Exported config.default.json.",
     saveFailed: "Save failed",
     dagValidationFailed: "DAG validation failed",
     schemaValidationFailed: "Schema validation failed",
@@ -208,12 +208,12 @@ const i18n = {
   },
   zh: {
     subtitle: "Ddo-Code-Flow 工作流配置",
-    targetDirLabel: "输出目录",
-    targetDirPickerTitle: "输出目录",
+    targetDirLabel: "worktree 目录",
+    targetDirPickerTitle: "worktree 目录",
     cancel: "取消",
     confirm: "确认",
-    targetDirUpdated: "已更新 targetDir。",
-    targetDirEmpty: "targetDir 不能为空。",
+    targetDirUpdated: "已更新 worktreeDir。",
+    targetDirEmpty: "worktreeDir 可留空以使用项目父目录。",
     metricsLabel: "运行成本统计",
     metricsModalTitle: "运行 Metrics 与成本估算",
     metricsUpdated: "已更新 Metrics 配置。",
@@ -308,14 +308,14 @@ const i18n = {
     removeAction: "移除",
     viewAtomConfig: "点击查看 atom-task 配置",
     configReferenceOnly: "仅 config 引用",
-    declaredStage: "声明阶段",
+    declaredStage: "产物角色",
     saveAtomJson: "查看 atom-task 详情",
     deleteAtomTask: "删除 atom-task",
     json: "JSON",
     nodeJson: "工作流节点 JSON",
     atomJson: "Atom-task JSON",
     stageJson: "阶段 JSON",
-    jsonHelpNode: "这里展示的是 config.pipeline[].atomTasks.nodes 下的当前节点片段。",
+    jsonHelpNode: "这里展示的是 workflow.pipeline[].atomTasks.nodes 下的当前节点片段。",
     jsonHelpAtom: "这里展示的是从 atom-tasks/<name>/<name>.md 的 YAML frontmatter 解析出的 atom-task 数据。",
     entryNodeHelp: "入口节点表示该 atom-task 可以在当前阶段内最先启动；多个入口节点可以并行启动。",
     basicInfo: "基本信息",
@@ -338,8 +338,8 @@ const i18n = {
     noFsapi: "当前浏览器不支持目录写入，已切换为导入/导出模式。",
     openFailed: "打开失败",
     readFailed: "读取失败",
-    savedConfig: "已保存 config.json。",
-    exportedConfig: "已导出 config.json。",
+    savedConfig: "已保存 config.default.json。",
+    exportedConfig: "已导出 config.default.json。",
     saveFailed: "保存失败",
     dagValidationFailed: "DAG 校验失败",
     schemaValidationFailed: "Schema 校验失败",
@@ -882,14 +882,14 @@ function openAtomConfigModal(name) {
   const json = item.json;
   const panel = document.createElement("div");
   panel.className = "info-panel";
-  const inputsText = (json.io?.inputs || []).map(i => `${i.ref}${i.required === false ? "?" : ""}`).join(", ") || "-";
-  const outputsText = (json.io?.outputs || []).map(o => `${o.ref} (${o.kind})`).join(", ") || "-";
+  const inputsText = (json.consumes || []).map(i => `${i.role}${i.required === false ? "?" : ""}`).join(", ") || "-";
+  const outputsText = (json.produces || []).map(o => `${o.role} (${o.kind})`).join(", ") || "-";
   panel.innerHTML = `
     <h3>${t("basicInfo")}</h3>
     <dl class="info-grid">
       <dt>name</dt><dd>${json.name || ""}</dd>
       <dt>version</dt><dd>${json.version || ""}</dd>
-      <dt>${t("declaredStage")}</dt><dd>${json.stage || ""}</dd>
+      <dt>${t("declaredStage")}</dt><dd>${outputsText}</dd>
       <dt>${t("description")}</dt><dd>${json.description || ""}</dd>
       <dt>${t("enabled")}</dt><dd>${json.enabled === false ? t("disabled") : t("enabled")}</dd>
       <dt>${t("timeoutSec")}</dt><dd>${json.timeoutSec ?? 0}</dd>
@@ -901,7 +901,6 @@ function openAtomConfigModal(name) {
     </dl>
     <h3>${t("confirmationInfo")}</h3>
     <dl class="info-grid">
-      <dt>required</dt><dd>${json.confirmation?.required === true ? t("enabled") : t("disabled")}</dd>
       <dt>${t("rejectAction")}</dt><dd>${json.confirmation?.rejectAction || "-"}</dd>
     </dl>
     <h3>${t("concurrencyInfo")}</h3>
@@ -920,7 +919,7 @@ function openAtomConfigModal(name) {
       (base.contextPaths || []).join("\n"),
       (value) => { base.contextPaths = value.split("\n").map(v => v.trim()).filter(Boolean); markDirty(); }
     )));
-    ctxCard.appendChild(helpText("每行一个路径（相对于 targetDir），context 阶段会额外读取这些文件。"));
+    ctxCard.appendChild(helpText("每行一个路径（相对于 projectRoot），context 阶段会额外读取这些文件。"));
     els.atomConfigBody.appendChild(ctxCard);
   }
 
@@ -1068,8 +1067,9 @@ function setEnabled(name, enabled) {
 function normalizeConfig(config) {
   config.atomTaskOverrides ||= {};
   config.base ||= {};
+  config.base.worktreeDir ??= "";
+  config.base.defaultRunType ||= "feat";
   config.base.contextPaths ||= [];
-  config.base.confirmationGates ||= [];
   config.base.respGenerator ||= { maxLength: 32, case: "kebab", stripStopwords: true };
   config.base.metrics ||= {
     enabled: false,
@@ -1078,14 +1078,13 @@ function normalizeConfig(config) {
     report: { enabled: true, path: "metrics-report.md" },
     pricing: { model: "", inputPerMillionUsd: 0, outputPerMillionUsd: 0 },
   };
-  config.pipeline ||= [];
-  // v3 multi-workflow: initialize workflows object if missing
+  // v4 multi-workflow: initialize defaults without injecting a top-level pipeline.
   if (!config.workflows) {
     config.workflows = {
       default: "standard",
       selection: {
         allowUserOverride: true,
-        argumentNames: ["workflow", "mode", "profile"],
+        argumentNames: ["model"],
         rules: [
           { workflow: "lightweight", matchAny: ["docs", "文档", "调研", "小修"] },
           { workflow: "guarded", matchAny: ["安全", "数据迁移", "公开接口", "性能", "并发"] },
@@ -1099,25 +1098,6 @@ function normalizeConfig(config) {
       ],
     };
   }
-  for (const stage of config.pipeline) {
-    stage.enabled = stage.enabled !== false;
-    stage.atomTasks ||= { entry: [], nodes: {} };
-    if (Array.isArray(stage.atomTasks)) {
-      const nodes = {};
-      stage.atomTasks.forEach((name, index) => {
-        nodes[name] = { next: index + 1 < stage.atomTasks.length ? [stage.atomTasks[index + 1]] : [], parallelApprove: false };
-      });
-      stage.atomTasks = { entry: stage.atomTasks.length ? [stage.atomTasks[0]] : [], nodes };
-    }
-    stage.atomTasks.entry ||= [];
-    stage.atomTasks.nodes ||= {};
-    for (const node of Object.values(stage.atomTasks.nodes)) {
-      node.next ||= [];
-      node.parallelApprove = node.parallelApprove === true;
-      node.parallelWith ||= [];
-    }
-  }
-  syncAllStageEntries(config);
 }
 
 const Schema = (() => {
@@ -1456,7 +1436,7 @@ async function openFolder() {
 
 async function loadAll() {
   try {
-    state.config = await FS.readJSON("config.json");
+    state.config = await FS.readJSON("config.default.json");
     try { state.configSchema = await FS.readJSON("config.schema.json"); } catch (_) { state.configSchema = null; }
     try { state.atomTaskSchema = await FS.readJSON("atom-tasks/_schema/atom-task-md.schema.json"); } catch (_) { state.atomTaskSchema = null; }
     normalizeConfig(state.config);
@@ -1507,8 +1487,8 @@ async function saveAll() {
     }
   }
   try {
-    // Save config.json (global settings + workflow index)
-    await FS.writeJSON("config.json", state.config);
+    // Save config.default.json (global defaults + workflow index)
+    await FS.writeJSON("config.default.json", state.config);
     // Save active workflow JSON (pipeline, confirmationGates, atomTaskOverrides)
     if (state.activeWorkflowId && state.activeWorkflow) {
       const item = state.config.workflows?.items?.find((i) => i.id === state.activeWorkflowId);
@@ -1546,7 +1526,7 @@ function exportConfig() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "config.json";
+  a.download = "config.default.json";
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -1571,16 +1551,16 @@ function renderAll() {
   renderInspector();
 }
 
-/** Returns the pipeline array from the active workflow, or config.pipeline as fallback. */
+/** Returns the pipeline array from the active workflow. */
 function getActivePipeline() {
   if (state.activeWorkflow?.pipeline) return state.activeWorkflow.pipeline;
-  return state.config?.pipeline || [];
+  return [];
 }
 
-/** Returns the confirmationGates from the active workflow, or config.base.confirmationGates as fallback. */
+/** Returns the confirmationGates from the active workflow. */
 function getActiveConfirmationGates() {
   if (state.activeWorkflow?.confirmationGates) return state.activeWorkflow.confirmationGates;
-  return state.config?.base?.confirmationGates || [];
+  return [];
 }
 
 /** Returns the effective atomTaskOverrides (workflow-level overrides global). */
@@ -1884,9 +1864,9 @@ function renderBaseInspector() {
   const base = state.config.base;
   els.inspectorTitle.textContent = t("baseConfiguration");
   els.inspectorBody.append(
+    field("worktreeDir", input(base.worktreeDir || "", (value) => { base.worktreeDir = value; markDirty(); })),
     field("contextPaths", textarea((base.contextPaths || []).join("\n"), (value) => { base.contextPaths = value.split("\n").map((v) => v.trim()).filter(Boolean); markDirty(); })),
     toggleRow("contextOptional", base.contextOptional !== false, (value) => { base.contextOptional = value; markDirty(); renderInspector(); }),
-    field("confirmationGates", textarea((base.confirmationGates || []).join("\n"), (value) => { base.confirmationGates = value.split("\n").map((v) => v.trim()).filter(Boolean); markDirty(); })),
     field("respGenerator.maxLength", input(base.respGenerator.maxLength, (value) => { base.respGenerator.maxLength = value || 1; markDirty(); }, "number")),
     field("respGenerator.case", select(["kebab", "snake", "camel"], base.respGenerator.case, (value) => { base.respGenerator.case = value; markDirty(); })),
     toggleRow("stripStopwords", base.respGenerator.stripStopwords, (value) => { base.respGenerator.stripStopwords = value; markDirty(); renderInspector(); }),
@@ -1993,12 +1973,12 @@ function formatEffectiveInputs(nodeName, json) {
   const lines = [];
   for (const pred of getPredecessors(nodeName)) {
     const atom = atomByName(pred.value);
-    for (const output of atom?.json?.io?.outputs || []) {
-      lines.push(`${output.ref} (${t("dynamicFrom").replace("{source}", pred.label)})`);
+    for (const output of atom?.json?.produces || []) {
+      lines.push(`${output.role} (${t("dynamicFrom").replace("{source}", pred.label)})`);
     }
   }
-  for (const input of json?.io?.inputs || []) {
-    lines.push(`${input.ref}${input.required === false ? "?" : ""}`);
+  for (const input of json?.consumes || []) {
+    lines.push(`${input.role}${input.required === false ? "?" : ""}`);
   }
   return formatCommaLines(lines);
 }
@@ -2013,15 +1993,15 @@ function atomInfoPanel(json, nodeName = "") {
   const showEffectiveIo = nodeName && !state.dirty;
   const inputsText = showEffectiveIo
     ? formatEffectiveInputs(nodeName, json)
-    : formatCommaLines((json.io?.inputs || []).map((item) => `${item.ref}${item.required === false ? "?" : ""}`));
-  const outputsText = formatCommaLines((json.io?.outputs || []).map((item) => `${item.ref} (${item.kind})`));
+    : formatCommaLines((json.consumes || []).map((item) => `${item.role}${item.required === false ? "?" : ""}`));
+  const outputsText = formatCommaLines((json.produces || []).map((item) => `${item.role} (${item.kind})`));
   const guardrailsText = formatCommaLines(json.prompt?.guardrails || []);
   wrap.innerHTML = `
     <h3>${t("basicInfo")}</h3>
     <dl class="info-grid">
       <dt>name</dt><dd>${json.name || ""}</dd>
       <dt>version</dt><dd>${json.version || ""}</dd>
-      <dt>${t("declaredStage")}</dt><dd>${json.stage || ""}</dd>
+      <dt>${t("declaredStage")}</dt><dd>${outputsText}</dd>
       <dt>${t("description")}</dt><dd>${json.description || ""}</dd>
       <dt>${t("enabled")}</dt><dd>${json.enabled === false ? t("disabled") : t("enabled")}</dd>
       <dt>${t("timeoutSec")}</dt><dd>${json.timeoutSec ?? 0}</dd>

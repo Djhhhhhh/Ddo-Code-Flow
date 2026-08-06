@@ -1,8 +1,9 @@
 {
   "$schema": "./config.schema.json",
-  "version": "3.0.0",
+  "version": "4.0.0",
   "base": {
-    "targetDir": "..",
+    "worktreeDir": "",
+    "defaultRunType": "feat",
     "contextPaths": [],
     "contextOptional": true,
     "respGenerator": {
@@ -29,7 +30,7 @@
     "default": "standard",
     "selection": {
       "allowUserOverride": true,
-      "argumentNames": ["workflow", "mode", "profile", "model"],
+      "argumentNames": ["model"],
       "rules": [
         {
           "workflow": "guarded",
