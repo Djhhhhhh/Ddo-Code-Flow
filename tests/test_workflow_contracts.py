@@ -439,7 +439,7 @@ def test_readme_describes_current_v4_contract() -> None:
         "atom-tasks/artifacts.json",
         ".state.json.artifacts",
         "{{inputs.<role>}}",
-        "`runId` starts as `null`",
+        "`runId` 初始为 `null`",
         "`git-worktree`",
         "docs/feat/2026-08-05-project-consistency-audit/show-case.md",
     ]
