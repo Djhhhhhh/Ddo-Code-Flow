@@ -1,14 +1,10 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ddo-code-flow/config.schema.json",
-  "title": "ddo-code-flow config",
-  "$comment": "Reference existence (atom-task names) and DAG no-cycle are enforced by the loader (UI schema.js + dag.js, and the Agent's runtime). They are NOT expressible in pure JSON Schema.",
+  "title": "ddo-code-flow v4 default config",
+  "$comment": "v4 separates the read-only skill default config from each project's .ddo/config.json. Runtime composes defaults, project config, and run arguments in memory only.",
   "type": "object",
-  "required": ["version", "base", "atomTaskOverrides"],
-  "oneOf": [
-    { "required": ["pipeline"] },
-    { "required": ["workflows"] }
-  ],
+  "required": ["version", "base", "workflows", "atomTaskOverrides"],
   "additionalProperties": false,
   "properties": {
     "$schema": { "type": "string" },
@@ -16,10 +12,38 @@
       "type": "string",
       "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
     },
-    "base": {
+    "base": { "$ref": "#/$defs/baseConfig" },
+    "workflows": {
+      "type": "object",
+      "required": ["default", "selection", "items"],
+      "additionalProperties": false,
+      "properties": {
+        "default": { "type": "string", "minLength": 1 },
+        "selection": { "$ref": "#/$defs/workflowSelection" },
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["id", "name", "path"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+              "name": { "type": "string", "minLength": 1 },
+              "path": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    },
+    "atomTaskOverrides": { "$ref": "#/$defs/atomTaskOverrides" }
+  },
+  "$defs": {
+    "baseConfig": {
       "type": "object",
       "required": [
-        "targetDir",
+        "worktreeDir",
+        "defaultRunType",
         "contextPaths",
         "contextOptional",
         "respGenerator",
@@ -27,7 +51,15 @@
       ],
       "additionalProperties": false,
       "properties": {
-        "targetDir": { "type": "string", "minLength": 1 },
+        "worktreeDir": {
+          "type": "string",
+          "description": "Directory that receives run worktrees. Empty string means the project parent directory."
+        },
+        "defaultRunType": {
+          "type": "string",
+          "enum": ["feat", "fix"],
+          "description": "Run type used when --feature/--bugfix and text inference do not decide."
+        },
         "contextPaths": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 }
@@ -41,14 +73,6 @@
             "maxLength": { "type": "integer", "minimum": 1, "maximum": 128 },
             "case": { "type": "string", "enum": ["kebab", "snake", "camel"] },
             "stripStopwords": { "type": "boolean" }
-          }
-        },
-        "confirmationGates": {
-          "type": "array",
-          "uniqueItems": true,
-          "items": {
-            "type": "string",
-            "pattern": "^[a-z0-9][a-z0-9-]*$"
           }
         },
         "metrics": {
@@ -98,158 +122,33 @@
         }
       }
     },
-    "pipeline": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["stage", "description", "atomTasks"],
-        "additionalProperties": false,
-        "properties": {
-          "stage": {
-            "type": "string",
-            "pattern": "^[a-z0-9][a-z0-9-]*$"
-          },
-          "enabled": { "type": "boolean" },
-          "description": { "type": "string", "minLength": 1 },
-          "atomTasks": {
-            "type": "object",
-            "required": ["entry", "nodes"],
-            "additionalProperties": false,
-            "properties": {
-              "entry": {
-                "type": "array",
-                "items": { "type": "string", "minLength": 1 }
-              },
-              "nodes": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "object",
-                  "required": ["next", "parallelApprove"],
-                  "additionalProperties": false,
-                  "properties": {
-                    "next": {
-                      "type": "array",
-                      "items": { "type": "string", "minLength": 1 }
-                    },
-                    "parallelApprove": { "type": "boolean" },
-                    "parallelWith": {
-                      "type": "array",
-                      "items": { "type": "string", "minLength": 1 }
-                    },
-                    "taskRef": { "type": "string", "minLength": 1 },
-                    "options": {
-                      "type": "object",
-                      "additionalProperties": true
-                    },
-                    "io": {
-                      "type": "object",
-                      "additionalProperties": false,
-                      "properties": {
-                        "inputs": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "required": ["ref"],
-                            "additionalProperties": false,
-                            "properties": {
-                              "ref": { "type": "string", "minLength": 1 },
-                              "required": { "type": "boolean" }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "workflows": {
+    "workflowSelection": {
       "type": "object",
-      "required": ["default", "items"],
+      "required": ["allowUserOverride", "argumentNames", "rules"],
       "additionalProperties": false,
       "properties": {
-        "default": { "type": "string", "minLength": 1 },
-        "selection": {
-          "type": "object",
-          "required": ["allowUserOverride", "argumentNames", "rules"],
-          "additionalProperties": false,
-          "properties": {
-            "allowUserOverride": { "type": "boolean" },
-            "argumentNames": {
-              "type": "array",
-              "items": { "type": "string", "minLength": 1 }
-            },
-            "rules": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "required": ["workflow"],
-                "additionalProperties": false,
-                "properties": {
-                  "workflow": { "type": "string", "minLength": 1 },
-                  "matchAny": {
-                    "type": "array",
-                    "items": { "type": "string", "minLength": 1 }
-                  },
-                  "fallback": { "type": "boolean" }
-                }
-              }
-            }
-          }
+        "allowUserOverride": { "type": "boolean" },
+        "argumentNames": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
         },
-        "items": {
+        "rules": {
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["id", "name", "path"],
+            "required": ["workflow"],
             "additionalProperties": false,
             "properties": {
-              "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
-              "name": { "type": "string", "minLength": 1 },
-              "path": { "type": "string", "minLength": 1 }
+              "workflow": { "type": "string", "minLength": 1 },
+              "matchAny": {
+                "type": "array",
+                "items": { "type": "string", "minLength": 1 }
+              },
+              "fallback": { "type": "boolean" }
             }
           }
         }
       }
-    },
-    "atomTaskOverrides": {
-      "type": "object",
-      "additionalProperties": {
-        "type": "object",
-        "additionalProperties": true,
-        "properties": {
-          "enabled": { "type": "boolean" },
-          "model": {
-            "oneOf": [
-              { "type": "string" },
-              { "type": "array", "items": { "type": "string" } }
-            ]
-          }
-        }
-      }
-    }
-  },
-  "$defs": {
-    "stageEnum": {
-      "type": "string",
-      "enum": [
-        "context",
-        "requirement",
-        "spec",
-        "planning",
-        "test-plan",
-        "tasking",
-        "coding",
-        "verification",
-        "review",
-        "reporting",
-        "reflection",
-        "done"
-      ]
     },
     "workflowDefinition": {
       "type": "object",
@@ -273,89 +172,103 @@
         },
         "pipeline": {
           "type": "array",
-          "items": {
-            "type": "object",
-            "required": ["stage", "description", "atomTasks"],
-            "additionalProperties": false,
-            "properties": {
-              "stage": {
-                "type": "string",
-                "pattern": "^[a-z0-9][a-z0-9-]*$"
-              },
-              "enabled": { "type": "boolean" },
-              "description": { "type": "string", "minLength": 1 },
-              "atomTasks": {
-                "type": "object",
-                "required": ["entry", "nodes"],
-                "additionalProperties": false,
-                "properties": {
-                  "entry": {
-                    "type": "array",
-                    "items": { "type": "string", "minLength": 1 }
-                  },
-                  "nodes": {
-                    "type": "object",
-                    "additionalProperties": {
-                      "type": "object",
-                      "required": ["next", "parallelApprove"],
-                      "additionalProperties": false,
-                      "properties": {
-                        "next": {
-                          "type": "array",
-                          "items": { "type": "string", "minLength": 1 }
-                        },
-                        "parallelApprove": { "type": "boolean" },
-                        "parallelWith": {
-                          "type": "array",
-                          "items": { "type": "string", "minLength": 1 }
-                        },
-                        "taskRef": { "type": "string", "minLength": 1 },
-                        "options": {
-                          "type": "object",
-                          "additionalProperties": true
-                        },
-                        "io": {
-                          "type": "object",
-                          "additionalProperties": false,
-                          "properties": {
-                            "inputs": {
-                              "type": "array",
-                              "items": {
-                                "type": "object",
-                                "required": ["ref"],
-                                "additionalProperties": false,
-                                "properties": {
-                                  "ref": { "type": "string", "minLength": 1 },
-                                  "required": { "type": "boolean" }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
+          "items": { "$ref": "#/$defs/workflowStage" }
         },
-        "atomTaskOverrides": {
+        "atomTaskOverrides": { "$ref": "#/$defs/atomTaskOverrides" }
+      }
+    },
+    "workflowStage": {
+      "type": "object",
+      "required": ["stage", "description", "atomTasks"],
+      "additionalProperties": false,
+      "properties": {
+        "stage": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*$"
+        },
+        "enabled": { "type": "boolean" },
+        "description": { "type": "string", "minLength": 1 },
+        "atomTasks": {
           "type": "object",
-          "additionalProperties": {
-            "type": "object",
-            "additionalProperties": true,
-            "properties": {
-              "enabled": { "type": "boolean" },
-              "model": {
-                "oneOf": [
-                  { "type": "string" },
-                  { "type": "array", "items": { "type": "string" } }
-                ]
-              }
+          "required": ["entry", "nodes"],
+          "additionalProperties": false,
+          "properties": {
+            "entry": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "nodes": {
+              "type": "object",
+              "additionalProperties": { "$ref": "#/$defs/workflowNode" }
             }
           }
         }
+      }
+    },
+    "workflowNode": {
+      "type": "object",
+      "required": ["next", "parallelApprove"],
+      "additionalProperties": false,
+      "properties": {
+        "next": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "parallelApprove": { "type": "boolean" },
+        "parallelWith": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "taskRef": { "type": "string", "minLength": 1 },
+        "options": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "atomTaskOverrides": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "enabled": { "type": "boolean" },
+          "model": {
+            "oneOf": [
+              { "type": "string" },
+              { "type": "array", "items": { "type": "string" } }
+            ]
+          }
+        }
+      }
+    },
+    "projectConfig": {
+      "$comment": "Schema for projectRoot/.ddo/config.json. Every field is optional because runtime merges it over config.default.json in memory.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "$schema": { "type": "string" },
+        "worktreeDir": { "type": "string" },
+        "defaultRunType": { "type": "string", "enum": ["feat", "fix"] },
+        "contextPaths": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "contextOptional": { "type": "boolean" },
+        "respGenerator": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "maxLength": { "type": "integer", "minimum": 1, "maximum": 128 },
+            "case": { "type": "string", "enum": ["kebab", "snake", "camel"] },
+            "stripStopwords": { "type": "boolean" }
+          }
+        },
+        "metrics": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "atomTaskOverrides": { "$ref": "#/$defs/atomTaskOverrides" }
       }
     }
   }

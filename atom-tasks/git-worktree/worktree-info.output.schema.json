@@ -1,6 +1,6 @@
 {
-  "description": "worktree-info.json 输出规范（同时生成对应的 worktree-info.md）",
-  "outputFormat": "json+markdown",
+  "description": "worktree-info.json 输出规范。v4 只将 worktree-info.json 登记为 worktree-info 角色；如需人类可读摘要，应作为独立角色另行声明。",
+  "outputFormat": "json",
   "document": {
     "title": "工作树信息",
     "titleFormat": "固定文本",
@@ -8,6 +8,13 @@
     "separators": false
   },
   "jsonFields": [
+    {
+      "name": "runId",
+      "type": "string",
+      "required": true,
+      "description": "稳定 run 标识，格式为 <项目名>-<分支名（/ 替换为 -）>",
+      "example": "Ddo-Code-Flow-feat-2026-06-24-add-dark-mode"
+    },
     {
       "name": "branchName",
       "type": "string",
@@ -23,10 +30,10 @@
       "example": "/Users/user/projects/Ddo-Code-Flow-feat-2026-06-24-add-dark-mode"
     },
     {
-      "name": "targetDir",
+      "name": "worktreeDir",
       "type": "string",
       "required": true,
-      "description": "目标目录（相对于项目根目录解析后的绝对路径）",
+      "description": "worktree 目标目录（空配置时为项目父目录）的绝对路径",
       "example": "/Users/user/projects"
     },
     {
@@ -74,12 +81,13 @@
     "type 必须是有效的分支前缀（feat/fix/chore/docs/refactor/test/perf/ci/build）",
     "createdAt 必须是 ISO 8601 格式"
   ],
-  "example": "# 工作树信息\n\n> 本次 run 的 git 工作树配置信息。\n\n## 基本信息\n\n| 字段 | 值 |\n|---|---|\n| branchName | feat/2026-06-24-add-dark-mode |\n| worktreePath | /Users/user/projects/Ddo-Code-Flow-feat-2026-06-24-add-dark-mode |\n| targetDir | /Users/user/projects |\n| type | feat |\n| dateDescription | 2026-06-24-add-dark-mode |\n| baseRef | main |\n| createdAt | 2026-06-24T10:00:00Z |",
+  "example": "{\n  \"runId\": \"Ddo-Code-Flow-feat-2026-06-24-add-dark-mode\",\n  \"branchName\": \"feat/2026-06-24-add-dark-mode\",\n  \"worktreePath\": \"/Users/user/projects/Ddo-Code-Flow-feat-2026-06-24-add-dark-mode\",\n  \"worktreeDir\": \"/Users/user/projects\",\n  \"type\": \"feat\",\n  \"dateDescription\": \"2026-06-24-add-dark-mode\",\n  \"baseRef\": \"main\",\n  \"createdAt\": \"2026-06-24T10:00:00Z\"\n}",
   "fieldDocs": {
-    "jsonFields": "JSON 结构化字段定义。每个字段对应 worktree-info.json 中的一个顶层属性，同时在 .md 中以表格行渲染",
+    "jsonFields": "JSON 结构化字段定义。每个字段对应 worktree-info.json 中的一个顶层属性",
+    "jsonFields[].runId": "稳定 run 标识，由 git-worktree 根据项目名和最终分支名生成",
     "jsonFields[].branchName": "完整的 git 分支名，遵循 type/date-description 命名规范",
     "jsonFields[].worktreePath": "git worktree 的绝对路径，由 git worktree add 自动生成",
-    "jsonFields[].targetDir": "目标目录的绝对路径，从配置的相对路径解析而来",
+    "jsonFields[].worktreeDir": "worktree 目标目录的绝对路径，从有效配置解析而来；空配置时为项目父目录",
     "jsonFields[].type": "分支类型前缀，取值范围：feat/fix/chore/docs/refactor/test/perf/ci/build",
     "jsonFields[].dateDescription": "分支名中日期+描述的组合部分，格式为 YYYY-MM-DD-kebab-description",
     "jsonFields[].baseRef": "创建分支的基准引用，通常为 main 或其他长期分支",

@@ -1,38 +1,42 @@
 ---
 name: create-pr
-version: "1.0.0"
-stage: delivery
+version: "4.0.0"
 enabled: true
 timeoutSec: 300
 concurrency:
   parallelizable: false
 confirmation:
-  required: false
-io:
-  inputs:
-    - ref: "run://docs/{type}/{dateDescription}/delivery-doc.md"
-      required: true
-    - ref: "run://docs/{type}/{dateDescription}/.state.json"
-      required: true
-  outputs:
-    - ref: "run://docs/{type}/{dateDescription}/pr-info.md"
-      kind: markdown
+  rejectAction: abort
+consumes:
+  - role: delivery-doc
+    required: true
+  - role: issue-context
+    required: false
+produces:
+  - role: pr-info
+    kind: markdown
+    primary: true
+outputSchemaRef: "skill://atom-tasks/create-pr/create-pr.output.schema.json"
 options:
-  - name: issueNumber
+  - key: issueNumber
     type: integer
-    required: false
+    default: 0
+    label: "Issue number"
     description: "关联 issue 编号（空=从 .state.json.issueContext.issueNumber 读取）"
-  - name: repo
+  - key: repo
     type: string
-    required: false
+    default: ""
+    label: "Repository"
     description: "目标仓库 (owner/repo)，空=从 .state.json.issueContext.repo 或当前仓库读取"
-  - name: baseBranch
+  - key: baseBranch
     type: string
     default: "main"
+    label: "Base branch"
     description: "目标分支"
-  - name: draftPR
+  - key: draftPR
     type: boolean
     default: true
+    label: "Draft PR"
     description: "是否创建 draft PR"
 ---
 
@@ -57,8 +61,8 @@ options:
    ```
    gh pr create \
      --draft \
-     --title "feat: <spec.md 项目概述>" \
-     --body "Closes #<issueNumber>\n\n## 执行摘要\n\n<delivery-doc.md 内容摘要>\n\n## 产物链接\n\n- Spec: docs/<type>/<dateDescription>/spec.md\n- Plan: docs/<type>/<dateDescription>/plan.md\n- Test Plan: docs/<type>/<dateDescription>/test-plan.md\n- Tasks: docs/<type>/<dateDescription>/tasks/\n\n## 验证结论\n\n<verification.log 摘要>" \
+     --title "feat: <项目概述>" \
+     --body "Closes #<issueNumber>\n\n## 执行摘要\n\n<delivery-doc 内容摘要>\n\n## 产物链接\n\n- 产物目录: .ddo/runs/<type>/<dateDescription>/\n\n## 验证结论\n\n<verification 摘要>" \
      --base <baseBranch>
    ```
 
@@ -73,7 +77,7 @@ options:
    gh issue edit <issueNumber> --remove-label "ddo:in-progress" <repoFlag>
    ```
 
-5. 输出 pr-info.md：
+5. 输出 pr-info：
    ```markdown
    # PR 信息
 

@@ -1,0 +1,243 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ddo-code-flow/state.schema.json",
+  "title": "ddo-code-flow run state",
+  "type": "object",
+  "required": [
+    "runId",
+    "workflowId",
+    "createdAt",
+    "projectRoot",
+    "worktreePath",
+    "skillName",
+    "skillVersion",
+    "skillRoot",
+    "configPath",
+    "workflowPath",
+    "type",
+    "dateDescription",
+    "artifactDir",
+    "args",
+    "currentStage",
+    "stages",
+    "artifacts",
+    "pendingOutputs",
+    "history"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "runId": {
+      "type": ["string", "null"],
+      "description": "Stable run identifier. Null only before git-worktree computes the branch and worktree name.",
+      "x-ddo-writer": "git-worktree",
+      "x-ddo-readers": ["reporting", "reflection"]
+    },
+    "workflowId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Resolved workflow id.",
+      "x-ddo-writer": "runtime",
+      "x-ddo-readers": ["runtime"]
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Run creation timestamp.",
+      "x-ddo-writer": "runtime",
+      "x-ddo-readers": ["reporting"]
+    },
+    "projectRoot": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Absolute target project root.",
+      "x-ddo-writer": "runtime",
+      "x-ddo-readers": ["runtime", "git-worktree"]
+    },
+    "worktreePath": {
+      "type": ["string", "null"],
+      "description": "Absolute worktree path after git-worktree completes.",
+      "x-ddo-writer": "git-worktree",
+      "x-ddo-readers": ["runtime", "coding", "verification", "review", "reflection"]
+    },
+    "skillName": {
+      "type": "string",
+      "const": "ddo-code-flow",
+      "x-ddo-writer": "runtime",
+      "x-ddo-readers": ["runtime"]
+    },
+    "skillVersion": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "x-ddo-writer": "runtime",
+      "x-ddo-readers": ["runtime"]
+    },
+    "skillRoot": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Hint path for the read-only skill root. Resume resolves by skillName first.",
+      "x-ddo-writer": "runtime",
+      "x-ddo-readers": ["runtime"]
+    },
+    "configPath": {
+      "type": "string",
+      "const": ".ddo/config.json",
+      "x-ddo-writer": "runtime",
+      "x-ddo-readers": ["runtime"]
+    },
+    "workflowPath": {
+      "type": "string",
+      "pattern": "^workflows/.+\\.json$",
+      "x-ddo-writer": "runtime",
+      "x-ddo-readers": ["runtime"]
+    },
+    "type": {
+      "type": "string",
+      "enum": ["feat", "fix"],
+      "description": "Run type selected from --feature, --bugfix, inference, or defaultRunType.",
+      "x-ddo-writer": "git-worktree",
+      "x-ddo-readers": ["runtime"]
+    },
+    "dateDescription": {
+      "type": ["string", "null"],
+      "description": "Date and description slug after the branch type prefix.",
+      "x-ddo-writer": "git-worktree",
+      "x-ddo-readers": ["runtime"]
+    },
+    "artifactDir": {
+      "type": ["string", "null"],
+      "description": "Absolute run artifact directory under the worktree.",
+      "x-ddo-writer": "git-worktree",
+      "x-ddo-readers": ["runtime"]
+    },
+    "args": {
+      "type": "object",
+      "description": "Normalized run arguments.",
+      "additionalProperties": true,
+      "x-ddo-writer": "runtime",
+      "x-ddo-readers": ["issue-fetch"]
+    },
+    "currentStage": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Runtime state machine pointer.",
+      "x-ddo-writer": "runtime",
+      "x-ddo-readers": ["runtime", "reporting"]
+    },
+    "stages": {
+      "type": "object",
+      "description": "Per-stage status and task metadata.",
+      "additionalProperties": { "$ref": "#/$defs/stageState" },
+      "x-ddo-writer": "runtime",
+      "x-ddo-readers": ["runtime", "reporting"]
+    },
+    "artifacts": {
+      "type": "object",
+      "description": "Artifact blackboard keyed by role.",
+      "additionalProperties": { "$ref": "#/$defs/artifactRecord" },
+      "x-ddo-writer": "runtime",
+      "x-ddo-readers": ["runtime", "reporting", "review"]
+    },
+    "pendingOutputs": {
+      "type": "object",
+      "description": "Delayed outputs held before artifactDir exists.",
+      "additionalProperties": { "type": "string" },
+      "x-ddo-writer": "runtime",
+      "x-ddo-readers": ["runtime"]
+    },
+    "history": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/historyEvent" },
+      "description": "Append-only event log.",
+      "x-ddo-writer": "runtime",
+      "x-ddo-readers": ["runtime", "reporting", "reflection"]
+    },
+    "issueContext": {
+      "$ref": "#/$defs/issueContext",
+      "description": "Issue metadata captured by issue-fetch for issue-driven runs.",
+      "x-ddo-writer": "issue-fetch",
+      "x-ddo-readers": ["requirement", "remote-gate", "create-pr"]
+    },
+    "gatePending": {
+      "$ref": "#/$defs/gatePending",
+      "description": "Remote gate pending state owned by remote-gate.",
+      "x-ddo-writer": "remote-gate",
+      "x-ddo-readers": ["remote-gate", "runtime"]
+    },
+    "prInfo": {
+      "type": "object",
+      "description": "Pull request metadata captured by create-pr when a PR is created.",
+      "additionalProperties": true,
+      "x-ddo-writer": "create-pr",
+      "x-ddo-readers": ["runtime", "reporting"]
+    }
+  },
+  "$defs": {
+    "artifactRecord": {
+      "type": "object",
+      "required": ["path", "producer", "stage", "at"],
+      "additionalProperties": false,
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "producer": { "type": "string", "minLength": 1 },
+        "stage": { "type": "string", "minLength": 1 },
+        "at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "historyEvent": {
+      "type": "object",
+      "required": ["event", "at"],
+      "additionalProperties": true,
+      "properties": {
+        "event": { "type": "string", "minLength": 1 },
+        "at": { "type": "string", "format": "date-time" },
+        "stage": { "type": "string" },
+        "node": { "type": "string" },
+        "note": { "type": "string" },
+        "feedback": { "type": "string" },
+        "target": { "type": "string" }
+      }
+    },
+    "issueContext": {
+      "type": "object",
+      "required": ["issueNumber", "repo"],
+      "additionalProperties": true,
+      "properties": {
+        "issueNumber": { "type": "integer", "minimum": 1 },
+        "repo": {
+          "type": "string",
+          "pattern": "^[^/]+/[^/]+$"
+        },
+        "title": { "type": "string" },
+        "body": { "type": "string" },
+        "url": { "type": "string" }
+      }
+    },
+    "gatePending": {
+      "type": "object",
+      "required": ["stage", "issueNumber", "enteredAt", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "stage": { "type": "string", "minLength": 1 },
+        "issueNumber": { "type": "integer", "minimum": 1 },
+        "enteredAt": { "type": "string", "format": "date-time" },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "approved", "rejected"]
+        }
+      }
+    },
+    "stageState": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["pending", "running", "done", "failed", "skipped", "waiting-human", "waiting-remote-gate"]
+        },
+        "startedAt": { "type": "string", "format": "date-time" },
+        "finishedAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

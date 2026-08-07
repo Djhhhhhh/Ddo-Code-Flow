@@ -1,26 +1,26 @@
 ---
 name: delivery-doc
-version: "1.0.0"
-stage: delivery
+version: "4.0.0"
 enabled: true
 timeoutSec: 0
 concurrency:
   parallelizable: false
 confirmation:
-  required: false
-io:
-  inputs:
-    - ref: "run://docs/{type}/{dateDescription}/spec.md"
-      required: true
-    - ref: "run://docs/{type}/{dateDescription}/plan.md"
-      required: true
-    - ref: "run://docs/{type}/{dateDescription}/test-plan.md"
-      required: false
-    - ref: "run://docs/{type}/{dateDescription}/verification.log"
-      required: false
-  outputs:
-    - ref: "run://docs/{type}/{dateDescription}/delivery-doc.md"
-      kind: markdown
+  rejectAction: regenerate-with-feedback
+consumes:
+  - role: spec
+    required: true
+  - role: plan
+    required: true
+  - role: test-plan
+    required: false
+  - role: verification-log
+    required: false
+produces:
+  - role: delivery-doc
+    kind: markdown
+    primary: true
+outputSchemaRef: "skill://atom-tasks/delivery-doc/delivery-doc.output.schema.json"
 ---
 
 # delivery-doc
@@ -29,8 +29,8 @@ io:
 
 ## 指令
 
-1. 读取 spec.md、plan.md、test-plan.md（如有）、verification.log（如有）
-2. 生成 delivery-doc.md，按以下结构组织：
+1. 读取 `{{inputs.spec}}`、`{{inputs.plan}}`、`{{inputs.test-plan}}`（如有）、`{{inputs.verification-log}}`（如有）
+2. 生成 delivery-doc，按以下结构组织：
 
 ```markdown
 # 交付文档
@@ -69,7 +69,7 @@ io:
 - Tasks: [tasks/](./tasks/)
 ```
 
-3. 输出 delivery-doc.md
+3. 输出 delivery-doc
 
 ## 约束
 

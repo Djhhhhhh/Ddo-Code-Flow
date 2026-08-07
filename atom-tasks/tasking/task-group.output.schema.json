@@ -1,6 +1,6 @@
 {
-  "description": "task-group.json 输出规范（同时生成对应的 task-group.md）",
-  "outputFormat": "json+markdown",
+  "description": "tasks/task-group.json 输出规范。v4 只将 task-group.json 登记为 task-group 角色；逐项任务说明由 tasks-dir 角色中的 task-NN.md 承载。",
+  "outputFormat": "json",
   "document": {
     "title": "任务分组",
     "titleFormat": "固定文本",
@@ -81,9 +81,9 @@
     "如果提供 parallelGroups，每个 task id 必须恰好出现在一个批次中",
     "version 必须是 semver 格式"
   ],
-  "example": "# 任务分组\n\n> 基于 plan.md 与 test-plan.md 拆分的任务清单、依赖关系与并行批次。\n\n## 任务列表\n\n| ID | 标题 | 文件 | 依赖 |\n|---|---|---|---|\n| task-01 | 实现主题切换 API | task-01.md | — |\n| task-02 | 实现前端主题组件 | task-02.md | task-01 |\n| task-03 | 添加主题持久化 | task-03.md | task-01 |\n\n## 并行批次\n\n### 批次 1\n\n- task-01\n\n### 批次 2\n\n- task-02\n- task-03",
+  "example": "{\n  \"version\": \"1.0.0\",\n  \"tasks\": [\n    { \"id\": \"task-01\", \"file\": \"task-01.md\", \"title\": \"实现主题切换 API\", \"dependsOn\": [] },\n    { \"id\": \"task-02\", \"file\": \"task-02.md\", \"title\": \"实现前端主题组件\", \"dependsOn\": [\"task-01\"] },\n    { \"id\": \"task-03\", \"file\": \"task-03.md\", \"title\": \"添加主题持久化\", \"dependsOn\": [\"task-01\"] }\n  ],\n  \"parallelGroups\": [[\"task-01\"], [\"task-02\", \"task-03\"]]\n}",
   "fieldDocs": {
-    "jsonFields": "JSON 结构化字段定义。每个字段对应 task-group.json 中的顶层属性，同时在 .md 中渲染为对应 section",
+    "jsonFields": "JSON 结构化字段定义。每个字段对应 tasks/task-group.json 中的顶层属性",
     "jsonFields[].version": "task-group 格式版本号，semver 格式，用于兼容性判断",
     "jsonFields[].tasks": "任务数组，每个元素包含 id（task-NN）、file（task-NN.md）、title、dependsOn（依赖任务 ID 数组）",
     "jsonFields[].parallelGroups": "权威批次调度数组，覆盖依赖推导的层级分组。每个内部数组是一个执行批次，同批次内任务可并行",

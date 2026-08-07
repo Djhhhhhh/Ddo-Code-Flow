@@ -1,55 +1,50 @@
 ---
 name: plan
-version: "2.0.0"
-stage: planning
+version: "4.0.0"
 enabled: true
 timeoutSec: 0
 concurrency:
   parallelizable: false
 confirmation:
-  required: true
   rejectAction: regenerate-with-feedback
-io:
-  inputs:
-    - ref: "run://docs/{type}/{dateDescription}/spec.md"
-      required: true
-    - ref: "run://docs/{type}/{dateDescription}/context-summary.md"
-      required: false
-  outputs:
-    - ref: "run://docs/{type}/{dateDescription}/plan.md"
-      kind: markdown
-    - ref: "run://docs/{type}/{dateDescription}/plans/"
-      kind: dir
-      required: false
-    - ref: "run://docs/{type}/{dateDescription}/tech-design.md"
-      kind: markdown
-      required: false
+consumes:
+  - role: spec
+    required: true
+  - role: context-summary
+    required: false
+produces:
+  - role: plan
+    kind: markdown
+    primary: true
+  - role: plan-parts
+    kind: dir
+  - role: tech-design
+    kind: markdown
 outputSchemaRef: "skill://atom-tasks/plan/plan.output.schema.json"
 options:
-  - key: split-threshold
+  - key: splitThreshold
     type: integer
     default: 12000
-    minimum: 4000
     label: "拆分阈值"
     description: "Plan 逻辑草稿超过该 Unicode code point 数量后，按语义拆分到 plans/。"
 ---
 
 # plan
 
-> 基于已确认的 `spec.md` 生成指导后续开发的详细技术 Plan。Plan 负责技术决策、实现边界、仓库复用契约和下游交接；用户确认后方可进入 Test-Planning。
+> 基于已确认的 `{{inputs.spec}}` 生成指导后续开发的详细技术 Plan。Plan 负责技术决策、实现边界、仓库复用契约和下游交接；用户确认后方可进入后续编排阶段。
 
 ## 核心定位
 
 Plan 面向一个开发者在本地仓库中的实现工作，只描述当前仓库、当前服务或组件，以及本次改动直接依赖的外部契约。它不负责组织协作内容，不生成设计人员、人员分工、人工排期，也不展开非当前服务的内部设计。
 
-Plan 不负责测试用例或完整测试计划；具体测试内容由后续 `test-plan` 原子任务生成。Plan 只提供 `Verification Anchor`，说明哪些技术契约需要被下游验证。
+Plan 不负责测试用例或完整测试计划；具体测试内容由后续编排节点生成。Plan 只提供 `Verification Anchor`，说明哪些技术契约需要被下游验证。
 
 ## 指令
 
 ### 1. 读取输入并建立仓库事实
 
-1. 读取已确认的 `spec.md`；仅在存在时读取 `context-summary.md`。
-2. 在 `targetDir` 中检查与需求直接相关的现有设计和实现，至少关注：
+1. 读取已确认的 `{{inputs.spec}}`；仅在存在时读取 `{{inputs.context-summary}}`。
+2. 在 `.state.json.worktreePath` 指向的工作树中检查与需求直接相关的现有设计和实现，至少关注：
    - 公共类、公共函数、共享组件和已有扩展点；
    - 请求/响应包装、分页请求与分页响应、错误码和异常处理标准；
    - schema、DDL、迁移约定、序列化、缓存、配置和日志规范；
@@ -97,34 +92,34 @@ Plan 不负责测试用例或完整测试计划；具体测试内容由后续 `t
 
 ### 4. 组织 Plan 文档
 
-先在内存中形成完整逻辑草稿，按换行统一为 LF 后的 Unicode code point 计数。有效 `split-threshold` 默认 12000，最小 4000；配置小于 4000 或不是整数时，停止生成并报告配置错误。
+先在内存中形成完整逻辑草稿，按换行统一为 LF 后的 Unicode code point 计数。有效 `splitThreshold` 默认 12000，最小 4000；配置小于 4000 或不是整数时，停止生成并报告配置错误。
 
 #### 4.1 single 模式
 
-当完整逻辑草稿字符数 `<= split-threshold` 时：
+当完整逻辑草稿字符数 `<= splitThreshold` 时：
 
-- 将完整内容写入 `plan.md`，文档模式标记为 `single`；
+- 将完整内容写入 plan 产物，文档模式标记为 `single`；
 - 不创建 `plans/`，也不保留旧的 current parts；
-- `plan.md` 本身是唯一详细 Plan 和确认入口。
+- plan 产物本身是唯一详细 Plan 和确认入口。
 
 #### 4.2 split 模式
 
 当完整逻辑草稿超过阈值时：
 
-- `plan.md` 保留标题、revision、执行摘要、核心决策、追踪总览、Parts Manifest、完整读取协议和用户确认命令；
+- plan 产物保留标题、revision、执行摘要、核心决策、追踪总览、Parts Manifest、完整读取协议和用户确认命令；
 - 详细内容按语义边界写入 `plans/NN-<semantic-slug>.md`，编号从 `01` 连续递增；
-- 每个 part 标明相同 revision、part 序号和返回 `plan.md` 的链接；
+- 每个 part 标明相同 revision、part 序号和返回 plan 产物的链接；
 - manifest 至少包含文档、职责、字符数、状态和末列 AI 索引；有效分册状态标记为 `current`，下游把它们称为 `current parts`；
 - 不得在 Markdown 表格、Mermaid 代码块、Decision、完整接口、schema、DDL 或算法契约中间硬切；单个不可分割语义块允许超过阈值；
 - 新 revision 重写 manifest。旧分册若保留，必须移出 current 集合或明确标记 `stale`，不得被下游读取。
 
 ### 5. 下游交接
 
-- Test-Planning 从 `plan.md` 出发，只读取生成验收策略所需的 current parts；不得让 Plan 直接承担测试计划职责。
-- Tasking 必须读取 `plan.md` 和 manifest 中全部 current parts，建立完整任务依赖。
+- 下游验收规划从 plan 产物出发，只读取生成验收策略所需的 current parts；不得让 Plan 直接承担测试计划职责。
+- 下游任务拆分必须读取 plan 产物和 manifest 中全部 current parts，建立完整任务依赖。
 - Coding 按当前 task 加载相关 part，可对任务引用的文件路径和符号做一次轻量事实核对；若证据已失效，应停止并报告，不得自行改变已批准契约、切换方案或重新设计。
 - Verification 和 Review 从入口出发，按验收分组或变更文件加载相关 parts。
-- `tech-design.md` 只是简化归档，不作为任何下游阶段的执行输入。
+- tech-design 产物只是简化归档，不作为任何下游阶段的执行输入。
 
 ### 6. 归档
 
@@ -133,7 +128,7 @@ Plan 不负责测试用例或完整测试计划；具体测试内容由后续 `t
 - 用户输入 `归档` 时，只枚举该目录下可用的 `*.md` 文件，并以文件名展示模板列表；此时不生成归档；
 - 用户输入 `归档：<模板名>` 时，按完整文件名或不含 `.md` 的 basename 精确匹配模板，例如 `归档：archive-template`；不得接受目录片段、通配符或目录穿越路径；
 - 选择过程只做名称解析和文件存在性判断，不比较模板内容、外部来源或哈希，也不维护固定模板校验契约；
-- 读取选中的模板和当前 revision 的完整详细 Plan，生成或刷新同一 run 目录下的 `tech-design.md`；归档过程不得回写模板文件；
+- 读取选中的模板和当前 revision 的完整详细 Plan，生成或刷新 tech-design 产物；归档过程不得回写模板文件；
 - 按选中模板的原有章节生成内容，不适用章节按模板要求标注 N/A；详细 Plan 仍可按本地单人工作流裁剪；
 - 所有图仍使用 Mermaid，并明确记录模板名与来源 Plan revision；
 - 归档不是批准动作，不改变 confirmation；详细 Plan 继续驱动 Test-Planning、Tasking、Coding、Verification 和 Review；
@@ -153,13 +148,13 @@ Plan 不负责测试用例或完整测试计划；具体测试内容由后续 `t
 
 ### 8. 用户确认与友好回复
 
-生成 Plan 后，展示 `plan.md` 路径、文档模式、revision、分册数量和静态检查结果，并提示用户继续选择执行命令：
+生成 Plan 后，展示 plan 产物路径、文档模式、revision、分册数量和静态检查结果，并提示用户继续选择执行命令：
 
 - `同意`：批准当前 revision，友好说明即将进入 Test-Planning。
 - `修改：<反馈>`：将反馈应用到新 revision；若反馈补充候选方案，重新比较并刷新受影响契约。回复应说明变更摘要、输出位置和本 revision 唯一一次静态检查结果。
 - `提问：<问题>`：只回答问题；明确说明没有修改文档、revision 或确认状态。
 - `归档`：列出 `references/` 下可选模板名，并提示使用 `归档：<模板名>`；不修改文档或确认状态。
-- `归档：<模板名>`：使用按名称选中的模板生成或刷新 `tech-design.md`；回复模板名、文件位置、来源 revision、仅供归档的用途，并说明它不代表批准。
+- `归档：<模板名>`：使用按名称选中的模板生成或刷新 tech-design 产物；回复模板名、文件位置、来源 revision、仅供归档的用途，并说明它不代表批准。
 
 执行 `修改`、`提问`、`归档` 或 `归档：<模板名>` 后，回复末尾都必须再次提示用户选择 `同意`、`修改：<反馈>`、`提问：<问题>` 或 `归档`；已列出模板时同时提示 `归档：<模板名>`。
 

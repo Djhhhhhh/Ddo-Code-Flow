@@ -1,23 +1,21 @@
 ---
 name: spec
-version: "1.1.0"
-stage: spec
+version: "4.0.0"
 enabled: true
 timeoutSec: 0
 concurrency:
   parallelizable: false
 confirmation:
-  required: true
   rejectAction: regenerate-with-feedback
-io:
-  inputs:
-    - ref: "run://docs/{type}/{dateDescription}/requirement.md"
-      required: true
-    - ref: "run://docs/{type}/{dateDescription}/context-summary.md"
-      required: false
-  outputs:
-    - ref: "run://docs/{type}/{dateDescription}/spec.md"
-      kind: markdown
+consumes:
+  - role: requirement
+    required: true
+  - role: context-summary
+    required: false
+produces:
+  - role: spec
+    kind: markdown
+    primary: true
 outputSchemaRef: "skill://atom-tasks/spec/spec.output.schema.json"
 ---
 
@@ -32,11 +30,11 @@ outputSchemaRef: "skill://atom-tasks/spec/spec.output.schema.json"
 按以下优先级读取和处理证据，低优先级内容不得覆盖高优先级内容：
 
 1. 当前会话中用户最新、明确的纠正或决定；
-2. `requirement.md` 中持久化的用户原始需求；
-3. `context-summary.md` 中可定位的项目事实；
+2. `{{inputs.requirement}}` 中持久化的用户原始需求；
+3. `{{inputs.context-summary}}` 中可定位的项目事实；
 4. agent 明确标注的解释或假设。
 
-`requirement.md` 缺失时停止生成并指出缺失，不得依赖模型记忆重建原始需求。`context-summary.md` 缺失或为空时允许继续，但不得补写仓库事实、文件结构或技术约束。
+requirement 角色缺失时停止生成并指出缺失，不得依赖模型记忆重建原始需求。context-summary 角色缺失或为空时允许继续，但不得补写仓库事实、文件结构或技术约束。
 
 提取用户目标、期望交付、范围、非目标、明确约束、保留术语和成功条件。将候选内容分类为：
 

@@ -1,52 +1,58 @@
 ---
 name: remote-gate
-version: "1.0.0"
-stage: dynamic
+version: "4.0.0"
 enabled: true
 timeoutSec: 0
 concurrency:
   parallelizable: false
 confirmation:
-  required: false
-io:
-  inputs:
-    - ref: "run://docs/{type}/{dateDescription}/gate-artifact.md"
-      required: true
-    - ref: "run://docs/{type}/{dateDescription}/.state.json"
-      required: true
-  outputs:
-    - ref: "run://docs/{type}/{dateDescription}/gate-result.md"
-      kind: markdown
-options:
-  - name: issueNumber
-    type: integer
-    required: false
-    description: "目标 issue 编号（空=从 .state.json.issueContext.issueNumber 读取）"
-  - name: repo
-    type: string
-    required: false
-    description: "目标仓库 (owner/repo)，空=从 .state.json.issueContext.repo 或当前仓库读取"
-  - name: stageName
-    type: string
+  rejectAction: regenerate-with-feedback
+consumes:
+  - role: stage-artifact
     required: true
+  - role: issue-context
+    required: false
+produces:
+  - role: gate-result
+    kind: markdown
+    primary: true
+options:
+  - key: issueNumber
+    type: integer
+    default: 0
+    label: "Issue number"
+    description: "目标 issue 编号（空=从 .state.json.issueContext.issueNumber 读取）"
+  - key: repo
+    type: string
+    default: ""
+    label: "Repository"
+    description: "目标仓库 (owner/repo)，空=从 .state.json.issueContext.repo 或当前仓库读取"
+  - key: stageName
+    type: string
+    default: ""
+    label: "Stage name"
     description: "当前阶段名（用于 label）"
-  - name: localMode
+  - key: localMode
     type: boolean
     default: false
+    label: "Local mode"
     description: "本地模式：跳过 GitHub label 轮询，直接放行"
-  - name: timeoutHours
+  - key: timeoutHours
     type: integer
     default: 72
+    label: "Timeout hours"
     description: "超时阈值（小时）"
-  - name: timeoutAction
+  - key: timeoutAction
     type: string
     enum: ["suspend", "abort"]
     default: "suspend"
+    label: "Timeout action"
     description: "超时动作"
-  - name: whitelistAuthors
+  - key: whitelistAuthors
     type: array
     items: { type: string }
     default: []
+    label: "Whitelist authors"
     description: "授权反馈作者白名单（空=repo collaborators）"
 ---
 
@@ -65,15 +71,15 @@ options:
 ### localMode 行为
 
 When `options.localMode == true`:
-1. Read `gate-artifact.md` as normal
+1. Read `{{inputs.stage-artifact}}` as normal
 2. **Skip** all GitHub operations (no comment, no label, no Monitor)
-3. Write `gate-result.md` with status `approved` and note "localMode auto-approved"
+3. Write gate-result with status `approved` and note "localMode auto-approved"
 4. Record `gate-approved` in `.state.json.history` with `note: "localMode"`
 5. Continue to next node immediately
 
-### 首次进入（.state.json 中无 gatePending 记录）
+### 首次进入（没有远端门等待记录）
 
-1. 读取 `gate-artifact.md`（本阶段产物摘要）
+1. 读取 `{{inputs.stage-artifact}}`（本阶段产物摘要）
 2. 评论到 issue：
    ```
    gh issue comment <issueNumber> --body "## 📋 <stageName> 阶段产物审核\n\n<gate-artifact 内容摘要>\n\n---\n\n**审核方式**：\n- 打 `ddo:approved` label 表示通过\n- 打 `ddo:changes-requested` label + 评论反馈 表示需要修改"
@@ -82,15 +88,13 @@ When `options.localMode == true`:
    ```
    gh issue edit <issueNumber> --add-label "ddo:pending-review:<stageName>"
    ```
-4. 在 .state.json 写入 gatePending 记录：
+4. 请求 runtime 按 `state.schema.json` 的远端门等待字段契约写入等待记录：
    ```json
    {
-     "gatePending": {
-       "stage": "<stageName>",
-       "issueNumber": <issueNumber>,
-       "enteredAt": "<ISO 8601>",
-       "status": "pending"
-     }
+     "stage": "<stageName>",
+     "issueNumber": <issueNumber>,
+     "enteredAt": "<ISO 8601>",
+     "status": "pending"
    }
    ```
 5. 更新 .state.json.currentStage = "waiting-remote-gate"
@@ -105,9 +109,9 @@ When `options.localMode == true`:
    ```
 8. 等待 Monitor 事件到达
 
-### 恢复时重入（已有 gatePending 记录）
+### 恢复时重入（已有远端门等待记录）
 
-1. 读取 .state.json.gatePending
+1. 读取 runtime 注入的远端门等待记录
 2. 检查 GitHub labels：
    ```
    gh issue view <issueNumber> --json labels,comments
@@ -116,15 +120,15 @@ When `options.localMode == true`:
    - IF 包含 `ddo:approved`：
      - `gh issue edit <issueNumber> --remove-label "ddo:pending-review:<stageName>"`
      - `gh issue edit <issueNumber> --remove-label "ddo:approved"`
-     - gatePending.status = "approved"
-     - 输出 gate-result.md（状态：approved）
+     - 将远端门等待记录状态更新为 "approved"
+     - 输出 gate-result（状态：approved）
      - 放行下一节点
    - IF 包含 `ddo:changes-requested`：
      - 读取最新 comment（限白名单作者）
      - `gh issue edit <issueNumber> --remove-label "ddo:pending-review:<stageName>"`
      - `gh issue edit <issueNumber> --remove-label "ddo:changes-requested"`
-     - gatePending.status = "rejected"
-     - 输出 gate-result.md（状态：rejected，含反馈）
+     - 将远端门等待记录状态更新为 "rejected"
+     - 输出 gate-result（状态：rejected，含反馈）
      - 带反馈重生当前阶段
    - 两者都没有：
      - IF now - enteredAt > timeoutHours：
@@ -150,5 +154,5 @@ ELSE：
 - 反馈评论限白名单作者
 - Monitor 保持会话存活，信号到达立即恢复
 - 会话意外退出时，.state.json 已持久化，手动恢复即可
-- `localMode` 下跳过所有 GitHub 交互，直接放行，不写入 gatePending 记录
+- `localMode` 下跳过所有 GitHub 交互，直接放行，不写入远端门等待记录
 - `issueNumber` 和 `repo` 优先从 options 读取，fallback 到 `.state.json.issueContext`
