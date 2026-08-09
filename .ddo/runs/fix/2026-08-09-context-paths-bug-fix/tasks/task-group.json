@@ -1,0 +1,26 @@
+{
+  "version": "1.0.0",
+  "tasks": [
+    {
+      "id": "task-01",
+      "file": "task-01.md",
+      "title": "修改 SKILL.md 添加 --context 参数、修改 Step 1、修改 Runtime Locations、添加约束",
+      "dependsOn": []
+    },
+    {
+      "id": "task-02",
+      "file": "task-02.md",
+      "title": "修改 context.md 添加 contextPaths 定位说明",
+      "dependsOn": []
+    },
+    {
+      "id": "task-03",
+      "file": "task-03.md",
+      "title": "修改 git-worktree.md 明确 EnterWorktree 工具使用要求",
+      "dependsOn": []
+    }
+  ],
+  "parallelGroups": [
+    ["task-01", "task-02", "task-03"]
+  ]
+}
