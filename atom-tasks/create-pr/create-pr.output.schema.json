@@ -19,6 +19,8 @@
   "rules": [
     "必须包含 PR 编号和 URL",
     "必须包含关联 Issue 编号",
-    "必须包含分支信息"
+    "必须包含分支信息",
+    "git-push 必须在 PR 创建前完成（先 commit + push，再 create PR）",
+    "worktree 清理不在本任务中执行，由 done 阶段的 cleanup-worktree 负责"
   ]
 }
