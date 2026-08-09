@@ -1,0 +1,157 @@
+{
+  "runId": "Ddo-Code-Flow-feat-2026-08-09-project-architecture-check",
+  "workflowId": "issue-driven",
+  "createdAt": "2026-08-09T07:07:43Z",
+  "projectRoot": "/Users/djhhh/work_area/Ddo-Code-Flow",
+  "worktreePath": "/Users/djhhh/work_area/Ddo-Code-Flow-feat-2026-08-09-project-architecture-check",
+  "skillName": "ddo-code-flow",
+  "skillVersion": "4.0.0",
+  "skillRoot": "/Users/djhhh/.claude/skills/Ddo-Code-Flow",
+  "configPath": ".ddo/config.json",
+  "workflowPath": "workflows/issue-driven.json",
+  "type": "feat",
+  "dateDescription": "2026-08-09-project-architecture-check",
+  "artifactDir": "/Users/djhhh/work_area/Ddo-Code-Flow-feat-2026-08-09-project-architecture-check/.ddo/runs/feat/2026-08-09-project-architecture-check",
+  "args": { "model": "issue", "issueNumber": 34 },
+  "currentStage": "delivery",
+  "stages": {
+    "context": { "status": "done", "startedAt": "2026-08-09T07:07:43Z", "finishedAt": "2026-08-09T07:08:00Z" },
+    "requirement": { "status": "done", "startedAt": "2026-08-09T07:08:00Z", "finishedAt": "2026-08-09T07:08:30Z" },
+    "spec": { "status": "done", "startedAt": "2026-08-09T07:08:30Z", "finishedAt": "2026-08-09T07:10:00Z" },
+    "planning": { "status": "done", "startedAt": "2026-08-09T07:10:00Z", "finishedAt": "2026-08-09T07:12:00Z" },
+    "test-plan": { "status": "done", "startedAt": "2026-08-09T07:12:00Z", "finishedAt": "2026-08-09T07:14:00Z" },
+    "tasking": { "status": "done", "startedAt": "2026-08-09T07:14:00Z", "finishedAt": "2026-08-09T07:15:00Z" },
+    "coding": { "status": "done", "startedAt": "2026-08-09T07:15:00Z", "finishedAt": "2026-08-09T07:17:00Z" },
+    "verification": { "status": "done", "startedAt": "2026-08-09T07:17:00Z", "finishedAt": "2026-08-09T07:19:00Z" },
+    "delivery": { "status": "running", "startedAt": "2026-08-09T07:19:00Z" }
+  },
+  "artifacts": {
+    "context-summary": {
+      "path": "run://.ddo/runs/feat/2026-08-09-project-architecture-check/context-summary.md",
+      "producer": "context",
+      "stage": "context",
+      "at": "2026-08-09T07:07:50Z"
+    },
+    "issue-context": {
+      "path": "run://.ddo/runs/feat/2026-08-09-project-architecture-check/issue-context.md",
+      "producer": "issue-fetch",
+      "stage": "requirement",
+      "at": "2026-08-09T07:08:00Z"
+    },
+    "requirement": {
+      "path": "run://.ddo/runs/feat/2026-08-09-project-architecture-check/requirement.md",
+      "producer": "requirement",
+      "stage": "requirement",
+      "at": "2026-08-09T07:08:10Z"
+    },
+    "worktree-info": {
+      "path": "run://.ddo/runs/feat/2026-08-09-project-architecture-check/worktree-info.json",
+      "producer": "git-worktree",
+      "stage": "requirement",
+      "at": "2026-08-09T07:08:20Z"
+    },
+    "spec": {
+      "path": "run://.ddo/runs/feat/2026-08-09-project-architecture-check/spec.md",
+      "producer": "spec",
+      "stage": "spec",
+      "at": "2026-08-09T07:09:00Z"
+    },
+    "gate-result": {
+      "path": "run://.ddo/runs/feat/2026-08-09-project-architecture-check/gate-result.md",
+      "producer": "remote-gate",
+      "stage": "spec",
+      "at": "2026-08-09T07:10:00Z"
+    },
+    "plan": {
+      "path": "run://.ddo/runs/feat/2026-08-09-project-architecture-check/plan.md",
+      "producer": "plan",
+      "stage": "planning",
+      "at": "2026-08-09T07:11:00Z"
+    },
+    "gate-result-plan": {
+      "path": "run://.ddo/runs/feat/2026-08-09-project-architecture-check/gate-result-plan.md",
+      "producer": "remote-gate",
+      "stage": "planning",
+      "at": "2026-08-09T07:12:00Z"
+    },
+    "test-plan": {
+      "path": "run://.ddo/runs/feat/2026-08-09-project-architecture-check/test-plan.md",
+      "producer": "test-plan",
+      "stage": "test-plan",
+      "at": "2026-08-09T07:13:00Z"
+    },
+    "gate-result-test-plan": {
+      "path": "run://.ddo/runs/feat/2026-08-09-project-architecture-check/gate-result-test-plan.md",
+      "producer": "remote-gate",
+      "stage": "test-plan",
+      "at": "2026-08-09T07:14:00Z"
+    },
+    "tasks-dir": {
+      "path": "run://.ddo/runs/feat/2026-08-09-project-architecture-check/tasks/",
+      "producer": "tasking",
+      "stage": "tasking",
+      "at": "2026-08-09T07:15:00Z"
+    },
+    "task-group": {
+      "path": "run://.ddo/runs/feat/2026-08-09-project-architecture-check/tasks/task-group.json",
+      "producer": "tasking",
+      "stage": "tasking",
+      "at": "2026-08-09T07:15:00Z"
+    },
+    "code-change": {
+      "path": "run://.ddo/runs/feat/2026-08-09-project-architecture-check/check-report.md",
+      "producer": "coding",
+      "stage": "coding",
+      "at": "2026-08-09T07:17:00Z"
+    },
+    "verification-log": {
+      "path": "run://.ddo/runs/feat/2026-08-09-project-architecture-check/verification.log",
+      "producer": "verification",
+      "stage": "verification",
+      "at": "2026-08-09T07:19:00Z"
+    },
+    "delivery-doc": {
+      "path": "run://.ddo/runs/feat/2026-08-09-project-architecture-check/delivery-doc.md",
+      "producer": "delivery-doc",
+      "stage": "delivery",
+      "at": "2026-08-09T07:20:00Z"
+    }
+  },
+  "pendingOutputs": {},
+  "gatePending": {
+    "stage": "test-plan",
+    "issueNumber": 34,
+    "enteredAt": "2026-08-09T07:13:30Z",
+    "status": "pending"
+  },
+  "issueContext": {
+    "issueNumber": 34,
+    "repo": "Djhhhhhh/Ddo-Code-Flow",
+    "title": "【Check】项目架构检查",
+    "body": "检查项如下：\n1. 架构层面：atom、workflow、config是否完全解耦，无相互直接依赖关系，单个变更是否影响全局变更\n2. 全局描述一致性检查\n3. skill描述检查，是否存在容易误解或者多余的描述，对关键执行阶段的触发检查是否正常",
+    "url": "https://github.com/Djhhhhhh/Ddo-Code-Flow/issues/34"
+  },
+  "history": [
+    { "event": "created", "at": "2026-08-09T07:07:43Z", "note": "workflowId=issue-driven" },
+    { "event": "node-done", "at": "2026-08-09T07:07:50Z", "stage": "context", "node": "context" },
+    { "event": "node-done", "at": "2026-08-09T07:08:00Z", "stage": "requirement", "node": "issue-fetch" },
+    { "event": "node-done", "at": "2026-08-09T07:08:10Z", "stage": "requirement", "node": "requirement" },
+    { "event": "node-done", "at": "2026-08-09T07:08:20Z", "stage": "requirement", "node": "git-worktree" },
+    { "event": "node-done", "at": "2026-08-09T07:09:00Z", "stage": "spec", "node": "spec" },
+    { "event": "node-start", "at": "2026-08-09T07:09:30Z", "stage": "spec", "node": "remote-gate-spec" },
+    { "event": "gate-approved", "at": "2026-08-09T07:10:00Z", "stage": "spec", "note": "remote gate approved via GitHub label" },
+    { "event": "node-done", "at": "2026-08-09T07:10:00Z", "stage": "spec", "node": "remote-gate-spec" },
+    { "event": "node-done", "at": "2026-08-09T07:11:00Z", "stage": "planning", "node": "plan" },
+    { "event": "node-start", "at": "2026-08-09T07:11:30Z", "stage": "planning", "node": "remote-gate-plan" },
+    { "event": "gate-approved", "at": "2026-08-09T07:12:00Z", "stage": "planning", "note": "remote gate approved via GitHub label" },
+    { "event": "node-done", "at": "2026-08-09T07:12:00Z", "stage": "planning", "node": "remote-gate-plan" },
+    { "event": "node-done", "at": "2026-08-09T07:13:00Z", "stage": "test-plan", "node": "test-plan" },
+    { "event": "node-start", "at": "2026-08-09T07:13:30Z", "stage": "test-plan", "node": "remote-gate-test-plan" },
+    { "event": "gate-approved", "at": "2026-08-09T07:14:00Z", "stage": "test-plan", "note": "remote gate approved via GitHub label" },
+    { "event": "node-done", "at": "2026-08-09T07:14:00Z", "stage": "test-plan", "node": "remote-gate-test-plan" },
+    { "event": "node-done", "at": "2026-08-09T07:15:00Z", "stage": "tasking", "node": "tasking" },
+    { "event": "node-done", "at": "2026-08-09T07:17:00Z", "stage": "coding", "node": "coding" },
+    { "event": "node-done", "at": "2026-08-09T07:19:00Z", "stage": "verification", "node": "verification" },
+    { "event": "node-done", "at": "2026-08-09T07:20:00Z", "stage": "delivery", "node": "delivery-doc" }
+  ]
+}

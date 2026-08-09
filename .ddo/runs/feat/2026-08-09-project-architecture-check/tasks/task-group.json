@@ -1,0 +1,12 @@
+{
+  "version": "1.0.0",
+  "tasks": [
+    { "id": "task-01", "file": "task-01.md", "title": "架构解耦检查", "dependsOn": [] },
+    { "id": "task-02", "file": "task-02.md", "title": "全局描述一致性检查", "dependsOn": [] },
+    { "id": "task-03", "file": "task-03.md", "title": "Skill 描述检查", "dependsOn": [] },
+    { "id": "task-04", "file": "task-04.md", "title": "关键执行阶段触发检查", "dependsOn": [] }
+  ],
+  "parallelGroups": [
+    ["task-01", "task-02", "task-03", "task-04"]
+  ]
+}
