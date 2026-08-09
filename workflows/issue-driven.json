@@ -115,11 +115,13 @@
     },
     {
       "stage": "done",
-      "description": "标记完成。",
+      "description": "清理 worktree 并标记完成。",
       "enabled": true,
       "atomTasks": {
-        "entry": [],
-        "nodes": {}
+        "entry": ["cleanup-worktree"],
+        "nodes": {
+          "cleanup-worktree": { "next": [], "parallelApprove": false, "parallelWith": [] }
+        }
       }
     }
   ],

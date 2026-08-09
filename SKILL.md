@@ -26,9 +26,7 @@ need the full pipeline.
   schemas, workflows, and atom-tasks. It is read-only during a run.
 - `projectRoot`: target Git repository where the user invoked the skill.
 - `projectConfig`: `<projectRoot>/.ddo/config.json`. It is the only project-owned
-  configuration file. Runtime reads and validates it when present but never creates
-  or modifies it. All .ddo/ directory initialization happens in the worktree via
-  git-worktree.
+  configuration file and is created on first run when absent.
 - `worktreeDir`: effective config value that receives worktrees. Empty means the
   parent directory of `projectRoot`.
 - `worktreePath`: isolated Git worktree for one run. Source edits and project
@@ -43,9 +41,8 @@ need the full pipeline.
   - `--model <workflow-id>` selects a workflow explicitly.
   - `--feature` marks the run type as `feat`.
   - `--bugfix` marks the run type as `fix`.
-  - `--context <path>` appends a context path for this run only (does not modify
-    project config). Can be repeated. Useful for per-requirement context that
-    should not persist across runs.
+  - `--atom <task-name>` triggers a single atom-task without running the full
+    pipeline. When set, skip Steps 3–7 and execute only the named atom-task.
 - `config.default.json`: read-only global defaults and workflow index.
 - `config.schema.json`: schema for defaults, workflow JSON, and project config.
 - `state.schema.json`: schema and ownership contract for `.state.json` top-level
@@ -106,16 +103,14 @@ the current stage's latest primary artifact and is used by `remote-gate`.
 1. Read `config.default.json`, `config.schema.json`, `state.schema.json`,
    `atom-tasks/artifacts.json`, and the workflow index from `skillRoot`.
 2. Validate defaults and artifact catalog.
-3. Read and validate `<projectRoot>/.ddo/config.json` when it exists. Do not
-   create or modify any files in projectRoot. All .ddo/ directory initialization
-   happens in the worktree via git-worktree (see Step 5).
+3. Ensure `<projectRoot>/.ddo/` exists. If missing, create:
+   - `.ddo/config.json` with a minimal project config object.
+   - `.ddo/runs/`.
+   Do not modify `.gitignore`, git exclude, or any other git visibility setting.
 4. Validate `.ddo/config.json` against `$defs.projectConfig` when it exists.
 5. Compose effective config in memory only:
    `config.default.json <- .ddo/config.json <- run arguments`.
    Objects merge recursively, arrays replace as a whole, scalars replace.
-   For `contextPaths`, run arguments (`--context`) **append** to the merged
-   project/base array rather than replacing it. This allows per-run context
-   without modifying project config.
    Never write an effective config file to disk.
 
 ### Step 2 - Resolve Workflow And Run Type
@@ -133,6 +128,33 @@ the current stage's latest primary artifact and is used by `remote-gate`.
 6. For each stage DAG, validate references and cycles. `taskRef` means the DAG
    node name is an instance name while the atom-task definition comes from
    `taskRef`.
+7. Display the pipeline execution summary before proceeding:
+   ```
+   ▸ Workflow: <name> — <description>
+   ▸ Run type: <feat|fix>
+   ▸ Issue: #<N>          (only when issue-driven)
+   ▸ Stages: <stage1> → <stage2> → ... → done
+   ```
+   When `--atom` is set, display single-task mode instead:
+   ```
+   ▸ Mode: 单任务执行 (<task-name>)
+   ▸ 输入: <resolved consumed roles>
+   ```
+
+### Step 2.5 - Single Atom-Task Execution (--atom)
+
+When `--atom <task-name>` is present:
+
+1. Skip Steps 3–7 entirely.
+2. Load `atom-tasks/<task-name>/<task-name>.md` and validate its frontmatter.
+3. Resolve its `consumes` roles from `.state.json.artifacts`. For each required
+   role that is missing, abort with an error listing the missing role.
+4. Execute the atom-task instruction as a standalone task, honoring all its
+   constraints.
+5. Write produced artifacts under `artifactDir` (or `pendingOutputs` if
+   `artifactDir` is not yet available).
+6. Register produced roles in `.state.json.artifacts` and append history events.
+7. Display completion summary and exit.
 
 ### Step 3 - Validate Role Reachability
 
@@ -284,8 +306,6 @@ change workflow success when the policy is `warn`.
 ## What This Skill Does Not Do
 
 - It does not write to `skillRoot` during a run.
-- It does not write to `projectRoot` during a run. All file modifications
-  happen in the worktree.
 - It does not manage `.gitignore` or git exclude.
 - It does not place worktrees inside `.ddo/runs/`.
 - It does not add metrics stages or per-atom token attribution.

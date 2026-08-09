@@ -1,0 +1,39 @@
+{
+  "version": "1.0.0",
+  "tasks": [
+    {
+      "id": "task-01",
+      "file": "task-01.md",
+      "title": "修改 SKILL.md — 添加 --atom 参数和流水线执行描述",
+      "dependsOn": []
+    },
+    {
+      "id": "task-02",
+      "file": "task-02.md",
+      "title": "重写 create-pr.md — git-push → PR → 确认流程",
+      "dependsOn": []
+    },
+    {
+      "id": "task-03",
+      "file": "task-03.md",
+      "title": "更新 create-pr.output.schema.json",
+      "dependsOn": []
+    },
+    {
+      "id": "task-04",
+      "file": "task-04.md",
+      "title": "新增 cleanup-worktree 原子任务",
+      "dependsOn": []
+    },
+    {
+      "id": "task-05",
+      "file": "task-05.md",
+      "title": "修改 issue-driven.json done 阶段",
+      "dependsOn": ["task-04"]
+    }
+  ],
+  "parallelGroups": [
+    ["task-01", "task-02", "task-03", "task-04"],
+    ["task-05"]
+  ]
+}

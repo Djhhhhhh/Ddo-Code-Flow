@@ -1,0 +1,34 @@
+# Verification Log
+
+## G1: create-pr 流程重构 (6/6 PASS)
+- [PASS] G1-1: grep "git add -A" atom-tasks/create-pr/create-pr.md
+- [PASS] G1-2: grep "git commit" atom-tasks/create-pr/create-pr.md
+- [PASS] G1-3: grep "git push" atom-tasks/create-pr/create-pr.md
+- [PASS] G1-4: grep "gh pr create" atom-tasks/create-pr/create-pr.md
+- [PASS] G1-5: grep "用户确认|确认后|审阅" atom-tasks/create-pr/create-pr.md
+- [PASS] G1-6: grep "done.*阶段|done 阶段|worktree.*清理" atom-tasks/create-pr/create-pr.md
+
+## G2: --atom 参数支持 (2/2 PASS)
+- [PASS] G2-1: grep "--atom" SKILL.md
+- [PASS] G2-2: grep "Step 2.5" SKILL.md
+
+## G3: 流水线执行描述 (2/2 PASS)
+- [PASS] G3-1: grep "execution summary" SKILL.md
+- [PASS] G3-2: grep "stages" SKILL.md
+
+## G4: cleanup-worktree 原子任务 (5/5 PASS)
+- [PASS] G4-1: test -f atom-tasks/cleanup-worktree/cleanup-worktree.md
+- [PASS] G4-2: grep "name: cleanup-worktree" cleanup-worktree.md
+- [PASS] G4-3: grep "cleanup-worktree" workflows/issue-driven.json
+- [PASS] G4-4: grep "git worktree remove" cleanup-worktree.md
+- [PASS] G4-5: grep "git branch -d" cleanup-worktree.md
+
+## G5: output schema 更新 (1/1 PASS)
+- [PASS] G5-1: grep "git.*push" create-pr.output.schema.json
+
+## G6: 约束完整性 (2/2 PASS)
+- [PASS] G6-1: grep "worktree清理 done" create-pr.md
+- [PASS] G6-2: grep "先 commit push 再 create" create-pr.md
+
+## Summary
+ALL PASSED (17/17)
