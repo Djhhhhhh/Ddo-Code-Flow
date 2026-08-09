@@ -43,7 +43,7 @@ outputSchemaRef: "skill://atom-tasks/git-worktree/worktree-info.output.schema.js
 9. 写入 .state.json：设置 `runId=<项目名>-<分支名（/ 替换为 -）>`、worktreePath 为绝对路径、type 为分支前缀、dateDescription 为日期描述 slug，并设置 `artifactDir=<worktreePath>/.ddo/runs/<type>/<dateDescription>`。同时请求 runtime 刷写 delayed outputs 与 artifact blackboard。
 10. 切换 agent 工作目录：
     a. 确认 .state.json 中 projectRoot 已正确记录（目标 Git 仓库根目录绝对路径），且 skillRoot 指向只读的 skill 目录。
-    b. 使用 agent 自带的工作目录切换机制将工作目录切换到 worktreePath。例如 Claude Code 使用 EnterWorktree 工具（path 参数指向已创建的 worktree）或 /cd 命令，Codex 使用 --cd 标志。
+    b. **必须**使用 agent 自带的 EnterWorktree 工具将工作目录切换到 worktreePath。例如 Claude Code 使用 EnterWorktree 工具（path 参数指向已创建的 worktree），Codex 使用 --cd 标志。**不得**使用 Bash cd 命令切换工作目录。
     c. 切换后用 `pwd` 验证当前目录正确。
 
 ## 约束

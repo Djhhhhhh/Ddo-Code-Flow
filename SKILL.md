@@ -26,7 +26,9 @@ need the full pipeline.
   schemas, workflows, and atom-tasks. It is read-only during a run.
 - `projectRoot`: target Git repository where the user invoked the skill.
 - `projectConfig`: `<projectRoot>/.ddo/config.json`. It is the only project-owned
-  configuration file and is created on first run when absent.
+  configuration file. Runtime reads and validates it when present but never creates
+  or modifies it. All .ddo/ directory initialization happens in the worktree via
+  git-worktree.
 - `worktreeDir`: effective config value that receives worktrees. Empty means the
   parent directory of `projectRoot`.
 - `worktreePath`: isolated Git worktree for one run. Source edits and project
@@ -41,6 +43,9 @@ need the full pipeline.
   - `--model <workflow-id>` selects a workflow explicitly.
   - `--feature` marks the run type as `feat`.
   - `--bugfix` marks the run type as `fix`.
+  - `--context <path>` appends a context path for this run only (does not modify
+    project config). Can be repeated. Useful for per-requirement context that
+    should not persist across runs.
 - `config.default.json`: read-only global defaults and workflow index.
 - `config.schema.json`: schema for defaults, workflow JSON, and project config.
 - `state.schema.json`: schema and ownership contract for `.state.json` top-level
@@ -101,14 +106,16 @@ the current stage's latest primary artifact and is used by `remote-gate`.
 1. Read `config.default.json`, `config.schema.json`, `state.schema.json`,
    `atom-tasks/artifacts.json`, and the workflow index from `skillRoot`.
 2. Validate defaults and artifact catalog.
-3. Ensure `<projectRoot>/.ddo/` exists. If missing, create:
-   - `.ddo/config.json` with a minimal project config object.
-   - `.ddo/runs/`.
-   Do not modify `.gitignore`, git exclude, or any other git visibility setting.
+3. Read and validate `<projectRoot>/.ddo/config.json` when it exists. Do not
+   create or modify any files in projectRoot. All .ddo/ directory initialization
+   happens in the worktree via git-worktree (see Step 5).
 4. Validate `.ddo/config.json` against `$defs.projectConfig` when it exists.
 5. Compose effective config in memory only:
    `config.default.json <- .ddo/config.json <- run arguments`.
    Objects merge recursively, arrays replace as a whole, scalars replace.
+   For `contextPaths`, run arguments (`--context`) **append** to the merged
+   project/base array rather than replacing it. This allows per-run context
+   without modifying project config.
    Never write an effective config file to disk.
 
 ### Step 2 - Resolve Workflow And Run Type
@@ -277,6 +284,8 @@ change workflow success when the policy is `warn`.
 ## What This Skill Does Not Do
 
 - It does not write to `skillRoot` during a run.
+- It does not write to `projectRoot` during a run. All file modifications
+  happen in the worktree.
 - It does not manage `.gitignore` or git exclude.
 - It does not place worktrees inside `.ddo/runs/`.
 - It does not add metrics stages or per-atom token attribution.

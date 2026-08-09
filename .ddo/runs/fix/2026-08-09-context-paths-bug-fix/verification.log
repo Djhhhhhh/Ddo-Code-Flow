@@ -1,0 +1,67 @@
+# Verification Log
+
+## G1: contextPaths 文档澄清 (AC-1, FR-1)
+
+- [PASS] cmd: grep -q "项目级基线上下文" atom-tasks/context/context.md
+- [PASS] cmd: grep -q "跨需求稳定" atom-tasks/context/context.md
+- [PASS] cmd: grep -q "不适用于.*按需求变化" atom-tasks/context/context.md
+
+GROUP G1 PASSED
+
+## G2: --context 参数支持 (AC-2, FR-2)
+
+- [PASS] cmd: grep -q "\\-\\-context" SKILL.md
+- [PASS] cmd: grep -q "per-run" SKILL.md
+- [PASS] cmd: grep -q "append" SKILL.md
+
+GROUP G2 PASSED
+
+## G3: 配置 schema 修正 (AC-3, FR-3)
+
+- [PASS] cmd: cat .ddo/config.json | grep -q '"\\$schema"'
+- [PASS] cmd: cat .ddo/config.json | grep -q 'config.schema.json'
+
+GROUP G3 PASSED
+
+## G4: EnterWorktree 工具说明 (AC-4, FR-4)
+
+- [PASS] cmd: grep -q "EnterWorktree" atom-tasks/git-worktree/git-worktree.md
+- [PASS] cmd: grep -q "必须" atom-tasks/git-worktree/git-worktree.md
+- [PASS] cmd: grep -q "不得.*Bash cd" atom-tasks/git-worktree/git-worktree.md
+
+GROUP G4 PASSED
+
+## G5: Step 1 不创建文件 (AC-5, FR-5)
+
+- [PASS] cmd: ! grep -q "Ensure.*exists.*create" SKILL.md
+- [PASS] cmd: ! grep -q "\\.ddo/config.json.*create" SKILL.md
+- [PASS] cmd: grep -q "Read and validate" SKILL.md
+
+GROUP G5 PASSED
+
+## G6: Runtime Locations 修正 (AC-6, FR-6)
+
+- [PASS] cmd: grep -q "never creates" SKILL.md
+- [PASS] cmd: grep -q "does not write to.*projectRoot" SKILL.md
+
+GROUP G6 PASSED
+
+## G7: 约束补充 (AC-7, FR-7)
+
+- [PASS] cmd: grep -q "does not write to.*projectRoot" SKILL.md
+
+GROUP G7 PASSED
+
+## G8: 端到端验证
+
+- [PENDING] human: 启动流水线后，检查主分支上是否有未跟踪的 .ddo/ 目录
+- [PENDING] human: 使用 --context 参数运行流水线，验证上下文被正确加载
+
+GROUP G8 PENDING
+
+---
+
+**自动检查结果**: ALL PASSED (17/17)
+**人工检查结果**: PENDING (2/2)
+
+**最终状态**: WAITING-HUMAN

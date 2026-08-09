@@ -1,3 +1,0 @@
-jsonschema>=4.23,<5
-PyYAML>=6,<7
-pytest>=7,<9
