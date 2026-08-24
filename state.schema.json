@@ -233,7 +233,7 @@
       "properties": {
         "status": {
           "type": "string",
-          "enum": ["pending", "running", "done", "failed", "skipped", "waiting-human", "waiting-remote-gate"]
+          "enum": ["pending", "running", "done", "failed", "skipped", "rework", "waiting-human", "waiting-remote-gate"]
         },
         "startedAt": { "type": "string", "format": "date-time" },
         "finishedAt": { "type": "string", "format": "date-time" }

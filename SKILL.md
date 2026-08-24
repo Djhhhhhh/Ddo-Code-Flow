@@ -96,197 +96,185 @@ When entering a node, inject each consumed role into the instruction as
 are skipped and recorded in history. Dynamic role `stage-artifact` resolves to
 the current stage's latest primary artifact and is used by `remote-gate`.
 
+## Runtime CLI
+
+The deterministic core — DAG validation, role injection, state write ownership,
+confirmation gates, stage advancement — lives in code (`scripts/runtime/`), not
+prose. The model invokes stateless Node subcommands; each reads `.state.json`
+fresh and answers through the four-channel contract:
+
+| Channel | Contract |
+|---|---|
+| stdout | Structured JSON only (or the pre-computed instruction text). The model reads it to decide the next action. |
+| stderr | Human-readable explanation on non-zero exit. |
+| exit code | `0` ok · `1` hard failure (enter the correction loop) · `2` usage error · `77` pending (remote gate / CI) |
+| `.state.json` | Sole source of truth. Every command reads fresh — no in-memory cache. |
+
+Entry point:
+
+```text
+node <skillRoot>/scripts/runtime/ddo.js <subcommand> [--flags]
+```
+
+All state writes go through the single `applyMutation(state, patch, writer)`
+guard, which enforces the `x-ddo-writer` ownership declared in
+`state.schema.json`: an unauthorized write or a newly invented top-level field
+exits `1`.
+
 ## Execution
 
-### Step 1 - Load Defaults And Project Config
+### Step 1 - Compose Config
 
-1. Read `config.default.json`, `config.schema.json`, `state.schema.json`,
-   `atom-tasks/artifacts.json`, and the workflow index from `skillRoot`.
-2. Validate defaults and artifact catalog.
-3. Ensure `<projectRoot>/.ddo/` exists. If missing, create:
-   - `.ddo/config.json` with a minimal project config object.
-   - `.ddo/runs/`.
-   Do not modify `.gitignore`, git exclude, or any other git visibility setting.
-4. Validate `.ddo/config.json` against `$defs.projectConfig` when it exists.
-5. Compose effective config in memory only:
-   `config.default.json <- .ddo/config.json <- run arguments`.
-   Objects merge recursively, arrays replace as a whole, scalars replace.
-   Never write an effective config file to disk.
+```text
+node <skillRoot>/scripts/runtime/ddo.js compose-config \
+  --skill-root <skillRoot> --project-root <projectRoot> [--args-json '<json>']
+```
+
+- What it does: deep-merges `config.default.json <- .ddo/config.json <- run args`
+  (objects recurse, arrays replace, scalars replace) and prints the effective
+  config to stdout. It never writes an effective config file to disk.
+- Before calling, ensure `<projectRoot>/.ddo/` exists — on first run create
+  `.ddo/config.json` (minimal project config) and `.ddo/runs/`. Do not modify
+  `.gitignore`, git exclude, or any git visibility setting.
+- Exit `0` = merged config on stdout; `2` = missing flag (fix the invocation).
 
 ### Step 2 - Resolve Workflow And Run Type
 
-1. Parse arguments. `--model <id>` is an explicit workflow selector.
-2. If `--model` matches `workflows.items[].id`, use that workflow.
-3. Otherwise match workflow selection rules against the `--model` value when
-   present, then against the user requirement text, then fallback/default.
-4. Resolve run type:
-   - `--feature` -> `feat`
-   - `--bugfix` -> `fix`
-   - otherwise infer from text or use `base.defaultRunType`
-5. Load the selected workflow JSON and validate it against
-   `$defs.workflowDefinition`.
-6. For each stage DAG, validate references and cycles. `taskRef` means the DAG
-   node name is an instance name while the atom-task definition comes from
-   `taskRef`.
-7. Display the pipeline execution summary before proceeding:
-   ```
-   ▸ Workflow: <name> — <description>
-   ▸ Run type: <feat|fix>
-   ▸ Issue: #<N>          (only when issue-driven)
-   ▸ Stages: <stage1> → <stage2> → ... → done
-   ```
-   When `--atom` is set, display single-task mode instead:
-   ```
-   ▸ Mode: 单任务执行 (<task-name>)
-   ▸ 输入: <resolved consumed roles>
-   ```
+```text
+node <skillRoot>/scripts/runtime/ddo.js select-workflow \
+  --skill-root <skillRoot> [--model <id>] [--feature|--bugfix] [--text '<requirement>']
+```
+
+- What it does: resolves `{workflowId, runType, workflowPath}` — `--model` explicit
+  > `selection.rules` match (against `--model`, then requirement text) > fallback.
+  `--feature` → `feat`, `--bugfix` → `fix`, otherwise inferred or `defaultRunType`.
+- Display the pipeline summary from the returned JSON before proceeding:
+  ```
+  ▸ Workflow: <name> — <description>
+  ▸ Run type: <feat|fix>
+  ▸ Issue: #<N>          (only when issue-driven)
+  ▸ Stages: <stage1> → <stage2> → ... → done
+  ```
+- Exit `0` = selection JSON; `2` = usage error.
 
 ### Step 2.5 - Single Atom-Task Execution (--atom)
 
-When `--atom <task-name>` is present:
+When `--atom <task-name>` is present, skip Steps 3–7 entirely. Load
+`atom-tasks/<task-name>/<task-name>.md`, resolve its `consumes` roles from
+`.state.json.artifacts` (abort listing any missing required role), execute the
+instruction as a standalone task, then register outputs with `register-artifact`
+and validate with `validate-output` (see Step 5).
 
-1. Skip Steps 3–7 entirely.
-2. Load `atom-tasks/<task-name>/<task-name>.md` and validate its frontmatter.
-3. Resolve its `consumes` roles from `.state.json.artifacts`. For each required
-   role that is missing, abort with an error listing the missing role.
-4. Execute the atom-task instruction as a standalone task, honoring all its
-   constraints.
-5. Write produced artifacts under `artifactDir` (or `pendingOutputs` if
-   `artifactDir` is not yet available).
-6. Register produced roles in `.state.json.artifacts` and append history events.
-7. Display completion summary and exit.
+### Step 3 - Validate DAG
 
-### Step 3 - Validate Role Reachability
+```text
+node <skillRoot>/scripts/runtime/ddo.js validate-dag \
+  --skill-root <skillRoot> --workflow <workflowPath>
+```
 
-Before execution, perform a workflow role check:
-
-1. Maintain a set of produced roles while traversing the workflow in stage order
-   and node topological order.
-2. For each enabled node, load only its frontmatter. Every produced and consumed
-   role must exist in `artifacts.json`.
-3. Every required consumed role must already be available, except:
-   - `stage-artifact`, which is resolved at runtime inside the current stage.
-   - roles whose task instruction explicitly reads state fallback fields such as
-     `.state.json.issueContext`.
-4. Reject the workflow on missing required roles or duplicate same-run producers
-   that would make a role ambiguous.
+- What it does: traverses the workflow in stage order and node topological order,
+  checks every produced/consumed role exists in `artifacts.json`, and that every
+  `required:true` consume is already produced upstream (except `stage-artifact`).
+  Cycles and duplicate same-run producers are rejected.
+- Exit `1` = the workflow is invalid (stderr lists the errors). Fix the workflow
+  JSON or the atom-task declarations, then re-run — never proceed past this gate.
+- Exit `0` = DAG is reachable.
 
 ### Step 4 - Initialize Or Resume State
 
-Find resumable state under effective `worktreeDir` and `projectRoot` by scanning
-`*/.ddo/runs/*/*/.state.json`. A candidate is resumable only when:
+```text
+node <skillRoot>/scripts/runtime/ddo.js find-resumable \
+  --skill-root <skillRoot> --project-root <projectRoot> [--worktree-dir <dir>]
 
-- `currentStage != "done"`.
-- recorded `projectRoot` equals this run's `projectRoot`.
-- recorded `worktreePath` exists.
-- the state file is inside recorded `artifactDir`.
-
-If exactly one candidate exists, resume it. If multiple candidates exist, stop
-and ask for explicit selection. On resume:
-
-- Prefer resolving the skill by `skillName`; use stored `skillRoot` only as a
-  hint. Version mismatch is a warning, not an automatic failure.
-- Load relative `configPath` and `workflowPath`.
-- Append `resumed` to history.
-
-For a new run, initialize state in memory until `git-worktree` creates
-`worktreePath` and `artifactDir`:
-
-```json
-{
-  "runId": null,
-  "workflowId": "<workflow id>",
-  "createdAt": "<ISO 8601>",
-  "projectRoot": "<absolute project root>",
-  "worktreePath": null,
-  "skillName": "ddo-code-flow",
-  "skillVersion": "4.0.0",
-  "skillRoot": "<hint only>",
-  "configPath": ".ddo/config.json",
-  "workflowPath": "workflows/<id>.json",
-  "type": "<feat|fix>",
-  "dateDescription": null,
-  "artifactDir": null,
-  "args": {},
-  "currentStage": "context",
-  "stages": {},
-  "artifacts": {},
-  "pendingOutputs": {},
-  "history": [
-    { "event": "created", "at": "<ISO 8601>", "note": "workflowId=<workflow id>" }
-  ]
-}
+node <skillRoot>/scripts/runtime/ddo.js init-state \
+  --skill-root <skillRoot> --project-root <projectRoot> --workflow <workflowPath> \
+  [--workflow-id <id>] [--run-type feat|fix] [--args-json '<json>']
 ```
 
-Validate every persisted state object against `state.schema.json`. The schema is
-also the ownership contract for non-artifact state fields: each top-level field
-has exactly one `x-ddo-writer`. Atom-tasks may read declared fallback fields such
-as `.state.json.issueContext`, but they must not invent new top-level state
-fields. Notable writers:
-
-| Field | Writer | Notes |
-|---|---|---|
-| `runId` | `git-worktree` | Set to `<projectName>-<branchName-with-slashes-replaced>` when the branch is known. |
-| `createdAt`, `workflowId`, `args`, `currentStage`, `stages`, `artifacts`, `pendingOutputs`, `history` | `runtime` | Runtime state machine fields. |
-| `issueContext` | `issue-fetch` | Issue metadata for issue-driven runs. |
-| `gatePending` | `remote-gate` | Remote gate reentry state. |
-| `prInfo` | `create-pr` | Pull request metadata after PR creation. |
+- `find-resumable` scans `*/.ddo/runs/*/*/.state.json` for a candidate with
+  `currentStage != "done"`, matching `projectRoot`, and an existing `worktreePath`.
+  Exactly one → resume (append `resumed` to history; resolve the skill by
+  `skillName`, using stored `skillRoot` only as a hint). Multiple → exit `1`,
+  ask the user to choose. None → run `init-state`.
+- `init-state` prints the fresh state skeleton; git-worktree fields (`runId`,
+  `worktreePath`, `type`, `dateDescription`, `artifactDir`) stay null until the
+  worktree exists. Persist it to `.state.json`; it must validate against
+  `state.schema.json`.
+- `.state.json` is the ownership contract. Writers: `git-worktree` (runId,
+  worktreePath, type, dateDescription, artifactDir), `issue-fetch` (issueContext),
+  `remote-gate` (gatePending), `create-pr` (prInfo), `runtime` (everything else).
 
 ### Step 5 - Execute Nodes
 
-For each workflow stage, skipping stages already marked done:
+For each stage, skipping stages already `done`:
 
-1. Prune disabled nodes using override priority:
-   workflow `atomTaskOverrides` > project/global `atomTaskOverrides` >
-   atom-task default `enabled`.
-2. Topologically batch nodes with Kahn's algorithm.
-3. For each node:
-   - Load `atom-tasks/<effectiveName>/<effectiveName>.md`, where
-     `effectiveName = taskRef || nodeName`.
-   - Merge options:
-     workflow override for node name > config override for node name >
-     node `options` > atom-task defaults.
-   - Resolve consumes into `{{inputs.<role>}}` bindings from `.state.json.artifacts`.
-   - Execute the atom-task instruction and honor its constraints.
-   - If `outputSchemaRef` exists, read it and use its sections/rules/example.
-   - Write produced artifacts under `artifactDir` according to `artifacts.json`.
-     If `worktreePath` is not yet available, hold text outputs in
-     `pendingOutputs` and flush them after `git-worktree` sets `artifactDir`.
-   - Register produced roles in `.state.json.artifacts`.
-   - Append `node-start` and `node-done` or `node-failed` history events.
-4. Validate `.state.json` against `state.schema.json` and persist it at every
-   transition once `artifactDir` exists.
+1. Pick the next batch:
+   ```text
+   node <skillRoot>/scripts/runtime/ddo.js next-node \
+     --skill-root <skillRoot> --state <statePath>
+   ```
+   Prints the in-degree-0 batch: each node's self-contained instruction with
+   `{{inputs.<role>}}` resolved to artifact paths and options merged (workflow
+   override > config override > node options > atom-task defaults). If
+   `done: true`, no nodes remain — go to Step 7.
+2. Execute each instruction and honor its constraints. If `outputSchemaRef`
+   exists, read it and use its sections/rules/example.
+3. Register each produced role (artifact text via stdin):
+   ```text
+   printf '%s' '<artifact text>' | node <skillRoot>/scripts/runtime/ddo.js register-artifact \
+     --skill-root <skillRoot> --state <statePath> --role <role> [--producer <node>] [--stage <stage>]
+   ```
+   Writes the file under `artifactDir`, records `.state.json.artifacts[role]`,
+   and appends `node-done`. Exit `1` = the role is not in `artifacts.json` or
+   `artifactDir` is not ready — hold the text in `pendingOutputs` and flush after
+   `git-worktree` sets `artifactDir`.
+4. Validate each produced output:
+   ```text
+   node <skillRoot>/scripts/runtime/ddo.js validate-output \
+     --skill-root <skillRoot> --artifact <artifactPath> --output-schema-ref <schemaRef>
+   ```
+   `json` outputs are checked against `jsonFields`; `markdown` outputs must contain
+   every `required:true` section heading; `.state.json` is checked against
+   `state.schema.json`. Exit `1` = hard reject — read stderr, fix, re-register.
+
+Calling each subcommand is a soft trigger (the model calls them via the Bash
+tool), but the outcome is hard: a non-zero exit cannot be reasoned away — read
+stderr, correct, re-run.
 
 ### Step 6 - Confirmation Gates
 
-Confirmation gates live only in workflow JSON. A stage listed in
-`confirmationGates` asks the user for approval after its terminal outputs unless
-that stage contains a `remote-gate` node. Remote-gate stages use GitHub labels
-and must not also trigger a local confirmation prompt.
+Confirmation gates live only in workflow JSON (`confirmationGates`). After a gate
+stage's terminal outputs, call:
 
-On rejection, archive the previous artifact version to `_del`, append
-`gate-rejected` with feedback, rerun the affected node or rollback target, and
-request approval again.
+```text
+node <skillRoot>/scripts/runtime/ddo.js gate \
+  --skill-root <skillRoot> --state <statePath> --stage <stage> \
+  --action approved|rejected|pending [--feedback '<text>']
+```
 
-### Step 7 - Recovery And Finalization
+- `approved` → appends `gate-approved`; proceed to `advance-stage`.
+- `rejected` → appends `gate-rejected` with feedback, archive the previous version
+  to `_del`, rerun the affected node, and request approval again.
+- `pending` (remote gate) → exit `77`; poll later.
+- Ask the user only for stages in `confirmationGates` that have no `remote-gate` node.
 
-Follow recovery instructions in the current atom-task. The runtime does not
-hardcode business recovery targets.
+### Step 7 - Advance Stage And Finalize
 
-Before marking `done`, enforce:
+```text
+node <skillRoot>/scripts/runtime/ddo.js advance-stage \
+  --skill-root <skillRoot> --state <statePath>
+```
 
-- Every enabled non-terminal stage is done or legitimately skipped.
-- Every required confirmation gate is approved.
-- No node is running, failed, or pending rework.
-- Verification, when enabled, ends with `ALL PASSED` and has no unanswered
-  `human:` checks.
-- No pending outputs, unresolved role bindings, or unresolved confirmations remain.
+- Hard terminal check before advancing `currentStage`: every node in the current
+  stage `done`, the stage's gate (if any) approved, no running/failed/pending.
+- Exit `1` = a terminal condition is unmet (stderr lists it); do not advance.
+  Exit `0` = `currentStage` moved to the next stage (or `done`).
+- Before `done`, also enforce: no pending outputs or unresolved role bindings;
+  verification (when enabled) ends with `ALL PASSED` and no unanswered `human:`
+  checks. Follow the current atom-task's recovery instructions — the runtime does
+  not hardcode business recovery targets.
 
-After `done`, run metrics finish when enabled and report:
-
-- execution report path
-- optional metrics report path
-- worktree path
+After `done`, run metrics finish when enabled (see Metrics).
 
 ## Metrics
 
