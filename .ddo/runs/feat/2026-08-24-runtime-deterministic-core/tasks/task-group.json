@@ -1,0 +1,22 @@
+{
+  "version": "1.0.0",
+  "tasks": [
+    { "id": "task-01", "file": "task-01.md", "title": "runtime 骨架与 CLI 契约（ddo.js + args + json）", "dependsOn": [] },
+    { "id": "task-02", "file": "task-02.md", "title": "最小 JSON Schema 子集校验器（jsonschema.js）", "dependsOn": ["task-01"] },
+    { "id": "task-03", "file": "task-03.md", "title": "协议解析（protocol.js）", "dependsOn": ["task-01"] },
+    { "id": "task-04", "file": "task-04.md", "title": "compose-config 深合并（config.js）", "dependsOn": ["task-01"] },
+    { "id": "task-05", "file": "task-05.md", "title": "validate-dag + select-workflow（workflow.js）", "dependsOn": ["task-03", "task-04"] },
+    { "id": "task-06", "file": "task-06.md", "title": "applyMutation 写守卫 + init/find-resumable（state.js）", "dependsOn": ["task-02", "task-03"] },
+    { "id": "task-07", "file": "task-07.md", "title": "next-node（nodes.js）", "dependsOn": ["task-03", "task-05"] },
+    { "id": "task-08", "file": "task-08.md", "title": "register-artifact + validate-output（artifacts.js）", "dependsOn": ["task-02", "task-03", "task-06"] },
+    { "id": "task-09", "file": "task-09.md", "title": "gate + advance-stage（gate.js + advance.js）", "dependsOn": ["task-06"] },
+    { "id": "task-10", "file": "task-10.md", "title": "SKILL.md 改写（Step 1-7 委托子命令）", "dependsOn": ["task-01", "task-02", "task-03", "task-04", "task-05", "task-06", "task-07", "task-08", "task-09"] }
+  ],
+  "parallelGroups": [
+    ["task-01"],
+    ["task-02", "task-03", "task-04"],
+    ["task-05", "task-06"],
+    ["task-07", "task-08", "task-09"],
+    ["task-10"]
+  ]
+}

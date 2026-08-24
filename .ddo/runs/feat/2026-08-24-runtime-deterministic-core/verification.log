@@ -1,0 +1,34 @@
+# Verification Log — runtime deterministic core (P0.5 + P0)
+
+Run: Ddo-Code-Flow-feat-2026-08-24-runtime-deterministic-core
+Workflow: guarded / type: feat
+Date: 2026-08-24
+
+## Automated
+
+- `node --test scripts/runtime/test/` → **ALL PASSED**（10 个测试文件、35 条断言，fail=0, skip=0, cancelled=0）
+
+Per-group evidence:
+
+| Group | 检查 | 结果 | 证据 |
+|---|---|---|---|
+| G1 / AC-1 | CLI 退出码契约（0/1/2/77 归一，无子命令/缺参/未知子命令→2，--help→0） | PASS | cli.test.js 5/5；手动 `node ddo.js`→exit2、`compose-config`→exit2、`--help`→exit0 |
+| G2 / AC-2 | validate-output 硬校验 | PASS | 单测 4/4；真实 spec.md 对 spec.output.schema.json → exit 0；requirement.md 对 spec schema → exit 1 + stderr 列出 6 个缺失 section |
+| G3 / AC-3 | register-artifact stdin→落盘→artifacts→history | PASS | 单测 3/3；端到端 `printf | register-artifact --role plan` → 落盘 plan.md、写 artifacts.plan、追加 node-done、exit 0 |
+| G4 / AC-4 | applyMutation 写守卫（x-ddo-writer + additionalProperties:false） | PASS | 单测 3/3；越权写 runId→exit1、自造顶层字段→exit1、合法写 currentStage→成功 |
+| G5 / AC-5 | validate-dag 角色可达性 | PASS | 单测 3/3（含缺失 required consume、环）；`validate-dag --workflow workflows/guarded.json`→exit 0 |
+| G6 / AC-6 | compose-config 深合并 + 不落盘 | PASS | 单测 2/2；真实 repo `compose-config --args-json '{"feature":true}'` 输出合并 JSON、无 effective config 文件 |
+| G7 / AC-7 | next-node 注入 + 合并 + Kahn 选批 | PASS | 单测 3/3；真实 .state.json → consumes 全部解析为 run:// 路径、options 合并正确（maxSelfCheckRounds=3, model=inherit） |
+| G8 / AC-8 | advance-stage 终态硬检查推进 | PASS | 单测 3/3；端到端 dogfood：coding→verification 推进成功（applyMutation + 原子写 + schema 校验全链路） |
+| G9 / DEC-3/4 + AC-9 | 协议解析 + jsonschema + 字段归属测试 | PASS | protocol 4/4、jsonschema 5/5、apply-mutation 3/3 |
+
+## Human
+
+- [x] SKILL.md Step 1–7 已改为委托 `node <skillRoot>/scripts/runtime/ddo.js <子命令>`；删除大段散文状态机（DAG 校验/角色注入/状态归属/门控实现细节）；保留「何时调/为什么调/非零退出码修正循环」纪律。新增「Runtime CLI」小节说明四件套契约 + applyMutation 守卫。
+- [x] 四层职责模型未破坏（atom-task/workflow/config/runtime 边界不变；runtime 仍只拥有组合/校验/注入/登记/状态/恢复）。
+- [x] 不写 skillRoot；不改 .gitignore / git exclude。
+- [x] 新增协议解析修正：`project://X → projectRoot + X`、`run://X → worktreePath + X`（修正原调研 doc §4 的双重 `.ddo/runs` 笔误），已同步 task-03.md。
+
+## 结论
+
+ALL PASSED。无未解答的 human: 检查项。runtime 确定性内核（P0.5 + P0）代码 + 测试 + SKILL.md 改写全部完成并验证。
