@@ -1,0 +1,13 @@
+{
+  "version": "1.0.0",
+  "tasks": [
+    { "id": "task-01", "file": "task-01.md", "title": "创建归档模版 atom-tasks/plan/references/ddo.md（issue #36 正文逐字）", "dependsOn": [] },
+    { "id": "task-02", "file": "task-02.md", "title": "TDD 骨架 Red→Green（run 内脚手架，不提交）", "dependsOn": ["task-01"] },
+    { "id": "task-03", "file": "task-03.md", "title": "提交模版到特性分支并核验变更范围", "dependsOn": ["task-01", "task-02"] }
+  ],
+  "parallelGroups": [
+    ["task-01"],
+    ["task-02"],
+    ["task-03"]
+  ]
+}
