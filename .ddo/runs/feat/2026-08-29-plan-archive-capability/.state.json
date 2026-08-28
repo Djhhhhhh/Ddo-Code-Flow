@@ -1,0 +1,372 @@
+{
+  "runId": "Ddo-Code-Flow-feat-2026-08-29-plan-archive-capability",
+  "workflowId": "guarded",
+  "createdAt": "2026-08-28T16:26:03.823Z",
+  "projectRoot": "/Users/djhhh/work_area/Ddo-Code-Flow",
+  "worktreePath": "/Users/djhhh/work_area/Ddo-Code-Flow-feat-2026-08-29-plan-archive-capability",
+  "skillName": "ddo-code-flow",
+  "skillVersion": "4.0.0",
+  "skillRoot": "/Users/djhhh/.claude/skills/Ddo-Code-Flow",
+  "configPath": ".ddo/config.json",
+  "workflowPath": "workflows/guarded.json",
+  "type": "feat",
+  "dateDescription": "2026-08-29-plan-archive-capability",
+  "artifactDir": "/Users/djhhh/work_area/Ddo-Code-Flow-feat-2026-08-29-plan-archive-capability/.ddo/runs/feat/2026-08-29-plan-archive-capability",
+  "args": {
+    "feature": true,
+    "issue": "https://github.com/Djhhhhhh/Ddo-Code-Flow/issues/36",
+    "requirement": "plan atom-task 新增归档能力，归档参数为：【归档：ddo】，具体模版在 https://github.com/Djhhhhhh/Ddo-Code-Flow/issues/36 这个issue中，本次需求绑定这个issue"
+  },
+  "currentStage": "done",
+  "stages": {
+    "context": {
+      "status": "done",
+      "finishedAt": "2026-08-28T16:27:20.056Z"
+    },
+    "requirement": {
+      "status": "done",
+      "startedAt": "2026-08-28T16:27:20.056Z",
+      "finishedAt": "2026-08-28T16:31:51.986Z"
+    },
+    "spec": {
+      "status": "done",
+      "startedAt": "2026-08-28T16:31:51.986Z",
+      "finishedAt": "2026-08-28T16:40:19.035Z"
+    },
+    "planning": {
+      "status": "done",
+      "startedAt": "2026-08-28T16:40:19.035Z",
+      "finishedAt": "2026-08-28T16:45:41.813Z"
+    },
+    "test-plan": {
+      "status": "done",
+      "startedAt": "2026-08-28T16:45:41.813Z",
+      "finishedAt": "2026-08-28T16:50:20.666Z"
+    },
+    "tasking": {
+      "status": "done",
+      "startedAt": "2026-08-28T16:50:20.666Z",
+      "finishedAt": "2026-08-28T16:54:27.335Z"
+    },
+    "coding": {
+      "status": "done",
+      "startedAt": "2026-08-28T16:54:27.335Z",
+      "tasks": {
+        "task-01": "done",
+        "task-02": "done",
+        "task-03": "done"
+      },
+      "selfCheckRound": 1,
+      "finishedAt": "2026-08-28T16:59:31.823Z"
+    },
+    "verification": {
+      "status": "done",
+      "startedAt": "2026-08-28T16:59:31.823Z",
+      "finishedAt": "2026-08-28T17:19:14.171Z"
+    },
+    "review": {
+      "status": "done",
+      "startedAt": "2026-08-28T17:19:14.171Z",
+      "finishedAt": "2026-08-28T17:19:41.606Z"
+    },
+    "reporting": {
+      "status": "done",
+      "startedAt": "2026-08-28T17:19:41.606Z",
+      "finishedAt": "2026-08-28T17:19:44.477Z"
+    },
+    "reflection": {
+      "status": "done",
+      "startedAt": "2026-08-28T17:19:44.477Z",
+      "finishedAt": "2026-08-28T17:19:57.924Z"
+    },
+    "done": {
+      "status": "done",
+      "startedAt": "2026-08-28T17:19:57.924Z",
+      "finishedAt": "2026-08-28T17:19:57.924Z"
+    }
+  },
+  "artifacts": {
+    "context-summary": {
+      "path": "run://.ddo/runs/feat/2026-08-29-plan-archive-capability/context-summary.md",
+      "producer": "context",
+      "stage": "context",
+      "at": "2026-08-28T16:29:50.446Z"
+    },
+    "requirement": {
+      "path": "run://.ddo/runs/feat/2026-08-29-plan-archive-capability/requirement.md",
+      "producer": "requirement",
+      "stage": "requirement",
+      "at": "2026-08-28T16:29:50.491Z"
+    },
+    "issue-context": {
+      "path": "run://.ddo/runs/feat/2026-08-29-plan-archive-capability/issue-context.md",
+      "producer": "issue-fetch",
+      "stage": "requirement",
+      "at": "2026-08-28T16:56:57.264Z"
+    },
+    "worktree-info": {
+      "path": "run://.ddo/runs/feat/2026-08-29-plan-archive-capability/worktree-info.json",
+      "producer": "git-worktree",
+      "stage": "requirement",
+      "at": "2026-08-28T16:30:04.320Z"
+    },
+    "spec": {
+      "path": "run://.ddo/runs/feat/2026-08-29-plan-archive-capability/spec.md",
+      "producer": "spec",
+      "stage": "spec",
+      "at": "2026-08-28T16:39:55.095Z"
+    },
+    "plan": {
+      "path": "run://.ddo/runs/feat/2026-08-29-plan-archive-capability/plan.md",
+      "producer": "plan",
+      "stage": "planning",
+      "at": "2026-08-28T16:45:05.376Z"
+    },
+    "test-plan": {
+      "path": "run://.ddo/runs/feat/2026-08-29-plan-archive-capability/test-plan.md",
+      "producer": "test-plan",
+      "stage": "test-plan",
+      "at": "2026-08-28T16:50:09.525Z"
+    },
+    "tasks-dir": {
+      "path": "run://.ddo/runs/feat/2026-08-29-plan-archive-capability/tasks",
+      "producer": "tasking",
+      "stage": "tasking",
+      "at": "2026-08-28T16:53:17.192Z"
+    },
+    "task-group": {
+      "path": "run://.ddo/runs/feat/2026-08-29-plan-archive-capability/tasks/task-group.json",
+      "producer": "tasking",
+      "stage": "tasking",
+      "at": "2026-08-28T16:54:14.585Z"
+    },
+    "verification-log": {
+      "path": "run://.ddo/runs/feat/2026-08-29-plan-archive-capability/verification.log",
+      "producer": "verification",
+      "stage": "verification",
+      "at": "2026-08-28T17:12:10.131Z"
+    },
+    "review-report": {
+      "path": "run://.ddo/runs/feat/2026-08-29-plan-archive-capability/review-report.md",
+      "producer": "review",
+      "stage": "review",
+      "at": "2026-08-28T17:19:14.140Z"
+    },
+    "execution-report": {
+      "path": "run://.ddo/runs/feat/2026-08-29-plan-archive-capability/execution-report.md",
+      "producer": "reporting",
+      "stage": "reporting",
+      "at": "2026-08-28T17:19:44.449Z"
+    },
+    "reflection-report": {
+      "path": "run://.ddo/runs/feat/2026-08-29-plan-archive-capability/reflection-report.md",
+      "producer": "reflection",
+      "stage": "reflection",
+      "at": "2026-08-28T17:19:53.027Z"
+    }
+  },
+  "pendingOutputs": {},
+  "history": [
+    {
+      "event": "created",
+      "at": "2026-08-28T16:26:03.823Z",
+      "note": "workflowId=guarded"
+    },
+    {
+      "event": "node-start",
+      "at": "2026-08-28T16:27:16Z",
+      "stage": "context",
+      "node": "context"
+    },
+    {
+      "event": "node-done",
+      "at": "2026-08-28T16:27:16Z",
+      "stage": "context",
+      "node": "context"
+    },
+    {
+      "event": "node-start",
+      "at": "2026-08-28T16:28:23Z",
+      "stage": "requirement",
+      "node": "requirement"
+    },
+    {
+      "event": "node-done",
+      "at": "2026-08-28T16:28:23Z",
+      "stage": "requirement",
+      "node": "requirement"
+    },
+    {
+      "event": "node-start",
+      "at": "2026-08-28T16:29:42Z",
+      "stage": "requirement",
+      "node": "git-worktree"
+    },
+    {
+      "event": "node-done",
+      "at": "2026-08-28T16:29:50.446Z",
+      "stage": "context",
+      "node": "context"
+    },
+    {
+      "event": "node-done",
+      "at": "2026-08-28T16:29:50.491Z",
+      "stage": "requirement",
+      "node": "requirement"
+    },
+    {
+      "event": "node-done",
+      "at": "2026-08-28T16:29:50.535Z",
+      "stage": "requirement",
+      "node": "issue-fetch"
+    },
+    {
+      "event": "node-done",
+      "at": "2026-08-28T16:30:04.320Z",
+      "stage": "requirement",
+      "node": "git-worktree"
+    },
+    {
+      "event": "node-done",
+      "at": "2026-08-28T16:34:18.337Z",
+      "stage": "spec",
+      "node": "spec"
+    },
+    {
+      "event": "spec-revised",
+      "at": "2026-08-28T16:39:39Z",
+      "stage": "spec",
+      "node": "spec",
+      "note": "写回 BQ-1 答案：归档通道复用 plan atom-task 既有机制，需求收窄为新增 ddo 模版（issue #36）；revision 1→2"
+    },
+    {
+      "event": "node-done",
+      "at": "2026-08-28T16:39:55.095Z",
+      "stage": "spec",
+      "node": "spec"
+    },
+    {
+      "event": "gate-approved",
+      "at": "2026-08-28T16:40:14.759Z",
+      "stage": "spec",
+      "note": "用户批准 spec revision 2"
+    },
+    {
+      "event": "node-done",
+      "at": "2026-08-28T16:45:05.376Z",
+      "stage": "planning",
+      "node": "plan"
+    },
+    {
+      "event": "gate-approved",
+      "at": "2026-08-28T16:45:37.847Z",
+      "stage": "planning",
+      "note": "用户批准 plan revision 1"
+    },
+    {
+      "event": "node-done",
+      "at": "2026-08-28T16:47:58.827Z",
+      "stage": "test-plan",
+      "node": "test-plan"
+    },
+    {
+      "event": "node-done",
+      "at": "2026-08-28T16:50:09.525Z",
+      "stage": "test-plan",
+      "node": "test-plan"
+    },
+    {
+      "event": "gate-approved",
+      "at": "2026-08-28T16:50:16.307Z",
+      "stage": "test-plan",
+      "note": "用户批准 test-plan；TDD 阶段 2 已生成 10 个 Red 骨架（it.skip）"
+    },
+    {
+      "event": "node-done",
+      "at": "2026-08-28T16:53:17.192Z",
+      "stage": "tasking",
+      "node": "tasking"
+    },
+    {
+      "event": "node-done",
+      "at": "2026-08-28T16:54:14.585Z",
+      "stage": "tasking",
+      "node": "tasking"
+    },
+    {
+      "event": "node-done",
+      "at": "2026-08-28T16:56:57.264Z",
+      "stage": "requirement",
+      "node": "issue-fetch"
+    },
+    {
+      "event": "task-done",
+      "at": "2026-08-28T16:58:08Z",
+      "stage": "coding",
+      "node": "task-01"
+    },
+    {
+      "event": "task-done",
+      "at": "2026-08-28T16:58:56Z",
+      "stage": "coding",
+      "node": "task-02"
+    },
+    {
+      "event": "task-done",
+      "at": "2026-08-28T16:58:56Z",
+      "stage": "coding",
+      "node": "task-03"
+    },
+    {
+      "event": "node-done",
+      "at": "2026-08-28T16:59:31Z",
+      "stage": "coding",
+      "node": "coding",
+      "note": "selfCheckRound=1; commit ec278f0 仅新增 atom-tasks/plan/references/ddo.md"
+    },
+    {
+      "event": "node-done",
+      "at": "2026-08-28T17:12:10.131Z",
+      "stage": "verification",
+      "node": "verification"
+    },
+    {
+      "event": "stage-status",
+      "at": "2026-08-28T17:12:18Z",
+      "stage": "verification",
+      "node": "verification",
+      "note": "status -> waiting-human"
+    },
+    {
+      "event": "stage-status",
+      "at": "2026-08-28T17:16:16Z",
+      "stage": "verification",
+      "node": "verification",
+      "note": "status -> done"
+    },
+    {
+      "event": "node-done",
+      "at": "2026-08-28T17:19:14.140Z",
+      "stage": "review",
+      "node": "review"
+    },
+    {
+      "event": "node-done",
+      "at": "2026-08-28T17:19:44.449Z",
+      "stage": "reporting",
+      "node": "reporting"
+    },
+    {
+      "event": "node-done",
+      "at": "2026-08-28T17:19:53.027Z",
+      "stage": "reflection",
+      "node": "reflection"
+    },
+    {
+      "event": "gate-approved",
+      "at": "2026-08-28T17:19:55.349Z",
+      "stage": "reflection",
+      "note": "approved"
+    }
+  ]
+}

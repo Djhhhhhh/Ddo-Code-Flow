@@ -1,0 +1,49 @@
+# 验证日志
+
+> test-plan.md 中所有验收条目的执行结果记录。
+
+## G1. 模版文件存在与命名命中（AC-1）
+
+### 执行结果
+
+- [PASS] test -f atom-tasks/plan/references/ddo.md — exit code 0（TP-01：模版文件存在）
+- [PASS] ls atom-tasks/plan/references/ | grep -qx 'ddo.md' — exit code 0（TP-02：`归档` 枚举范围 `*.md` 包含 ddo）
+- [PASS] test "$(basename atom-tasks/plan/references/ddo.md .md)" = "ddo" — exit code 0（TP-03：basename 为 `ddo`，`归档：ddo` 精确命中）
+
+### 组摘要
+
+GROUP G1 PASSED
+
+## G2. 模版内容忠实性（AC-5）
+
+### 执行结果
+
+- [PASS] awk '/^## Issue 正文/{f=1;next} f' .ddo/runs/feat/2026-08-29-plan-archive-capability/issue-context.md | diff - atom-tasks/plan/references/ddo.md — exit code 0（TP-04：模版与 issue #36 正文逐字一致）
+- [PASS] for h in '一、需求描述' '二、技术方案详情' '2.1 整体架构' '2.2 技术选型与方案对比' '2.3 业务详细流程' '2.4 接口设计' '2.5 算法设计' '2.6 数据结构设计' '2.7 错误码设计'; do grep -q "$h" atom-tasks/plan/references/ddo.md || exit 1; done — exit code 0（TP-05：章节骨架齐全）
+- [PASS] grep -q '统一使用 Mermaid' ... && grep -q '禁止 PlantUML' ... && grep -q 'N/A' ... && grep -q 'drivesDownstream=false' ... && grep -q 'staleWhenPlanRevisionChanges=true' ... && grep -q '归档不代表 Plan 批准' ... — exit code 0（TP-06：Mermaid-only / N/A 规则 / 归档属性声明）
+
+### 组摘要
+
+GROUP G2 PASSED
+
+## G3. 归档机制不回归（AC-2、AC-3、AC-4）
+
+### 执行结果
+
+- [PASS] git diff main --name-status — 输出恰为 `A	atom-tasks/plan/references/ddo.md`（TP-07：全部变更仅新增模版文件，机制文件零改动）
+- [PASS] git diff main --name-only -- atom-tasks/plan/plan.md atom-tasks/plan/plan.output.schema.json atom-tasks/artifacts.json state.schema.json workflows/ .gitignore — 输出为空（TP-08：机制与边界文件显式零差异）
+- [PASS] node --test scripts/runtime/test/ — exit code 0（TP-09：运行时测试基线全绿）
+- [PASS] node scripts/runtime/ddo.js validate-dag --skill-root . --workflow workflows/guarded.json — exit code 0，含 valid（TP-10：以本工作树为 skillRoot，角色可达性校验通过）
+
+### 组摘要
+
+GROUP G3 PASSED
+
+## 人工检查清单
+
+- [PASS] human: 变更同步到部署副本（~/.claude/skills/Ddo-Code-Flow）后，在任一含 planning 阶段的真实 run 中输入 `归档` → 模版列表显示 `ddo`；输入 `归档：ddo` → run 产物目录生成/刷新 tech-design.md，内容按 issue #36 模板章节组织，且记录模板名 `ddo` 与来源 Plan revision；确认 planning 确认门状态未因归档改变 — 用户确认通过（AC-1、AC-4）
+- [PASS] human: 对 Plan 做一次 `修改：<任意反馈>` 使 revision 变化后，再次输入 `归档：ddo` → 归档被刷新且记录新 revision（验证 stale 后重新归档语义）；随后进入后续阶段，确认归档文档未出现在任何下游节点输入中 — 用户确认通过（AC-2、AC-3）
+
+## 最终结果
+
+ALL PASSED
