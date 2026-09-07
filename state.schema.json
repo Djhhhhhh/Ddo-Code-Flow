@@ -5,6 +5,7 @@
   "type": "object",
   "required": [
     "runId",
+    "bootstrapId",
     "workflowId",
     "createdAt",
     "projectRoot",
@@ -31,6 +32,13 @@
       "description": "Stable run identifier. Null only before git-worktree computes the branch and worktree name.",
       "x-ddo-writer": "git-worktree",
       "x-ddo-readers": ["reporting", "reflection"]
+    },
+    "bootstrapId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Stable identifier created before a worktree exists.",
+      "x-ddo-writer": "runtime",
+      "x-ddo-readers": ["runtime", "git-worktree"]
     },
     "workflowId": {
       "type": "string",
@@ -94,7 +102,7 @@
       "type": "string",
       "enum": ["feat", "fix"],
       "description": "Run type selected from --feature, --bugfix, inference, or defaultRunType.",
-      "x-ddo-writer": "git-worktree",
+      "x-ddo-writer": "runtime",
       "x-ddo-readers": ["runtime"]
     },
     "dateDescription": {
@@ -140,7 +148,7 @@
     "pendingOutputs": {
       "type": "object",
       "description": "Delayed outputs held before artifactDir exists.",
-      "additionalProperties": { "type": "string" },
+      "additionalProperties": { "$ref": "#/$defs/pendingOutput" },
       "x-ddo-writer": "runtime",
       "x-ddo-readers": ["runtime"]
     },
@@ -159,9 +167,12 @@
       "x-ddo-readers": ["requirement", "remote-gate", "create-pr"]
     },
     "gatePending": {
-      "$ref": "#/$defs/gatePending",
-      "description": "Remote gate pending state owned by remote-gate.",
-      "x-ddo-writer": "remote-gate",
+      "oneOf": [
+        { "$ref": "#/$defs/gatePending" },
+        { "type": "null" }
+      ],
+      "description": "Remote gate pending state persisted by runtime.",
+      "x-ddo-writer": "runtime",
       "x-ddo-readers": ["remote-gate", "runtime"]
     },
     "prInfo": {
@@ -180,8 +191,25 @@
       "properties": {
         "path": { "type": "string", "minLength": 1 },
         "producer": { "type": "string", "minLength": 1 },
+        "task": { "type": "string", "minLength": 1 },
         "stage": { "type": "string", "minLength": 1 },
         "at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "pendingOutput": {
+      "type": "object",
+      "required": ["role", "producer", "task", "stage", "encoding", "content", "contentHash", "createdAt"],
+      "additionalProperties": false,
+      "properties": {
+        "role": { "type": "string", "minLength": 1 },
+        "producer": { "type": "string", "minLength": 1 },
+        "task": { "type": "string", "minLength": 1 },
+        "stage": { "type": "string", "minLength": 1 },
+        "encoding": { "type": "string", "const": "base64" },
+        "content": { "type": "string" },
+        "contentHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "outputSchemaRef": { "type": ["string", "null"] },
+        "createdAt": { "type": "string", "format": "date-time" }
       }
     },
     "historyEvent": {
@@ -205,7 +233,7 @@
       "properties": {
         "issueNumber": { "type": "integer", "minimum": 1 },
         "repo": {
-          "type": "string",
+          "type": ["string", "null"],
           "pattern": "^[^/]+/[^/]+$"
         },
         "title": { "type": "string" },
@@ -215,12 +243,16 @@
     },
     "gatePending": {
       "type": "object",
-      "required": ["stage", "issueNumber", "enteredAt", "status"],
+      "required": ["stage", "enteredAt", "status", "cycleId"],
       "additionalProperties": false,
       "properties": {
         "stage": { "type": "string", "minLength": 1 },
-        "issueNumber": { "type": "integer", "minimum": 1 },
+        "issueNumber": { "type": ["integer", "null"], "minimum": 1 },
+        "repo": { "type": ["string", "null"] },
+        "monitorId": { "type": ["string", "null"] },
         "enteredAt": { "type": "string", "format": "date-time" },
+        "timeoutAt": { "type": ["string", "null"] },
+        "cycleId": { "type": "string", "minLength": 1 },
         "status": {
           "type": "string",
           "enum": ["pending", "approved", "rejected"]

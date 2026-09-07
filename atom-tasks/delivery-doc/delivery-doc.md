@@ -1,6 +1,6 @@
 ---
 name: delivery-doc
-version: "4.0.0"
+version: "5.0.0"
 enabled: true
 timeoutSec: 0
 concurrency:

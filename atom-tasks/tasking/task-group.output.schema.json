@@ -1,5 +1,5 @@
 {
-  "description": "tasks/task-group.json 输出规范。v4 只将 task-group.json 登记为 task-group 角色；逐项任务说明由 tasks-dir 角色中的 task-NN.md 承载。",
+  "description": "tasks/task-group.json 输出规范。v5 只将 task-group.json 登记为 task-group 角色；逐项任务说明由 tasks-dir 角色中的 task-NN.md 承载。",
   "outputFormat": "json",
   "document": {
     "title": "任务分组",
@@ -74,6 +74,9 @@
         }
       ]
     }
+  ],
+  "validators": [
+    { "name": "task-group" }
   ],
   "rules": [
     "每个 task 必须有唯一 id（task-NN 格式）、file（task-NN.md）、title、dependsOn 数组",

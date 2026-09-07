@@ -10,12 +10,12 @@
   "pipeline": [
     {
       "stage": "context",
-      "description": "读取项目基础上下文，构建后续阶段所需的背景信息。产物暂存内存，等 requirement 阶段的 git-worktree 创建运行目录后统一刷写到 worktree。",
+      "description": "读取项目基础上下文，构建后续阶段所需的背景信息。产物由 runtime 写入 bootstrap pendingOutputs，接入 worktree 后统一刷写。",
       "enabled": true,
       "atomTasks": {
         "entry": ["context"],
         "nodes": {
-          "context": { "next": ["requirement"], "parallelApprove": false, "parallelWith": [] }
+          "context": { "next": [], "parallelApprove": false, "parallelWith": [] }
         }
       }
     },
@@ -27,7 +27,7 @@
         "entry": ["requirement"],
         "nodes": {
           "requirement": { "next": ["git-worktree"], "parallelApprove": false, "parallelWith": [] },
-          "git-worktree": { "next": ["spec"], "parallelApprove": false, "parallelWith": [] }
+          "git-worktree": { "next": [], "parallelApprove": false, "parallelWith": [] }
         }
       }
     },
@@ -38,7 +38,7 @@
       "atomTasks": {
         "entry": ["spec"],
         "nodes": {
-          "spec": { "next": ["plan"], "parallelApprove": false, "parallelWith": [] }
+          "spec": { "next": [], "parallelApprove": false, "parallelWith": [] }
         }
       }
     },
@@ -49,7 +49,7 @@
       "atomTasks": {
         "entry": ["plan"],
         "nodes": {
-          "plan": { "next": ["coding"], "parallelApprove": false, "parallelWith": [] }
+          "plan": { "next": [], "parallelApprove": false, "parallelWith": [] }
         }
       }
     },
@@ -60,7 +60,7 @@
       "atomTasks": {
         "entry": ["coding"],
         "nodes": {
-          "coding": { "next": ["verification"], "parallelApprove": false, "parallelWith": [] }
+          "coding": { "next": [], "parallelApprove": false, "parallelWith": [] }
         }
       }
     },
@@ -71,7 +71,7 @@
       "atomTasks": {
         "entry": ["verification"],
         "nodes": {
-          "verification": { "next": ["reporting"], "parallelApprove": false, "parallelWith": [] }
+          "verification": { "next": [], "parallelApprove": false, "parallelWith": [] }
         }
       }
     },
@@ -82,7 +82,7 @@
       "atomTasks": {
         "entry": ["reporting"],
         "nodes": {
-          "reporting": { "next": ["reflection"], "parallelApprove": false, "parallelWith": [] }
+          "reporting": { "next": [], "parallelApprove": false, "parallelWith": [] }
         }
       }
     },
@@ -95,15 +95,6 @@
         "nodes": {
           "reflection": { "next": [], "parallelApprove": false, "parallelWith": [] }
         }
-      }
-    },
-    {
-      "stage": "done",
-      "description": "标记本次 run 结束。",
-      "enabled": true,
-      "atomTasks": {
-        "entry": [],
-        "nodes": {}
       }
     }
   ],

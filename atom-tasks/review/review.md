@@ -1,6 +1,6 @@
 ---
 name: review
-version: "4.0.0"
+version: "5.0.0"
 enabled: false
 timeoutSec: 0
 concurrency:
@@ -18,7 +18,8 @@ outputSchemaRef: "skill://atom-tasks/review/review-report.output.schema.json"
 options:
   - key: models
     type: array
-    items: { type: string }
+    items:
+      type: string
     default: []
     label: "Models"
     description: "模型列表（多模型评审扇出，空=单模型评审）"
@@ -35,7 +36,7 @@ options:
 
 ## 指令
 
-生成一个 sub-agent（或将自己视为 sub-agent），逐条遍历内置复审清单。对每个条目，对照 `.state.json.worktreePath` 中的代码和 runtime 注入的文档产物进行评估。将 review-report 写入磁盘，每个 checklist 条目一个 section：`## <条目>` 后跟结论（通过/不通过/不适用）和备注。
+生成一个 sub-agent（或将自己视为 sub-agent），逐条遍历内置复审清单。对每个条目，对照 `{{runtime.worktreePath}}` 中的代码和 runtime 注入的文档产物进行评估。将 review-report 写入磁盘，每个 checklist 条目一个 section：`## <条目>` 后跟结论（通过/不通过/不适用）和备注。
 
 ### 多模型评审扇出（options.models）
 

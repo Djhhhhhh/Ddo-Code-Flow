@@ -1,79 +1,66 @@
 ---
 name: cleanup-worktree
-version: "4.0.0"
+version: "5.0.0"
 enabled: true
 timeoutSec: 60
 concurrency:
   parallelizable: false
+confirmation:
+  rejectAction: abort
 consumes:
   - role: pr-info
     required: false
+  - role: worktree-info
+    required: true
 produces: []
+options:
+  - key: forceCleanup
+    type: boolean
+    default: false
+    label: "Force cleanup"
+    description: "仅在策略明确批准后允许强制移除 dirty worktree 或未合并分支"
 ---
 
 # cleanup-worktree
 
-> 在流水线 done 阶段清理 worktree 和本地分支。仅在 worktree 存在时执行清理操作。
+> 在 cleanup 阶段安全清理 worktree 和本地分支。成功或安全跳过后由 runtime 完成节点并进入 done。
 
 ## 指令
 
-### 1. 读取状态
+### 1. 读取只读上下文
 
-从 `.state.json` 读取：
-- `worktreePath`: worktree 的绝对路径
-- `projectRoot`: 项目根目录（主工作树）
-- `runId`: 运行标识
-
-从 `{{inputs.pr-info}}` 或 `.state.json.artifacts.worktree-info` 读取：
-- `branchName`: 分支名称
+- 从 runtime 注入值读取项目根目录：`{{runtime.projectRoot}}`。
+- 从 `{{inputs.worktree-info}}` 读取 `branchName` 与 `worktreePath`。
+- `{{inputs.pr-info}}` 仅用于判断 PR 是否已创建，不承担分支元数据职责。
 
 ### 2. 检查清理条件
 
-- 如果 `worktreePath` 为 null 或目录不存在，跳过清理并记录「无 worktree 需要清理」。
-- 如果 `branchName` 无法获取，跳过分支清理。
+- worktree 不存在时，记录 `cleanup-skipped`，原因是无需清理。
+- branchName 缺失时跳过分支删除并记录原因。
+- worktree 有未提交改动或分支尚未合并时，默认安全跳过。
 
-### 3. 执行清理
+### 3. 执行安全清理
 
-a. 切换到 projectRoot（主工作树）：
-   ```
-   cd <projectRoot>
-   ```
+先切换到 `{{runtime.projectRoot}}`，再执行：
 
-b. 移除 worktree：
-   ```
-   git worktree remove <worktreePath>
-   ```
-   如果 worktree 有未提交更改，使用 `--force` 标志。
-
-c. 删除本地分支：
-   ```
-   git branch -d <branchName>
-   ```
-   如果分支未合并，使用 `-D` 标志。
-
-### 4. 记录结果
-
-将清理结果写入 `.state.json.history`：
-```json
-{
-  "event": "cleanup-done",
-  "at": "<ISO 8601>",
-  "note": "worktree=<worktreePath>, branch=<branchName>, status=removed"
-}
+```text
+git worktree remove <worktreePath>
+git branch -d <branchName>
 ```
 
-如果清理失败（worktree 不存在、分支已删除等），记录警告但不中断流水线：
-```json
-{
-  "event": "cleanup-skipped",
-  "at": "<ISO 8601>",
-  "note": "reason=<错误原因>"
-}
-```
+默认禁止 `--force` 和 `git branch -D`。只有 `options.forceCleanup=true` 且用户或远端策略已明确批准时才允许强制操作。
+
+### 4. 记录并完成
+
+- 成功时调用 runtime `record-cleanup-result --status done`。
+- dirty worktree、未合并分支或无需清理时调用 `record-cleanup-result --status skipped --reason <原因>`。
+- 随后调用 `complete-node --node cleanup-worktree --stage cleanup`。
+- 路径校验错误或 runtime 状态损坏时不得假装完成。
 
 ## 约束
 
-- 仅在 worktreePath 和 branchName 都有效时执行清理
-- 清理失败不阻断流水线完成（warn 策略）
-- 不得修改项目源代码，仅执行 git 清理命令
-- 不得在 worktree 内部执行清理（需先切换到 projectRoot）
+- 不得删除 `projectRoot`。
+- 不得在待删除 worktree 内执行清理。
+- 分支删除前必须确认 PR 已创建或分支已合并。
+- 安全跳过不阻断 run，但必须留下可审计记录。
+- 不得修改项目源代码。

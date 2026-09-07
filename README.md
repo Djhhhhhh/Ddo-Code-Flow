@@ -1,135 +1,135 @@
 # ddo-code-flow
 
-**ddo-code-flow** 是一个可配置的 AI 编码流水线 skill。v4 的核心目标是把职责边界拆清楚：
+**ddo-code-flow** 是一个可配置的 AI 编码流水线 skill。v5 将业务任务、编排、配置与运行时状态分开管理：
 
-- atom-task 只声明自己消费和产出的 artifact role。
-- workflow 是唯一集成层，负责 stage 顺序、DAG 边、`taskRef`、节点 options 和确认门。
-- config 只在运行时内存合成，来源是只读 skill 默认配置、项目配置和 run 参数。
-- runtime 负责状态、artifact role 注入、worktree 创建、恢复和 metrics hook。
+- atom-task 只声明业务指令、输入/输出 artifact role 和任务选项。
+- workflow 负责 stage 顺序、DAG、`taskRef`、节点选项与确认门。
+- config 只参与运行时内存合成，不生成每次 run 的有效配置副本。
+- runtime 负责 DAG 校验、输入注入、产物登记、节点完成、状态写入、worktree 状态接入与恢复。
+- git worktree 的创建和清理由对应 atom-task 执行，runtime 只校验并接入最终路径。
 
 ![Studio 截图](assets/image.png)
 
-## v4 变化
+## v5 变化
 
-- `config.json` 重命名为 `config.default.json`，作为只读 skill 默认配置，只在设计时编辑。
-- 每个项目只维护一份 `.ddo/config.json`；首次 run 会自动创建 `.ddo/` 和 `.ddo/runs/`。
-- worktree 创建在 `worktreeDir` 下；空 `worktreeDir` 表示项目父目录，因此默认 worktree 与项目同级。
-- run 产物在运行期写入 worktree 内 `.ddo/runs/<type>/<dateDescription>/`，随分支合并回项目。
-- atom-task frontmatter 使用 `produces` 和 `consumes`；具体路径由 runtime 通过 `atom-tasks/artifacts.json` 解析。
-- skill 不写 `.gitignore` 或 git exclude；`.ddo/` 的 git 可见性完全交给用户控制。
+- `register-artifact` 只登记产物并写入 `artifact-registered`，不再隐式完成节点。
+- 所有已声明产物登记完成后，由 `complete-node` 统一写入 `node-done`；零产物任务也走同一完成流程。
+- worktree 创建前的 state 位于项目内 `.ddo/runs/.pending/<bootstrapId>/.state.json`。
+- `attach-worktree` 接入最终路径、刷写 pending outputs、登记 `worktree-info`，再迁移 state。
+- `done` 是 runtime 保留终态，不是 workflow stage；issue-driven 的最后一个真实 stage 是 `cleanup`。
+- `--model` 必须精确匹配已登记 workflow id，未知值直接失败。
+- output schema 先通过 meta-schema 校验，产物内容也必须在原子登记前通过校验。
 
 ## 仓库布局
 
 ```text
-SKILL.md                                  # v4 指令型 runtime
-config.default.json                       # 只读全局默认配置
-config.schema.json                        # 默认配置、workflow、项目配置 schema
-state.schema.json                         # run state schema 与字段归属
-show_case.md                              # 当前 v4 端到端执行示例
+SKILL.md                                  # v5 运行协议
+config.default.json                       # 只读默认配置与 workflow 索引
+config.schema.json                        # 默认、项目配置与 workflow schema
+state.schema.json                         # run state 与唯一 writer 契约
+show_case.md                              # 受契约测试保护的衍生执行示例
 workflows/*.json                          # pipeline 定义
 atom-tasks/artifacts.json                 # artifact role 目录
-atom-tasks/<name>/<name>.md               # atom-task v4 frontmatter + 指令
-atom-tasks/<name>/*.output.schema.json    # 文档或 JSON 输出契约
+atom-tasks/<name>/<name>.md               # atom-task frontmatter 与业务指令
+atom-tasks/<name>/*.output.schema.json    # 输出结构与内容契约
+scripts/runtime/                          # 确定性运行时与测试
 scripts/metrics/                          # 可选 run 级 metrics 插件
-ui/index.html + ui/studio.js              # 设计时静态 Studio
-.claude/rules/                            # 仓库编码规则
+ui/                                       # 设计时 Studio
 ```
+
+schema、仓库规则和 runtime 是行为事实源；`show_case.md` 仅用于展示一条符合契约的完整执行路径。
 
 ## Run 模型
 
-默认 run 结构：
+worktree 创建前，runtime 先持久化 bootstrap state：
 
 ```text
-<project-parent>/
-|-- <projectName>/                         # projectRoot
-|   `-- .ddo/
-|       |-- config.json                    # 项目级配置
-|       `-- runs/                          # 合并回项目后的 run 产物，不含 worktree/src
-|           `-- feat/YYYY-MM-DD-slug/
-|               |-- worktree-info.json
-|               |-- context-summary.md
-|               |-- requirement.md
-|               |-- spec.md
-|               |-- plan.md
-|               |-- test-plan.md
-|               |-- tasks/task-group.json
-|               |-- tasks/task-01.md
-|               |-- verification.log
-|               |-- execution-report.md
-|               `-- reflection-report.md
-`-- <projectName>-feat-YYYY-MM-DD-slug/    # worktreePath
-    |-- source files
-    `-- .ddo/runs/feat/YYYY-MM-DD-slug/
-        |-- .state.json
-        |-- worktree-info.json
-        |-- context-summary.md
-        |-- requirement.md
-        |-- spec.md
-        |-- plan.md
-        |-- test-plan.md
-        |-- tasks/task-group.json
-        |-- tasks/task-01.md
-        |-- verification.log
-        |-- execution-report.md
-        `-- reflection-report.md
+<projectRoot>/.ddo/
+|-- config.json
+`-- runs/
+    `-- .pending/
+        `-- <bootstrapId>/
+            `-- .state.json
 ```
 
-通过 `.ddo/config.json` 修改 worktree 落点：
+此时生成的产物由 runtime 以 base64 结构写入 `pendingOutputs`。git-worktree 任务创建 worktree 后调用 `attach-worktree`，最终结构为：
+
+```text
+<worktreePath>/
+|-- source files
+`-- .ddo/runs/<type>/<dateDescription>/
+    |-- .state.json
+    |-- worktree-info.json
+    |-- context-summary.md
+    |-- requirement.md
+    |-- spec.md
+    |-- plan.md
+    |-- test-plan.md
+    |-- tasks/task-group.json
+    |-- tasks/task-01.md
+    |-- code-change.json
+    |-- verification.log
+    |-- execution-report.md
+    `-- reflection-report.md
+```
+
+attach 成功后，runtime 刷写全部 pending outputs、写入最终 state，并在 bootstrap 目录留下 relocation marker 后删除旧 state。产物随分支合并回项目的 `.ddo/runs/<type>/<dateDescription>/`；skill 不修改 `.gitignore` 或 git exclude。
+
+## 项目配置
+
+项目只维护 `<projectRoot>/.ddo/config.json`。示例：
 
 ```json
 {
-  "$schema": "../config.schema.json#/$defs/projectConfig",
   "worktreeDir": "",
   "defaultRunType": "feat",
   "contextPaths": [],
-  "atomTaskOverrides": {}
+  "atomTaskOverrides": {
+    "coding": {
+      "model": "sonnet"
+    }
+  }
 }
 ```
 
-`show_case.md` 是当前 v4 布局的权威端到端示例。`docs/feat/2026-08-05-project-consistency-audit/show-case.md` 是本次需求交付物副本，并由契约测试保证与根目录 `show_case.md` 保持一致。
+runtime 使用 skill 内的 `config.schema.json#/$defs/projectConfig` 校验该文件，然后按“默认配置 < 项目配置 < 显式 run 配置 override”合成。项目扁平字段会映射到有效配置的 `base`；选择参数不会混入配置根。
 
-## 状态与产物
+## 入口参数
 
-运行时产物流是 role-based：
+- `--model <workflow-id>`：精确选择 `standard`、`lightweight`、`guarded` 或 `issue-driven`；未知 id 失败。
+- `--feature`：将 run type 设为 `feat`。
+- `--bugfix`：将 run type 设为 `fix`；不能与 `--feature` 同时使用。
+- `--ctx <path>` / `--context <path>`：为当前 run 追加上下文，不写入项目配置。
+- `--atom <task-name>`：只执行指定 atom-task，不运行完整 pipeline。
 
-- atom-task 通过 `produces` 和 `consumes` 声明 artifact role。
-- `atom-tasks/artifacts.json` 把每个 role 映射到 `.ddo/runs/<type>/<dateDescription>/` 下的文件或目录。
-- `.state.json.artifacts` 是 artifact blackboard，记录实际 role 路径，例如 `run://.ddo/runs/feat/YYYY-MM-DD-slug/spec.md`。
-- 下游任务通过 `{{inputs.<role>}}` 接收路径，不应该猜测上游文件名。
-
-运行时状态单独归属：
-
-- `state.schema.json` 定义每个 `.state.json` 顶层字段。
-- 每个 state 字段必须且只能有一个 `x-ddo-writer`。
-- `runId` 初始为 `null`，由 `git-worktree` 设置为 `<projectName>-<branchName-with-slashes-replaced>`。
-- `createdAt`、`workflowId`、`args`、`currentStage`、`stages`、`artifacts`、`pendingOutputs` 和 `history` 归 runtime 所有。
-- `issueContext`、`gatePending` 和 `prInfo` 是仅有的 task-owned 顶层 state 字段，分别由 `issue-fetch`、`remote-gate` 和 `create-pr` 写入。
-
-## 调用参数
-
-- `--model <workflow-id>`：显式选择 workflow。
-- `--feature`：将 run 标记为 `feat`。
-- `--bugfix`：将 run 标记为 `fix`。
-
-`--model` 是唯一的 workflow 选择参数。`--feature` 和 `--bugfix` 不参与 workflow 选择，只决定 run type，也就是分支前缀和 `.ddo/runs/<type>/...` 产物目录。如果 `--model` 不是精确 workflow id，则按 selection rules 匹配，再回退到默认 workflow。如果没有传 run type 标志，则从文本推断或使用 `defaultRunType`。
+未提供 `--model` 时，selection rules 只匹配用户需求文本，之后回退到默认 workflow。`--feature` 和 `--bugfix` 只决定 run type，不参与 workflow 选择。
 
 ## Workflows
 
-当前 workflows：
-
-- `standard`：完整 requirement / spec / plan / test-plan / tasking / coding / verification / reporting / reflection 流程。
-- `lightweight`：跳过 test-plan 和 tasking，适合小修、文档更新或快速迭代。
+- `standard`：完整 requirement、spec、planning、test-plan、tasking、coding、verification、reporting、reflection 流程。
+- `lightweight`：省略 test-plan 和 tasking，适合小修或文档更新。
 - `guarded`：启用 review，适合安全、迁移、公开接口或性能敏感变更。
-- `issue-driven`：拉取 issue、使用远端确认门，然后生成交付文档和 PR 元数据。
+- `issue-driven`：读取 issue，经过三个远端确认门，生成交付文档和 PR 元数据，最后执行真实 `cleanup` stage。
+
+仓库没有 `research` workflow；`--model research` 会明确失败。需求文本中的“调研”仍可由规则选择 `lightweight`。
+
+## 状态与产物
+
+- atom-task 通过 `produces` 和 `consumes` 声明 role；`produces` 必填但允许 `[]`。
+- `atom-tasks/artifacts.json` 将 role 映射到固定文件；`stage-artifact` 是 runtime 解析的动态输入 role。
+- required 输入缺失会阻止节点执行；optional 输入缺失会注入空值并记录 `optional-input-missing`。
+- `register-artifact` 先校验内容，再原子落盘或进入 `pendingOutputs`，并记录 `artifact-registered` 或 `artifact-pending`。
+- `complete-node` 独立检查节点全部声明产物的 producer、stage、路径和 pending 状态，成功后才记录 `node-done`。
+- `advance-stage` 校验节点、确认门、pending outputs、required binding 和终态不变量后推进。
+
+所有 state 写入都经过 `applyMutation(state, patch, writer)`。`type`、`gatePending`、`currentStage`、`stages`、`artifacts`、`pendingOutputs` 和 `history` 由 runtime 持有；`runId`、`worktreePath`、`dateDescription` 与 `artifactDir` 由 git-worktree writer 通过 `attach-worktree` 更新；`issueContext` 和 `prInfo` 分别归 issue-fetch 与 create-pr writer。atom-task 不直接编辑 `.state.json`。
 
 ## Atom-Task 契约
-
-示例：
 
 ```yaml
 ---
 name: spec
-version: "4.0.0"
+version: "5.0.0"
 enabled: true
 timeoutSec: 0
 concurrency:
@@ -139,8 +139,6 @@ confirmation:
 consumes:
   - role: requirement
     required: true
-  - role: context-summary
-    required: false
 produces:
   - role: spec
     kind: markdown
@@ -149,36 +147,28 @@ outputSchemaRef: "skill://atom-tasks/spec/spec.output.schema.json"
 ---
 ```
 
-规则：
+frontmatter 使用零依赖受限 YAML：支持 block 结构以及精确的空容器 `[]`、`{}`，拒绝其他 flow-style 写法并报告文件与行号。任务名、目录名、文件名和 `frontmatter.name` 必须一致；同一任务最多有一个 primary 产物。
 
-- atom-task frontmatter 不允许 `stage` 字段。
-- atom-task frontmatter 和任务指令不允许具体 `run://...` 路径。
-- atom-task 指令不允许点名上游 atom-task。
-- 确认门只属于 workflow JSON。
-- 新增 `.state.json` 顶层字段前，必须先在 `state.schema.json` 中声明。
+## 恢复与终态
 
-## Metrics
+`find-resumable` 同时识别：
 
-Metrics 是可选的 run 级能力，不是 atom-task。详见 [docs/metrics.md](docs/metrics.md)。
+- `bootstrap`：state 位于项目 `.ddo/runs/.pending/`，worktree 尚未接入。
+- `worktree`：state 位于最终 `artifactDir`，且 worktree 路径存在。
 
-## Studio
+候选按 `bootstrapId` 去重并优先最终 state。只有所有 enabled stage 已完成、全局没有 pending output 或 pending gate、没有运行中/失败/等待人工的 stage，且已完成节点的产物仍可解析时，runtime 才把 `currentStage` 设为 `done`。
 
-在 Chromium 系浏览器中打开 `ui/index.html`，然后选择 skill 目录。Studio 仅用于设计时编辑：它编辑 `config.default.json` 和 workflow JSON，不编辑项目 `.ddo/config.json`，也还没有实现完整 v4 role 可视化。
+## Metrics 与 Studio
 
-## 版本说明
-
-- `SKILL.md` metadata version 是主 runtime 契约版本。
-- `config.default.json` version 是默认配置契约版本。
-- workflow `version` 跟踪 workflow 定义修订。
-- atom-task `version` 跟踪单个任务的 frontmatter / 指令契约。
+Metrics 是可选的 run 级能力，不属于 atom-task 或 workflow stage，详见 [docs/metrics.md](docs/metrics.md)。Studio 是设计时工具，用于编辑默认配置和 workflow，不参与运行期状态写入。
 
 ## 贡献规则
 
-- schema、默认配置、任务定义、测试和文档需要同步修改。
-- 使用新 artifact role 前，先添加到 `atom-tasks/artifacts.json`。
-- 新增或修改 `.state.json` 顶层字段前，先更新 `state.schema.json`。
-- runtime 机制留在 `SKILL.md`，不要复制进 atom-task 指令。
-- `.ddo/` 的 git 可见性由用户控制；skill 永远不写 `.gitignore` 或 git exclude。
+- schema、默认配置、任务定义、测试和文档必须同步。
+- 使用新 role 前先登记到 `atom-tasks/artifacts.json`。
+- 新增 state 顶层字段前先声明唯一非空 `x-ddo-writer`。
+- runtime 机制保留在 `SKILL.md`；atom-task 只保留业务指令和 runtime 命令调用。
+- 运行时不得写入 `skillRoot`，也不得修改 git 可见性设置。
 
 ## License
 

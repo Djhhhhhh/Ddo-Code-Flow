@@ -1,87 +1,116 @@
 'use strict';
-const path = require('path');
-const fs = require('fs');
-const { parseFrontmatter } = require('./frontmatter');
+const { resolveEffectiveNode } = require('./effective-node');
 const { topoOrder } = require('./workflow');
 
-// options 合并：workflow override > config override > node options > atom-task 默认。
-function mergeOptions(taskDefaults, nodeOptions, configOverride, workflowOverride) {
-  const out = { ...taskDefaults };
-  const stripMeta = (o) => {
-    if (!o || typeof o !== 'object') return {};
-    const r = {};
-    for (const [k, v] of Object.entries(o)) {
-      if (k === 'enabled' || k === 'model') continue;
-      r[k] = v;
-    }
-    return r;
-  };
-  Object.assign(out, nodeOptions || {});
-  Object.assign(out, stripMeta(configOverride));
-  Object.assign(out, stripMeta(workflowOverride));
-  return out;
-}
-
-// 选当前 stage 下一批（入度 0）节点，注入 {{inputs.*}} 并合并 options，输出自包含指令。
-function nextNode({ state, workflow, skillRoot, config }) {
+function nextNode({ state, workflow, skillRoot, config = {} }) {
   const currentStage = state.currentStage;
-  const stage = workflow.pipeline.find((s) => s.stage === currentStage);
-  if (!stage || stage.enabled === false) return { stage: currentStage, done: true, batch: [] };
+  const stage = (workflow.pipeline || []).find((item) => item.stage === currentStage);
+  if (!stage || stage.enabled === false) return { stage: currentStage, done: true, batch: [], optionalMissingRoles: [], historyEvents: [] };
+  const allNodes = stage.atomTasks.nodes || {};
+  const effectiveNodes = {};
+  for (const nodeName of Object.keys(allNodes)) {
+    const resolved = resolveEffectiveNode({ skillRoot, workflow, effectiveConfig: config, stageName: currentStage, nodeName });
+    if (resolved.enabled) effectiveNodes[nodeName] = resolved;
+  }
+  const doneNodes = completedNodeNames(state, currentStage);
+  const remaining = Object.keys(effectiveNodes).filter((name) => !doneNodes.has(name));
+  if (remaining.length === 0) return { stage: currentStage, done: true, batch: [], optionalMissingRoles: [], historyEvents: [] };
 
-  const nodes = stage.atomTasks.nodes || {};
-  const entry = stage.atomTasks.entry || [];
-  const doneNodes = new Set(
-    (state.history || []).filter((e) => e.event === 'node-done' && e.stage === currentStage).map((e) => e.node)
-  );
-  const remaining = Object.keys(nodes).filter((n) => !doneNodes.has(n));
-  if (remaining.length === 0) return { stage: currentStage, done: true, batch: [] };
-
-  const indegree = {};
-  for (const n of remaining) indegree[n] = 0;
+  const remainingGraph = {};
   for (const name of remaining) {
-    for (const nxt of nodes[name].next || []) if (remaining.includes(nxt)) indegree[nxt]++;
-    for (const pw of nodes[name].parallelWith || []) if (remaining.includes(pw)) indegree[pw]++;
+    const node = effectiveNodes[name].node;
+    remainingGraph[name] = {
+      ...node,
+      next: (node.next || []).filter((target) => remaining.includes(target)),
+      parallelWith: (node.parallelWith || []).filter((target) => remaining.includes(target)),
+    };
   }
-  const batch = remaining.filter((n) => indegree[n] === 0);
-
-  const instructions = batch.map((nodeName) =>
-    buildInstruction({ state, nodeName, node: nodes[nodeName], skillRoot, config, workflow })
-  );
-  return { stage: currentStage, done: false, batch: instructions };
+  const topo = topoOrder(remainingGraph, stage.atomTasks.entry || []);
+  if (topo.cycle) throw failure(`stage ${currentStage} 存在未解决的节点环`);
+  const indegree = Object.fromEntries(remaining.map((name) => [name, 0]));
+  for (const node of Object.values(remainingGraph)) {
+    for (const target of [...(node.next || []), ...(node.parallelWith || [])]) indegree[target]++;
+  }
+  const batchNames = topo.order.filter((name) => indegree[name] === 0);
+  const optionalMissingRoles = [];
+  const batch = batchNames.map((name) => {
+    const built = buildInstruction({ state, effectiveNode: effectiveNodes[name], workflow, skillRoot, config });
+    optionalMissingRoles.push(...built.optionalMissingRoles.map((role) => ({ node: name, role })));
+    return built.instruction;
+  });
+  const now = new Date().toISOString();
+  const historyEvents = optionalMissingRoles.map(({ node, role }) => ({
+    event: 'optional-input-missing', at: now, stage: currentStage, node, role,
+  }));
+  return { stage: currentStage, done: false, batch, optionalMissingRoles, historyEvents };
 }
 
-function buildInstruction({ state, nodeName, node, skillRoot, config, workflow }) {
-  const effectiveName = node.taskRef || nodeName;
-  const mdPath = path.join(skillRoot, 'atom-tasks', effectiveName, `${effectiveName}.md`);
-  let md = fs.readFileSync(mdPath, 'utf8');
-  const fm = parseFrontmatter(md);
-
+function buildInstruction({ state, effectiveNode, workflow, skillRoot, config }) {
   const inputs = {};
-  for (const c of fm.consumes || []) {
-    const art = state.artifacts && state.artifacts[c.role];
-    inputs[c.role] = art ? art.path : (c.role === 'stage-artifact' ? resolveStageArtifact(state) : null);
+  const optionalMissingRoles = [];
+  let instructionBody = effectiveNode.task.instructionBody;
+  for (const consume of effectiveNode.consumes) {
+    let artifact = state.artifacts && state.artifacts[consume.role];
+    if (consume.role === 'stage-artifact') artifact = resolveStageArtifact({ state, workflow, skillRoot, config });
+    const value = artifact && artifact.path ? artifact.path : null;
+    if (!value && consume.required) {
+      throw failure(`stage ${effectiveNode.stageName}, node ${effectiveNode.nodeName}: required input "${consume.role}" 缺失`);
+    }
+    if (!value) optionalMissingRoles.push(consume.role);
+    inputs[consume.role] = value;
+    instructionBody = instructionBody.split(`{{inputs.${consume.role}}}`).join(value || '');
   }
-  for (const [role, p] of Object.entries(inputs)) {
-    md = md.split(`{{inputs.${role}}}`).join(p || `(缺失: ${role})`);
-  }
-
-  const taskDefaults = {};
-  for (const o of fm.options || []) taskDefaults[o.key] = o.default;
-  const nodeOptions = node.options || {};
-  const configOverride = (config && config.atomTaskOverrides && config.atomTaskOverrides[effectiveName]) || {};
-  const workflowOverride = (workflow.atomTaskOverrides && workflow.atomTaskOverrides[effectiveName]) || {};
-  const options = mergeOptions(taskDefaults, nodeOptions, configOverride, workflowOverride);
-
-  return { node: nodeName, task: effectiveName, consumes: inputs, options, instruction: md };
+  const runtime = {
+    projectRoot: state.projectRoot || '',
+    worktreePath: state.worktreePath || '',
+    runType: state.type || '',
+    runId: state.runId || '',
+    dateDescription: state.dateDescription || '',
+    artifactDir: state.artifactDir || '',
+    createdAt: state.createdAt || '',
+    currentStage: state.currentStage || '',
+    issueContext: state.issueContext ? JSON.stringify(state.issueContext) : '',
+    args: JSON.stringify(state.args || {}),
+    stages: JSON.stringify(state.stages || {}),
+    artifacts: JSON.stringify(state.artifacts || {}),
+    history: JSON.stringify(state.history || []),
+  };
+  for (const [key, value] of Object.entries(runtime)) instructionBody = instructionBody.split(`{{runtime.${key}}}`).join(value);
+  return {
+    optionalMissingRoles,
+    instruction: {
+      node: effectiveNode.nodeName,
+      task: effectiveNode.taskName,
+      consumes: inputs,
+      options: effectiveNode.options,
+      instruction: instructionBody,
+    },
+  };
 }
 
-function resolveStageArtifact(state) {
-  // 当前 stage 最近一个 primary 产物；简化：返回当前 stage 最近登记的 artifact path。
+function resolveStageArtifact({ state, workflow, skillRoot, config }) {
   let latest = null;
-  for (const rec of Object.values(state.artifacts || {})) {
-    if (rec.stage === state.currentStage && rec.at && (!latest || rec.at > latest.at)) latest = rec;
+  for (const [role, record] of Object.entries(state.artifacts || {})) {
+    if (record.stage !== state.currentStage) continue;
+    let resolved;
+    try {
+      resolved = resolveEffectiveNode({ skillRoot, workflow, effectiveConfig: config, stageName: state.currentStage, nodeName: record.producer });
+    } catch { continue; }
+    const declaration = resolved.produces.find((output) => output.role === role && output.primary === true);
+    if (declaration && (!latest || record.at > latest.at)) latest = record;
   }
-  return latest ? latest.path : null;
+  return latest;
 }
 
-module.exports = { nextNode, buildInstruction, mergeOptions };
+function completedNodeNames(state, stageName) {
+  const latest = new Map();
+  for (const event of state.history || []) {
+    if (event.stage !== stageName || !event.node) continue;
+    if (['node-done', 'node-reset', 'node-failed', 'waiting-human'].includes(event.event)) latest.set(event.node, event.event);
+  }
+  return new Set([...latest.entries()].filter(([, event]) => event === 'node-done').map(([node]) => node));
+}
+
+function failure(message) { return Object.assign(new Error(message), { exitCode: 1 }); }
+
+module.exports = { nextNode, buildInstruction, resolveStageArtifact, completedNodeNames };

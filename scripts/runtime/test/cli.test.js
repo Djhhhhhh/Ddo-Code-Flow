@@ -4,7 +4,9 @@ const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const { spawnSync } = require('child_process');
 const path = require('path');
-const { ROOT, tmp, write } = require('./_fixtures');
+const { ROOT, tmp, write, makeSkillRoot, taskMd } = require('./_fixtures');
+const { readJson } = require('../lib/json');
+const { initState } = require('../lib/state');
 
 const DDO = path.join(__dirname, '..', 'ddo.js');
 
@@ -43,10 +45,19 @@ describe('ddo.js CLI 契约（G1 / AC-1）', () => {
   });
 
   it('gate --action pending 返回 exit 77', () => {
-    const dir = tmp();
-    const statePath = path.join(dir, '.state.json');
-    write(statePath, JSON.stringify({ currentStage: 'spec', stages: {}, history: [] }));
-    const r = run(['gate', '--skill-root', ROOT, '--state', statePath, '--stage', 'spec', '--action', 'pending']);
+    const skillRoot = makeSkillRoot({
+      tasks: { spec: { md: taskMd() } },
+      workflow: { confirmationGates: ['spec'], pipeline: [{ stage: 'spec', atomTasks: { entry: ['spec'], nodes: { spec: {} } } }] },
+    });
+    const projectRoot = tmp();
+    const stateSchema = readJson(path.join(skillRoot, 'state.schema.json'));
+    const state = initState({
+      workflowId: 'test', projectRoot, skillName: 'ddo-code-flow', skillVersion: '5.0.0', skillRoot,
+      workflowPath: 'workflows/test.json', runType: 'feat', args: {}, initialStage: 'spec', stateSchema,
+    });
+    const statePath = path.join(projectRoot, '.state.json');
+    write(statePath, JSON.stringify(state));
+    const r = run(['gate', '--skill-root', skillRoot, '--state', statePath, '--stage', 'spec', '--action', 'pending']);
     assert.equal(r.status, 77, r.stderr);
     assert.match(r.stdout, /pending/);
   });

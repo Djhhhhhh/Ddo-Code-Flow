@@ -1,6 +1,6 @@
 ---
 name: plan
-version: "4.0.0"
+version: "5.0.0"
 enabled: true
 timeoutSec: 0
 concurrency:
@@ -44,7 +44,7 @@ Plan 不负责测试用例或完整测试计划；具体测试内容由后续编
 ### 1. 读取输入并建立仓库事实
 
 1. 读取已确认的 `{{inputs.spec}}`；仅在存在时读取 `{{inputs.context-summary}}`。
-2. 在 `.state.json.worktreePath` 指向的工作树中检查与需求直接相关的现有设计和实现，至少关注：
+2. 在 `{{runtime.worktreePath}}` 指向的工作树中检查与需求直接相关的现有设计和实现，至少关注：
    - 公共类、公共函数、共享组件和已有扩展点；
    - 请求/响应包装、分页请求与分页响应、错误码和异常处理标准；
    - schema、DDL、迁移约定、序列化、缓存、配置和日志规范；
@@ -160,7 +160,7 @@ Plan 不负责测试用例或完整测试计划；具体测试内容由后续编
 
 ## 约束
 
-- 所有输出必须写入 `.state.json.worktreePath` 指向的功能 worktree，不得误写主仓库。
+- 所有输出必须写入 `{{runtime.worktreePath}}` 指向的功能 worktree，不得误写主仓库。
 - spec 中每个开放问题必须有且仅有一个确定答案或明确阻塞，不得伪造仓库事实。
 - 人类可读信息优先；FR、AC、DEC、Q 等仅作 AI 索引并放在表格末列或段落末尾。
 - Plan 不生成测试用例、不创建测试计划、不编写普通业务代码。

@@ -1,91 +1,111 @@
 'use strict';
-// 极简 YAML 子集解析器：仅覆盖 atom-task frontmatter 用到的形式（标量、嵌套 map、`- ` 对象列表）。
 
-function parseYaml(text) {
-  const lines = text.split('\n');
-  const [value] = parseBlock(lines, 0, -1);
+function parseYaml(text, context = {}) {
+  const lines = String(text).replace(/\r\n/g, '\n').split('\n');
+  const [value] = parseBlock(lines, 0, -1, context);
   return value;
 }
 
 function indentOf(line) {
-  const m = line.match(/^\s*/);
-  return m ? m[0].length : 0;
+  const match = line.match(/^\s*/);
+  return match ? match[0].length : 0;
 }
 
-function parseBlock(lines, i, parentIndent) {
-  let first = i;
-  while (first < lines.length && lines[first].trim() === '') first++;
+function parseBlock(lines, index, parentIndent, context) {
+  let first = index;
+  while (first < lines.length && isBlankOrComment(lines[first])) first++;
   if (first >= lines.length) return [{}, lines.length];
 
-  const trimmed = lines[first].trim();
-  if (trimmed.startsWith('- ')) {
+  if (lines[first].trim().startsWith('- ')) {
     const list = [];
-    while (i < lines.length) {
-      const line = lines[i];
-      if (line.trim() === '') { i++; continue; }
-      const ind = indentOf(line);
-      if (ind <= parentIndent) break;
-      const t = line.trim();
-      if (!t.startsWith('- ')) break;
-      const afterDash = t.slice(2).trim();
-      if (afterDash === '') {
-        const [sub, ni] = parseBlock(lines, i + 1, ind);
-        list.push(sub);
-        i = ni;
-      } else if (afterDash.includes(':')) {
-        const obj = {};
-        const colon = afterDash.indexOf(':');
-        obj[afterDash.slice(0, colon).trim()] = parseScalar(afterDash.slice(colon + 1).trim());
-        i++;
-        const [rest, ni] = parseMap(lines, i, ind);
-        Object.assign(obj, rest);
-        i = ni;
-        list.push(obj);
+    while (index < lines.length) {
+      const line = lines[index];
+      if (isBlankOrComment(line)) { index++; continue; }
+      const indent = indentOf(line);
+      if (indent <= parentIndent) break;
+      const trimmed = line.trim();
+      if (!trimmed.startsWith('- ')) break;
+      const item = trimmed.slice(2).trim();
+      if (item === '') {
+        const [nested, nextIndex] = parseBlock(lines, index + 1, indent, context);
+        list.push(nested);
+        index = nextIndex;
+      } else if (item.includes(':')) {
+        const object = {};
+        const colon = item.indexOf(':');
+        const key = item.slice(0, colon).trim();
+        object[key] = parseScalar(item.slice(colon + 1), location(context, index));
+        index++;
+        const [rest, nextIndex] = parseMap(lines, index, indent, context);
+        Object.assign(object, rest);
+        list.push(object);
+        index = nextIndex;
       } else {
-        list.push(parseScalar(afterDash));
-        i++;
+        list.push(parseScalar(item, location(context, index)));
+        index++;
       }
     }
-    return [list, i];
+    return [list, index];
   }
-  return parseMap(lines, i, parentIndent);
+  return parseMap(lines, index, parentIndent, context);
 }
 
-function parseMap(lines, i, parentIndent) {
+function parseMap(lines, index, parentIndent, context) {
   const map = {};
-  while (i < lines.length) {
-    const line = lines[i];
-    if (line.trim() === '') { i++; continue; }
-    const ind = indentOf(line);
-    if (ind <= parentIndent) break;
-    const t = line.trim();
-    const colon = t.indexOf(':');
-    if (colon < 0) { i++; continue; }
-    const key = t.slice(0, colon).trim();
-    const rest = t.slice(colon + 1).trim();
-    if (rest === '') {
-      const [sub, ni] = parseBlock(lines, i + 1, ind);
-      map[key] = sub;
-      i = ni;
+  while (index < lines.length) {
+    const line = lines[index];
+    if (isBlankOrComment(line)) { index++; continue; }
+    const indent = indentOf(line);
+    if (indent <= parentIndent) break;
+    const trimmed = line.trim();
+    const colon = trimmed.indexOf(':');
+    if (colon < 0) throw syntaxError(location(context, index), '映射项缺少冒号');
+    const key = trimmed.slice(0, colon).trim();
+    if (!key) throw syntaxError(location(context, index), '映射键不能为空');
+    const rest = trimmed.slice(colon + 1);
+    if (rest.trim() === '') {
+      const [nested, nextIndex] = parseBlock(lines, index + 1, indent, context);
+      map[key] = nested;
+      index = nextIndex;
     } else {
-      map[key] = parseScalar(rest);
-      i++;
+      map[key] = parseScalar(rest, location(context, index));
+      index++;
     }
   }
-  return [map, i];
+  return [map, index];
 }
 
-function parseScalar(s) {
-  if (s === '') return null;
-  if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
-    return s.slice(1, -1);
+function parseScalar(raw, context = {}) {
+  const value = String(raw).trim();
+  if (value === '[]') return [];
+  if (value === '{}') return {};
+  if (value.startsWith('[')) throw syntaxError(context, '不支持 flow-style array，请改为 block list');
+  if (value.startsWith('{')) throw syntaxError(context, '不支持 flow-style object，请改为 block mapping');
+  if (value === '') return null;
+  if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+    return value.slice(1, -1);
   }
-  if (s === 'true') return true;
-  if (s === 'false') return false;
-  if (s === 'null' || s === '~') return null;
-  if (/^-?\d+$/.test(s)) return parseInt(s, 10);
-  if (/^-?\d+\.\d+$/.test(s)) return parseFloat(s);
-  return s;
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  if (value === 'null' || value === '~') return null;
+  if (/^-?\d+$/.test(value)) return parseInt(value, 10);
+  if (/^-?\d+\.\d+$/.test(value)) return parseFloat(value);
+  return value;
 }
 
-module.exports = { parse: parseYaml };
+function isBlankOrComment(line) {
+  const trimmed = line.trim();
+  return trimmed === '' || trimmed.startsWith('#');
+}
+
+function location(context, zeroBasedLine) {
+  return { source: context.source || context.filePath || '<yaml>', line: zeroBasedLine + 1 + (context.lineOffset || 0) };
+}
+
+function syntaxError(context, message) {
+  const source = context.source || context.filePath || '<yaml>';
+  const line = context.line ? `:${context.line}` : '';
+  return Object.assign(new Error(`${source}${line}: ${message}`), { exitCode: 1 });
+}
+
+module.exports = { parse: parseYaml, parseScalar };

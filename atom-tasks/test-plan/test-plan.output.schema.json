@@ -53,7 +53,7 @@
     "checklist 不得读取 verification.log 或依赖 Verification 尚未生成的成功标记",
     "TDD 模式下仅为 cmd: 条目生成测试桩，human: 条目不生成"
   ],
-  "example": "# MyProject 测试计划\n\n> 基于已确认的 spec.md 生成的验收测试 checklist。\n\n## G1. 主题切换\n\n- [ ] cmd: npm test -- --grep \"theme switch\"\n- [ ] cmd: curl -s http://localhost:3000/api/theme | jq '.current'\n- [ ] human: 在设置页点击「暗色模式」按钮，观察页面背景变为深色\n\n通过标准：所有自动化测试 exit code 为 0，手动操作主题切换正常生效。\n\n## G2. 主题持久化\n\n- [ ] cmd: npm test -- --grep \"theme persistence\"\n- [ ] human: 切换主题后刷新页面，主题保持不变\n\n通过标准：刷新后主题状态保持一致。\n\n## TDD 测试文件\n\n| 测试文件 | 关联检查项 | 状态 |\n|---|---|---|\n| tests/theme.test.js | G1 cmd1, G1 cmd2 | Red |",
+  "example": "# MyProject 测试计划\n\n> 基于已确认的 spec.md 生成的验收测试 checklist。\n\n## G1. 主题切换\n\n### Checklist\n\n- [ ] cmd: npm test -- --grep \"theme switch\"\n- [ ] cmd: curl -s http://localhost:3000/api/theme | jq '.current'\n- [ ] human: 在设置页点击「暗色模式」按钮，观察页面背景变为深色\n\n### 通过标准\n\n所有自动化测试 exit code 为 0，手动操作主题切换正常生效。\n\n## G2. 主题持久化\n\n### Checklist\n\n- [ ] cmd: npm test -- --grep \"theme persistence\"\n- [ ] human: 切换主题后刷新页面，主题保持不变\n\n### 通过标准\n\n刷新后主题状态保持一致。\n\n## TDD 测试文件\n\n| 测试文件 | 关联检查项 | 状态 |\n|---|---|---|\n| tests/theme.test.js | G1 cmd1, G1 cmd2 | Red |",
   "fieldDocs": {
     "sections[].format": "内容格式类型。group=测试分组（含 checklist + 通过标准子节）；list=checklist 列表（- [ ] cmd:/human:）；text=通过标准文本；table=表格（TDD 测试文件）",
     "sections[].extensible": "是否允许 agent 扩展。true=可增删 checklist 条目或分组；false=结构固定（如通过标准）",

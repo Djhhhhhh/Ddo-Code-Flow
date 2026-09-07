@@ -1,6 +1,6 @@
 ---
 name: tasking
-version: "4.0.0"
+version: "5.0.0"
 enabled: true
 timeoutSec: 0
 concurrency:
@@ -15,9 +15,9 @@ consumes:
 produces:
   - role: tasks-dir
     kind: dir
-    primary: true
   - role: task-group
     kind: json
+    primary: true
 outputSchemaRef: "skill://atom-tasks/tasking/task-group.output.schema.json"
 ---
 

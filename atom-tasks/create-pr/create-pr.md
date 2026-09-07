@@ -1,6 +1,6 @@
 ---
 name: create-pr
-version: "4.0.0"
+version: "5.0.0"
 enabled: true
 timeoutSec: 300
 concurrency:
@@ -22,12 +22,12 @@ options:
     type: integer
     default: 0
     label: "Issue number"
-    description: "关联 issue 编号（空=从 .state.json.issueContext.issueNumber 读取）"
+    description: "关联 issue 编号（空=从 runtime 注入的 issueContext 读取）"
   - key: repo
     type: string
     default: ""
     label: "Repository"
-    description: "目标仓库 (owner/repo)，空=从 .state.json.issueContext.repo 或当前仓库读取"
+    description: "目标仓库 (owner/repo)，空=从 runtime 注入的 issueContext 或当前仓库读取"
   - key: baseBranch
     type: string
     default: "main"
@@ -43,14 +43,14 @@ options:
 # create-pr
 
 > 推送特性分支到远程，创建 draft PR，评论 PR 链接到 issue，更新 issue label，提示用户确认。
-> Worktree 清理不在本任务中执行，由 done 阶段的 cleanup-worktree 负责。
+> Worktree 清理不在本任务中执行，由后续 cleanup 阶段的 cleanup-worktree 负责。
 
 ## 指令
 
 ### 0. 解析参数
 
-- **issueNumber**: If `options.issueNumber` is set, use it. Else read `.state.json.issueContext.issueNumber`. If neither exists, abort.
-- **repo**: If `options.repo` is set, use it. Else read `.state.json.issueContext.repo`. If neither, use current repo.
+- **issueNumber**: If `options.issueNumber` is set, use it. Else read `{{runtime.issueContext}}`. If neither exists, abort.
+- **repo**: If `options.repo` is set, use it. Else read `{{runtime.issueContext}}`. If neither, use current repo.
 - **repoFlag**: `--repo <repo>` if repo is resolved, else `""`.
 
 ### 1. 执行 git-push
@@ -77,7 +77,7 @@ c. 生成提交信息（conventional commits 格式）：
 
    Closes #<issueNumber>
    ```
-   type 取值：`feat` / `fix` / `docs`，根据 `.state.json.type` 确定。
+   type 取值根据 `{{runtime.runType}}` 确定。
 
 d. 执行提交：
    ```
@@ -96,7 +96,7 @@ e. 推送到远程：
 gh pr create \
   --draft \
   --title "<type>: <项目概述>" \
-  --body "Closes #<issueNumber>\n\n## 执行摘要\n\n<delivery-doc 内容摘要>\n\n## 产物链接\n\n- 产物目录: .ddo/runs/<type>/<dateDescription>/" \
+  --body "Closes #<issueNumber>\n\n## 执行摘要\n\n<delivery-doc 内容摘要>\n\n## 产物链接\n\n- 产物目录: {{runtime.artifactDir}}" \
   --base <baseBranch>
 ```
 
@@ -131,7 +131,7 @@ gh issue edit <issueNumber> --remove-label "ddo:in-progress" <repoFlag>
 输出：
 ```
 ✅ PR 已创建: <prUrl>
-请审阅 PR 内容。确认后，流水线将在 done 阶段清理 worktree 和本地分支。
+请审阅 PR 内容。确认后，流水线将在 cleanup 阶段清理 worktree 和本地分支。
 ```
 
 ## 约束
@@ -142,4 +142,4 @@ gh issue edit <issueNumber> --remove-label "ddo:in-progress" <repoFlag>
 - 必须评论 PR 链接到 issue
 - 必须更新 issue label 为 ddo:completed
 - 必须移除 ddo:in-progress label
-- worktree 清理不在本任务中执行，由 done 阶段的 cleanup-worktree 负责
+- worktree 清理不在本任务中执行，由后续 cleanup 阶段的 cleanup-worktree 负责

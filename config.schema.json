@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ddo-code-flow/config.schema.json",
-  "title": "ddo-code-flow v4 default config",
-  "$comment": "v4 separates the read-only skill default config from each project's .ddo/config.json. Runtime composes defaults, project config, and run arguments in memory only.",
+  "title": "ddo-code-flow v5 default config",
+  "$comment": "v5 separates the read-only skill default config from each project's .ddo/config.json. Runtime composes defaults, project config, and run arguments in memory only.",
   "type": "object",
   "required": ["version", "base", "workflows", "atomTaskOverrides"],
   "additionalProperties": false,
@@ -219,6 +219,11 @@
           "type": "array",
           "items": { "type": "string", "minLength": 1 }
         },
+        "enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Node-level scheduling switch. Root workflow and project task overrides take precedence."
+        },
         "taskRef": { "type": "string", "minLength": 1 },
         "options": {
           "type": "object",
@@ -230,7 +235,16 @@
       "type": "object",
       "additionalProperties": {
         "type": "object",
-        "additionalProperties": true,
+        "additionalProperties": {
+          "anyOf": [
+            { "type": "string" },
+            { "type": "number" },
+            { "type": "boolean" },
+            { "type": "array" },
+            { "type": "object" }
+          ]
+        },
+        "description": "Task option overrides. Precedence: workflow override > project override > node option > task default.",
         "properties": {
           "enabled": { "type": "boolean" },
           "model": {

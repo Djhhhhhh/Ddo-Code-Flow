@@ -1,6 +1,6 @@
 {
   "$schema": "./config.schema.json",
-  "version": "4.0.0",
+  "version": "5.0.0",
   "base": {
     "worktreeDir": "",
     "defaultRunType": "feat",

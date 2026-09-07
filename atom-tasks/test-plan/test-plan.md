@@ -1,6 +1,6 @@
 ---
 name: test-plan
-version: "4.0.0"
+version: "5.0.0"
 enabled: true
 timeoutSec: 0
 concurrency:
@@ -57,7 +57,7 @@ options:
 ## 约束
 
 - 每个 checklist 行必须以 `- [ ] cmd:` 或 `- [ ] human:` 开头——其他前缀无效。
-- `cmd:` 条目是自动化测试，必须可在 `.state.json.worktreePath` 工作目录中运行，无需 sudo 和网络。
+- `cmd:` 条目是自动化测试，必须可在 `{{runtime.worktreePath}}` 工作目录中运行，无需 sudo 和网络。
 - `cmd:` 条目不得读取 verification.log，也不得依赖当前 Verification 运行尚未生成的文件或成功标记。
 - `human:` 条目是功能测试，描述用户应执行的确切步骤和预期观察结果。
 - 每个分组必须以「通过标准」行结尾。

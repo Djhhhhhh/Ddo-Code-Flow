@@ -15,7 +15,7 @@
       "atomTasks": {
         "entry": ["context"],
         "nodes": {
-          "context": { "next": ["issue-fetch"], "parallelApprove": false, "parallelWith": [] }
+          "context": { "next": [], "parallelApprove": false, "parallelWith": [] }
         }
       }
     },
@@ -28,7 +28,7 @@
         "nodes": {
           "issue-fetch": { "next": ["requirement"], "parallelApprove": false, "parallelWith": [] },
           "requirement": { "next": ["git-worktree"], "parallelApprove": false, "parallelWith": [] },
-          "git-worktree": { "next": ["spec"], "parallelApprove": false, "parallelWith": [] }
+          "git-worktree": { "next": [], "parallelApprove": false, "parallelWith": [] }
         }
       }
     },
@@ -40,7 +40,7 @@
         "entry": ["spec"],
         "nodes": {
           "spec": { "next": ["remote-gate-spec"], "parallelApprove": false, "parallelWith": [] },
-          "remote-gate-spec": { "taskRef": "remote-gate", "options": { "stageName": "spec" }, "next": ["plan"], "parallelApprove": false, "parallelWith": [] }
+          "remote-gate-spec": { "taskRef": "remote-gate", "options": { "stageName": "spec" }, "next": [], "parallelApprove": false, "parallelWith": [] }
         }
       }
     },
@@ -52,7 +52,7 @@
         "entry": ["plan"],
         "nodes": {
           "plan": { "next": ["remote-gate-plan"], "parallelApprove": false, "parallelWith": [] },
-          "remote-gate-plan": { "taskRef": "remote-gate", "options": { "stageName": "plan" }, "next": ["test-plan"], "parallelApprove": false, "parallelWith": [] }
+          "remote-gate-plan": { "taskRef": "remote-gate", "options": { "stageName": "planning" }, "next": [], "parallelApprove": false, "parallelWith": [] }
         }
       }
     },
@@ -64,7 +64,7 @@
         "entry": ["test-plan"],
         "nodes": {
           "test-plan": { "next": ["remote-gate-test-plan"], "parallelApprove": false, "parallelWith": [] },
-          "remote-gate-test-plan": { "taskRef": "remote-gate", "options": { "stageName": "test-plan" }, "next": ["tasking"], "parallelApprove": false, "parallelWith": [] }
+          "remote-gate-test-plan": { "taskRef": "remote-gate", "options": { "stageName": "test-plan" }, "next": [], "parallelApprove": false, "parallelWith": [] }
         }
       }
     },
@@ -75,7 +75,7 @@
       "atomTasks": {
         "entry": ["tasking"],
         "nodes": {
-          "tasking": { "next": ["coding"], "parallelApprove": false, "parallelWith": [] }
+          "tasking": { "next": [], "parallelApprove": false, "parallelWith": [] }
         }
       }
     },
@@ -86,7 +86,7 @@
       "atomTasks": {
         "entry": ["coding"],
         "nodes": {
-          "coding": { "next": ["verification"], "parallelApprove": false, "parallelWith": [] }
+          "coding": { "next": [], "parallelApprove": false, "parallelWith": [] }
         }
       }
     },
@@ -97,7 +97,7 @@
       "atomTasks": {
         "entry": ["verification"],
         "nodes": {
-          "verification": { "next": ["delivery-doc"], "parallelApprove": false, "parallelWith": [] }
+          "verification": { "next": [], "parallelApprove": false, "parallelWith": [] }
         }
       }
     },
@@ -114,8 +114,8 @@
       }
     },
     {
-      "stage": "done",
-      "description": "清理 worktree 并标记完成。",
+      "stage": "cleanup",
+      "description": "安全清理 worktree；完成后由 runtime 进入 done 终态。",
       "enabled": true,
       "atomTasks": {
         "entry": ["cleanup-worktree"],

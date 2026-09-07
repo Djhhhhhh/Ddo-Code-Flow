@@ -2,13 +2,13 @@
 name: ddo-code-flow
 description: |
   Customizable AI coding pipeline skill. Drives workflows defined by
-  config.default.json and workflows/*.json. v4 keeps atom-tasks decoupled:
+  config.default.json and workflows/*.json. v5 keeps atom-tasks decoupled:
   tasks declare artifact roles, the runtime wires them through a blackboard,
   and pipelines are the only integration layer.
 metadata:
   authors:
     - "djhhhhhh"
-  version: "4.0.0"
+  version: "5.0.0"
 ---
 
 # ddo-code-flow
@@ -33,6 +33,8 @@ need the full pipeline.
   commands are allowed only here.
 - `artifactDir`: `<worktreePath>/.ddo/runs/<type>/<dateDescription>`. Runtime
   state, blackboard metadata, and generated run artifacts live here.
+- `bootstrapStatePath`: `<projectRoot>/.ddo/runs/.pending/<bootstrapId>/.state.json`.
+  Runtime persists state here until `attach-worktree` returns the final path.
 
 ## Inputs
 
@@ -41,6 +43,8 @@ need the full pipeline.
   - `--model <workflow-id>` selects a workflow explicitly.
   - `--feature` marks the run type as `feat`.
   - `--bugfix` marks the run type as `fix`.
+  - `--ctx <path>` or `--context <path>` adds run-only context without changing
+    project config.
   - `--atom <task-name>` triggers a single atom-task without running the full
     pipeline. When set, skip Steps 3–7 and execute only the named atom-task.
 - `config.default.json`: read-only global defaults and workflow index.
@@ -85,6 +89,7 @@ writes an output, register it in `.state.json.artifacts`:
   "spec": {
     "path": "run://.ddo/runs/feat/2026-08-06-example/spec.md",
     "producer": "spec",
+    "task": "spec",
     "stage": "spec",
     "at": "<ISO 8601>"
   }
@@ -145,15 +150,16 @@ node <skillRoot>/scripts/runtime/ddo.js select-workflow \
   --skill-root <skillRoot> [--model <id>] [--feature|--bugfix] [--text '<requirement>']
 ```
 
-- What it does: resolves `{workflowId, runType, workflowPath}` — `--model` explicit
-  > `selection.rules` match (against `--model`, then requirement text) > fallback.
+- What it does: resolves `{workflowId, runType, workflowPath}`. A supplied
+  `--model` must exactly match a registered workflow id or exit `2`. Without it,
+  `selection.rules` match requirement text, then use the configured fallback.
   `--feature` → `feat`, `--bugfix` → `fix`, otherwise inferred or `defaultRunType`.
 - Display the pipeline summary from the returned JSON before proceeding:
   ```
   ▸ Workflow: <name> — <description>
   ▸ Run type: <feat|fix>
   ▸ Issue: #<N>          (only when issue-driven)
-  ▸ Stages: <stage1> → <stage2> → ... → done
+  ▸ Stages: <stage1> → <stage2> → ... → <last-stage> → [terminal] done
   ```
 - Exit `0` = selection JSON; `2` = usage error.
 
@@ -163,7 +169,8 @@ When `--atom <task-name>` is present, skip Steps 3–7 entirely. Load
 `atom-tasks/<task-name>/<task-name>.md`, resolve its `consumes` roles from
 `.state.json.artifacts` (abort listing any missing required role), execute the
 instruction as a standalone task, then register outputs with `register-artifact`
-and validate with `validate-output` (see Step 5).
+and finish it with `complete-node` (see Step 5). Registration performs output
+validation before any state entry is committed.
 
 ### Step 3 - Validate DAG
 
@@ -191,18 +198,20 @@ node <skillRoot>/scripts/runtime/ddo.js init-state \
   [--workflow-id <id>] [--run-type feat|fix] [--args-json '<json>']
 ```
 
-- `find-resumable` scans `*/.ddo/runs/*/*/.state.json` for a candidate with
-  `currentStage != "done"`, matching `projectRoot`, and an existing `worktreePath`.
+- `find-resumable` scans both project bootstrap states under
+  `.ddo/runs/.pending/*/.state.json` and final worktree states. Bootstrap
+  candidates may have `worktreePath=null`; worktree candidates require an
+  existing worktree and a state path inside `artifactDir`. Candidates are
+  deduplicated by `bootstrapId`, preferring the final state.
   Exactly one → resume (append `resumed` to history; resolve the skill by
   `skillName`, using stored `skillRoot` only as a hint). Multiple → exit `1`,
   ask the user to choose. None → run `init-state`.
-- `init-state` prints the fresh state skeleton; git-worktree fields (`runId`,
-  `worktreePath`, `type`, `dateDescription`, `artifactDir`) stay null until the
-  worktree exists. Persist it to `.state.json`; it must validate against
-  `state.schema.json`.
+- `init-state` creates `bootstrapId`, persists the fresh state under `.pending`,
+  and prints `{statePath, state}`. `runId`, `worktreePath`, `dateDescription`, and
+  `artifactDir` stay null until the worktree exists; `type` is selected by runtime.
 - `.state.json` is the ownership contract. Writers: `git-worktree` (runId,
-  worktreePath, type, dateDescription, artifactDir), `issue-fetch` (issueContext),
-  `remote-gate` (gatePending), `create-pr` (prInfo), `runtime` (everything else).
+  worktreePath, dateDescription, artifactDir), `issue-fetch` (issueContext),
+  `create-pr` (prInfo), and `runtime` (including type and gatePending).
 
 ### Step 5 - Execute Nodes
 
@@ -224,11 +233,11 @@ For each stage, skipping stages already `done`:
    printf '%s' '<artifact text>' | node <skillRoot>/scripts/runtime/ddo.js register-artifact \
      --skill-root <skillRoot> --state <statePath> --role <role> [--producer <node>] [--stage <stage>]
    ```
-   Writes the file under `artifactDir`, records `.state.json.artifacts[role]`,
-   and appends `node-done`. Exit `1` = the role is not in `artifacts.json` or
-   `artifactDir` is not ready — hold the text in `pendingOutputs` and flush after
-   `git-worktree` sets `artifactDir`.
-4. Validate each produced output:
+   It validates before atomic registration. With an attached worktree it records
+   `.state.json.artifacts[role]` and appends `artifact-registered`; before attach
+   it automatically enqueues a base64 pending output and appends
+   `artifact-pending`. Calling tasks must never edit `pendingOutputs` directly.
+4. Optionally validate an already written output independently:
    ```text
    node <skillRoot>/scripts/runtime/ddo.js validate-output \
      --skill-root <skillRoot> --artifact <artifactPath> --output-schema-ref <schemaRef>
@@ -236,6 +245,13 @@ For each stage, skipping stages already `done`:
    `json` outputs are checked against `jsonFields`; `markdown` outputs must contain
    every `required:true` section heading; `.state.json` is checked against
    `state.schema.json`. Exit `1` = hard reject — read stderr, fix, re-register.
+5. After every declared role is registered, including when `produces: []`, call:
+   ```text
+   node <skillRoot>/scripts/runtime/ddo.js complete-node \
+     --skill-root <skillRoot> --state <statePath> --node <workflow-node> [--stage <stage>]
+   ```
+   This checks producer, stage, path existence, pending outputs, and unresolved
+   failure/waiting state before appending the sole `node-done` event.
 
 Calling each subcommand is a soft trigger (the model calls them via the Bash
 tool), but the outcome is hard: a non-zero exit cannot be reasoned away — read
@@ -256,6 +272,8 @@ node <skillRoot>/scripts/runtime/ddo.js gate \
 - `rejected` → appends `gate-rejected` with feedback, archive the previous version
   to `_del`, rerun the affected node, and request approval again.
 - `pending` (remote gate) → exit `77`; poll later.
+- `remote-gate` only computes the action intent. The `gate` CLI is the only code
+  that persists `gatePending`, stage waiting/rework status, and gate history.
 - Ask the user only for stages in `confirmationGates` that have no `remote-gate` node.
 
 ### Step 7 - Advance Stage And Finalize
@@ -265,14 +283,17 @@ node <skillRoot>/scripts/runtime/ddo.js advance-stage \
   --skill-root <skillRoot> --state <statePath>
 ```
 
-- Hard terminal check before advancing `currentStage`: every node in the current
-  stage `done`, the stage's gate (if any) approved, no running/failed/pending.
+- Hard check before advancing `currentStage`: every enabled node in the current
+  stage has its latest lifecycle at `node-done`, the latest gate event (if any)
+  is approved, required bindings resolve, and the stage has no pending output.
 - Exit `1` = a terminal condition is unmet (stderr lists it); do not advance.
   Exit `0` = `currentStage` moved to the next stage (or `done`).
-- Before `done`, also enforce: no pending outputs or unresolved role bindings;
-  verification (when enabled) ends with `ALL PASSED` and no unanswered `human:`
-  checks. Follow the current atom-task's recovery instructions — the runtime does
-  not hardcode business recovery targets.
+- `done` is a reserved state value, never a workflow stage. Before entering it,
+  runtime enforces: every enabled stage is done; no global pending output or
+  pending gate remains; no stage is running, failed, or waiting-human; and every
+  completed node's declared output remains correctly registered and resolvable.
+  Verification-specific truthfulness is selected by its output validator; stage
+  advancement does not hardcode a verification task name.
 
 After `done`, run metrics finish when enabled (see Metrics).
 

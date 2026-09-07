@@ -1,50 +1,39 @@
 'use strict';
-// gate 确认门：approved/rejected/pending 的返回契约（G4 / AC-4）。
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const { gate } = require('../lib/gate');
 
-function baseState() {
-  return {
-    currentStage: 'spec',
-    stages: { spec: { status: 'running' } },
-    history: [{ event: 'created', at: '2026-08-24T00:00:00.000Z' }],
-  };
-}
+function baseState() { return { currentStage: 'spec', issueContext: { issueNumber: 42, repo: 'o/r' }, stages: { spec: { status: 'running' } }, history: [{ event: 'created', at: '2026-08-24T00:00:00Z' }] }; }
 
-describe('gate 确认门（G4 / AC-4）', () => {
-  it('approved 返回 next=advance 且 patch 追加 gate-approved', () => {
+describe('gate', () => {
+  it('pending 写 gatePending/history 且不改 currentStage', () => {
     const state = baseState();
-    const r = gate(state, { stage: 'spec', action: 'approved' });
-    assert.equal(r.next, 'advance');
-    assert.equal(r.patch.history.at(-1).event, 'gate-approved');
-    assert.equal(r.patch.history.at(-1).stage, 'spec');
-    // 纯函数：不原地改 state
-    assert.equal(state.history.length, 1);
+    const result = gate(state, { stage: 'spec', action: 'pending', monitorId: 'm' });
+    assert.equal(result.next, 'pending');
+    assert.equal(result.patch.gatePending.status, 'pending');
+    assert.equal(result.patch.gatePending.issueNumber, 42);
+    assert.equal(result.patch.history.at(-1).event, 'gate-pending');
+    assert.equal(result.patch.stages.spec.status, 'waiting-remote-gate');
+    assert.equal(state.currentStage, 'spec');
   });
-
-  it('rejected 返回 next=rework 且 patch 标 stage 为 rework', () => {
-    const state = baseState();
-    const r = gate(state, { stage: 'spec', action: 'rejected', feedback: '范围过大' });
-    assert.equal(r.next, 'rework');
-    assert.equal(r.patch.history.at(-1).event, 'gate-rejected');
-    assert.equal(r.patch.history.at(-1).feedback, '范围过大');
-    assert.equal(r.patch.stages.spec.status, 'rework');
-    assert.equal(state.stages.spec.status, 'running');
+  it('approved/rejected 清理 pending，反馈只保存不执行', () => {
+    const pending = gate(baseState(), { stage: 'spec', action: 'pending', enteredAt: '2026-08-29T00:00:00Z' });
+    const state = { ...baseState(), ...pending.patch };
+    const approved = gate(state, { stage: 'spec', action: 'approved' });
+    assert.equal(approved.patch.gatePending, null);
+    assert.equal(approved.patch.history.at(-1).event, 'gate-approved');
+    const rejected = gate(state, { stage: 'spec', action: 'rejected', feedback: '$(do not run)' });
+    assert.equal(rejected.patch.gatePending, null);
+    assert.equal(rejected.patch.history.at(-1).feedback, '$(do not run)');
+    assert.equal(rejected.patch.stages.spec.status, 'rework');
   });
-
-  it('pending 返回 next=pending 且无 patch（由 CLI 层 exit 77）', () => {
-    const state = baseState();
-    const r = gate(state, { stage: 'spec', action: 'pending' });
-    assert.equal(r.next, 'pending');
-    assert.equal(r.patch, undefined);
-    assert.equal(state.history.length, 1);
+  it('同 cycle 同 action 重放幂等', () => {
+    const first = gate(baseState(), { stage: 'spec', action: 'pending', enteredAt: '2026-08-29T00:00:00Z' });
+    const state = { ...baseState(), ...first.patch };
+    assert.equal(gate(state, { stage: 'spec', action: 'pending' }).patch, null);
+    const approved = gate(state, { stage: 'spec', action: 'approved' });
+    const approvedState = { ...state, ...approved.patch };
+    assert.equal(gate(approvedState, { stage: 'spec', action: 'approved' }).patch, null);
   });
-
-  it('未知 action 返回 exitCode 2', () => {
-    assert.throws(
-      () => gate(baseState(), { stage: 'spec', action: 'bogus' }),
-      (e) => e.exitCode === 2 && /未知 gate action/.test(e.message)
-    );
-  });
+  it('未知 action 返回 exit 2', () => assert.throws(() => gate(baseState(), { stage: 'spec', action: 'bogus' }), (error) => error.exitCode === 2));
 });

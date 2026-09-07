@@ -1,6 +1,6 @@
 {
   "$schema": "./_schema/artifact-catalog.schema.json",
-  "version": "4.0.0",
+  "version": "5.0.0",
   "roles": {
     "context-summary": {
       "kind": "markdown",
@@ -69,10 +69,10 @@
       "description": "Task dependency graph and batching manifest."
     },
     "code-change": {
-      "kind": "code",
-      "file": null,
-      "dynamic": true,
-      "description": "Source changes made in the run worktree."
+      "kind": "json",
+      "file": "code-change.json",
+      "dynamic": false,
+      "description": "Manifest describing source changes made in the run worktree."
     },
     "verification-log": {
       "kind": "text",
@@ -103,12 +103,6 @@
       "file": null,
       "dynamic": true,
       "description": "The primary artifact produced earlier in the current stage, resolved by runtime."
-    },
-    "gate-result": {
-      "kind": "markdown",
-      "file": "gate-result.md",
-      "dynamic": false,
-      "description": "Remote gate approval or rejection result."
     },
     "delivery-doc": {
       "kind": "markdown",

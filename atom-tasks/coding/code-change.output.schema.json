@@ -1,0 +1,19 @@
+{
+  "description": "code-change.json 代码改动清单",
+  "outputFormat": "json",
+  "document": {
+    "title": "代码改动清单",
+    "titleFormat": "固定文本",
+    "description": "记录本次 run 的基线、头引用和改动文件。"
+  },
+  "jsonFields": [
+    { "name": "baseRef", "type": "string", "required": true, "description": "基线 Git ref", "minLength": 1 },
+    { "name": "headRef", "type": "string", "required": true, "description": "当前 Git ref", "minLength": 1 },
+    { "name": "files", "type": "array", "required": true, "description": "仓库相对文件路径", "items": { "type": "string", "minLength": 1 } },
+    { "name": "generatedAt", "type": "string", "required": true, "description": "生成时间", "format": "date-time" }
+  ],
+  "sections": [],
+  "rules": ["files 只能包含仓库相对路径"],
+  "validators": [{ "name": "code-change-manifest" }],
+  "example": "{\n  \"baseRef\": \"main\",\n  \"headRef\": \"codex/example\",\n  \"files\": [\"src/example.js\"],\n  \"generatedAt\": \"2026-08-29T00:00:00.000Z\"\n}"
+}

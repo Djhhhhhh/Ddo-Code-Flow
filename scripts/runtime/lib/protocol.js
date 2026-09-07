@@ -9,17 +9,26 @@ class ProtocolError extends Error {
   }
 }
 
-// 三种协议解析：每个协议映射到其「根」，路径是从该根出发的相对路径。
-// - skill://X   -> skillRoot + X
-// - project://X -> projectRoot + X（X 通常含 .ddo/…）
-// - run://X     -> worktreePath + X（X 已含 .ddo/runs/…；修正原 doc §4 的 artifactDir）
-function resolveProtocol(ref, ctx) {
+function resolveProtocol(ref, ctx = {}) {
   if (typeof ref !== 'string') return ref;
-  if (ref.startsWith('skill://')) return path.join(ctx.skillRoot || '.', ref.slice('skill://'.length));
-  if (ref.startsWith('project://')) return path.join(ctx.projectRoot || '.', ref.slice('project://'.length));
-  if (ref.startsWith('run://')) return path.join(ctx.worktreePath || '.', ref.slice('run://'.length));
+  for (const [prefix, rootKey] of [['skill://', 'skillRoot'], ['project://', 'projectRoot'], ['run://', 'worktreePath']]) {
+    if (!ref.startsWith(prefix)) continue;
+    const root = ctx[rootKey];
+    if (!root) throw new ProtocolError(`${prefix} 解析缺少 ${rootKey}`);
+    return resolveWithinRoot(path.resolve(root), ref.slice(prefix.length), ref);
+  }
   if (ref.includes('://')) throw new ProtocolError(`未知协议: ${ref}`);
-  return ref; // 普通路径原样返回
+  return ref;
+}
+
+function resolveWithinRoot(root, relativePath, originalRef) {
+  if (path.isAbsolute(relativePath)) throw new ProtocolError(`协议路径必须为相对路径: ${originalRef}`);
+  const resolved = path.resolve(root, relativePath);
+  const relative = path.relative(root, resolved);
+  if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+    throw new ProtocolError(`协议路径越界: ${originalRef}`);
+  }
+  return resolved;
 }
 
 module.exports = { resolveProtocol, ProtocolError };

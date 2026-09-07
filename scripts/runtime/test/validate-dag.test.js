@@ -1,57 +1,50 @@
 'use strict';
-// validate-dag 角色可达性：拓扑遍历 + produced 集（G5 / AC-5）。
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const { ROOT, makeSkillRoot, taskMd } = require('./_fixtures');
 const { validateDag } = require('../lib/workflow');
 
-describe('validate-dag 角色可达性（G5 / AC-5）', () => {
-  it('guarded.json 返回 valid', () => {
-    const r = validateDag({ skillRoot: ROOT, workflowPath: 'workflows/guarded.json' });
-    assert.equal(r.valid, true, r.errors.join('\n'));
+describe('validate-dag', () => {
+  it('四个真实 workflow 全部通过', () => {
+    for (const name of ['lightweight', 'standard', 'guarded', 'issue-driven']) {
+      const result = validateDag({ skillRoot: ROOT, workflowPath: `workflows/${name}.json` });
+      assert.equal(result.valid, true, result.errors.join('\n'));
+    }
   });
-
-  it('缺失 required consume 的 workflow 返回 valid:false', () => {
-    const skillRoot = makeSkillRoot({
-      tasks: {
-        producer: { md: taskMd({ produces: [{ role: 'spec' }] }) },
-        consumer: { md: taskMd({ consumes: [{ role: 'spec2', required: true }] }) },
-      },
-      roles: {
-        spec: { kind: 'markdown', file: 'spec.md' },
-        spec2: { kind: 'markdown', file: 'spec2.md' },
-      },
-      workflow: {
-        pipeline: [{
-          stage: 'spec',
-          atomTasks: { entry: ['producer'], nodes: { producer: { next: ['consumer'] }, consumer: {} } },
-        }],
-      },
-    });
-    const r = validateDag({ skillRoot, workflowPath: 'workflows/test.json' });
-    assert.equal(r.valid, false);
-    assert.ok(r.errors.some((e) => e.includes('spec2')));
+  it('拒绝缺失 required producer、done stage、坏 entry/edge 和环', () => {
+    const cases = [
+      { workflow: { pipeline: [{ stage: 'x', atomTasks: { entry: ['consumer'], nodes: { consumer: {} } } }] }, error: 'spec' },
+      { workflow: { pipeline: [{ stage: 'done', atomTasks: { entry: ['producer'], nodes: { producer: {} } } }] }, error: '保留终态' },
+      { workflow: { pipeline: [{ stage: 'x', atomTasks: { entry: ['missing'], nodes: { producer: { next: ['missing'] } } } }] }, error: '不存在' },
+      { workflow: { pipeline: [{ stage: 'x', atomTasks: { entry: ['producer'], nodes: { producer: { next: ['consumer'] }, consumer: { next: ['producer'] } } } }] }, error: '环' },
+    ];
+    for (const item of cases) {
+      const root = makeSkillRoot({
+        tasks: {
+          producer: { md: taskMd({ produces: [{ role: 'out' }] }) },
+          consumer: { md: taskMd({ consumes: [{ role: 'spec', required: true }] }) },
+        },
+        roles: { out: { kind: 'markdown', file: 'out.md' }, spec: { kind: 'markdown', file: 'spec.md' } },
+        workflow: item.workflow,
+      });
+      const result = validateDag({ skillRoot: root, workflowPath: 'workflows/test.json' });
+      assert.equal(result.valid, false);
+      assert.ok(result.errors.some((error) => error.includes(item.error)), result.errors.join('\n'));
+    }
   });
-
-  it('环（cycle）返回 valid:false', () => {
-    const skillRoot = makeSkillRoot({
-      tasks: {
-        a: { md: taskMd({ produces: [{ role: 'spec' }] }) },
-        b: { md: taskMd({ produces: [{ role: 'plan' }] }) },
-      },
-      roles: {
-        spec: { kind: 'markdown', file: 'spec.md' },
-        plan: { kind: 'markdown', file: 'plan.md' },
-      },
-      workflow: {
-        pipeline: [{
-          stage: 'x',
-          atomTasks: { entry: ['a'], nodes: { a: { next: ['b'] }, b: { next: ['a'] } } },
-        }],
-      },
-    });
-    const r = validateDag({ skillRoot, workflowPath: 'workflows/test.json' });
-    assert.equal(r.valid, false);
-    assert.ok(r.errors.some((e) => e.includes('环')));
+  it('required producer 必须启用且在 DAG 中拓扑先行', () => {
+    for (const producerNode of [{}, { enabled: false }]) {
+      const root = makeSkillRoot({
+        tasks: {
+          producer: { md: taskMd({ produces: [{ role: 'out' }] }) },
+          consumer: { md: taskMd({ consumes: [{ role: 'out', required: true }] }) },
+        },
+        roles: { out: { kind: 'markdown', file: 'out.md' } },
+        workflow: { pipeline: [{ stage: 'x', atomTasks: { entry: ['producer', 'consumer'], nodes: { producer: producerNode, consumer: {} } } }] },
+      });
+      const result = validateDag({ skillRoot: root, workflowPath: 'workflows/test.json' });
+      assert.equal(result.valid, false);
+      assert.ok(result.errors.some((error) => error.includes('无拓扑先行产出')), result.errors.join('\n'));
+    }
   });
 });

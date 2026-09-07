@@ -1,11 +1,22 @@
 'use strict';
 const yaml = require('./yaml');
 
-// 提取并解析 atom-task .md 的 YAML frontmatter；无 frontmatter 返回 null。
-function parseFrontmatter(mdText) {
-  const m = mdText.match(/^---\s*\n([\s\S]*?)\n---\s*\n/);
-  if (!m) return null;
-  return yaml.parse(m[1]);
+function splitFrontmatter(mdText, options = {}) {
+  const normalized = String(mdText).replace(/\r\n/g, '\n');
+  const match = normalized.match(/^---\s*\n([\s\S]*?)\n---\s*(?:\n|$)/);
+  if (!match) return null;
+  return {
+    frontmatter: yaml.parse(match[1], {
+      source: options.source || options.filePath || '<markdown>',
+      lineOffset: 1,
+    }),
+    instructionBody: normalized.slice(match[0].length),
+  };
 }
 
-module.exports = { parseFrontmatter };
+function parseFrontmatter(mdText, options = {}) {
+  const result = splitFrontmatter(mdText, options);
+  return result ? result.frontmatter : null;
+}
+
+module.exports = { parseFrontmatter, splitFrontmatter };

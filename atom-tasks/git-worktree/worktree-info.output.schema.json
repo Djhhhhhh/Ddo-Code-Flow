@@ -1,5 +1,5 @@
 {
-  "description": "worktree-info.json 输出规范。v4 只将 worktree-info.json 登记为 worktree-info 角色；如需人类可读摘要，应作为独立角色另行声明。",
+  "description": "worktree-info.json 输出规范。v5 只将 worktree-info.json 登记为 worktree-info 角色；如需人类可读摘要，应作为独立角色另行声明。",
   "outputFormat": "json",
   "document": {
     "title": "工作树信息",
@@ -40,7 +40,7 @@
       "name": "type",
       "type": "string",
       "required": true,
-      "description": "分支前缀（如 feat、fix、chore）",
+      "description": "分支前缀，只允许 feat 或 fix",
       "example": "feat"
     },
     {
@@ -76,9 +76,12 @@
       "description": "将 JSON 每个字段渲染为一行两列的表格"
     }
   ],
+  "validators": [
+    { "name": "worktree-info" }
+  ],
   "rules": [
     "worktreePath 必须是绝对路径",
-    "type 必须是有效的分支前缀（feat/fix/chore/docs/refactor/test/perf/ci/build）",
+    "type 必须是 feat 或 fix",
     "createdAt 必须是 ISO 8601 格式"
   ],
   "example": "{\n  \"runId\": \"Ddo-Code-Flow-feat-2026-06-24-add-dark-mode\",\n  \"branchName\": \"feat/2026-06-24-add-dark-mode\",\n  \"worktreePath\": \"/Users/user/projects/Ddo-Code-Flow-feat-2026-06-24-add-dark-mode\",\n  \"worktreeDir\": \"/Users/user/projects\",\n  \"type\": \"feat\",\n  \"dateDescription\": \"2026-06-24-add-dark-mode\",\n  \"baseRef\": \"main\",\n  \"createdAt\": \"2026-06-24T10:00:00Z\"\n}",
@@ -88,7 +91,7 @@
     "jsonFields[].branchName": "完整的 git 分支名，遵循 type/date-description 命名规范",
     "jsonFields[].worktreePath": "git worktree 的绝对路径，由 git worktree add 自动生成",
     "jsonFields[].worktreeDir": "worktree 目标目录的绝对路径，从有效配置解析而来；空配置时为项目父目录",
-    "jsonFields[].type": "分支类型前缀，取值范围：feat/fix/chore/docs/refactor/test/perf/ci/build",
+    "jsonFields[].type": "分支类型前缀，取值范围：feat/fix",
     "jsonFields[].dateDescription": "分支名中日期+描述的组合部分，格式为 YYYY-MM-DD-kebab-description",
     "jsonFields[].baseRef": "创建分支的基准引用，通常为 main 或其他长期分支",
     "jsonFields[].createdAt": "工作树创建时间，ISO 8601 格式",

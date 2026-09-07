@@ -1,106 +1,119 @@
 'use strict';
-const path = require('path');
+const crypto = require('crypto');
 const fs = require('fs');
-const { readJson, writeJsonAtomic } = require('./json');
+const path = require('path');
+const { readJson } = require('./json');
 const { validate } = require('./jsonschema');
 
 function buildFieldOwner(stateSchema) {
-  const owner = {};
-  for (const [field, schema] of Object.entries(stateSchema.properties || {})) {
-    owner[field] = schema['x-ddo-writer'] || null;
+  if (!stateSchema || !stateSchema.properties) throw failure('state.schema.json 缺少 properties');
+  const owners = {};
+  for (const [field, property] of Object.entries(stateSchema.properties)) {
+    if (!Object.prototype.hasOwnProperty.call(property, 'x-ddo-writer') || !property['x-ddo-writer']) {
+      throw failure(`state schema 字段 "${field}" 缺少唯一非空 x-ddo-writer`);
+    }
+    owners[field] = property['x-ddo-writer'];
   }
-  return owner;
+  return owners;
 }
 
-// 唯一写入口：拦截越权写与自造顶层字段，通过后合并返回新 state（不落盘）。
 function applyMutation(state, patch, writer, stateSchema) {
-  if (!stateSchema.properties) throw Object.assign(new Error('state.schema.json 缺少 properties'), { exitCode: 1 });
+  if (!writer) throw failure('state mutation 必须提供 writer');
+  const owners = buildFieldOwner(stateSchema);
   for (const field of Object.keys(patch)) {
-    if (!Object.prototype.hasOwnProperty.call(stateSchema.properties, field)) {
-      throw Object.assign(new Error(`自造顶层字段 "${field}" 被 additionalProperties:false 拦截`), { exitCode: 1 });
-    }
-    const owner = stateSchema.properties[field]['x-ddo-writer'];
-    if (owner && owner !== writer) {
-      throw Object.assign(new Error(`越权写：字段 "${field}" 归属 ${owner}，当前 writer=${writer}`), { exitCode: 1 });
-    }
+    if (!Object.prototype.hasOwnProperty.call(owners, field)) throw failure(`自造顶层字段 "${field}" 被 additionalProperties:false 拦截`);
+    if (owners[field] !== writer) throw failure(`越权写：字段 "${field}" 归属 ${owners[field]}，当前 writer=${writer}`);
   }
-  const next = { ...state };
-  for (const [k, v] of Object.entries(patch)) next[k] = v;
+  const next = { ...state, ...patch };
   const result = validate(stateSchema, next);
-  if (!result.valid) {
-    throw Object.assign(new Error(`state 校验失败: ${result.errors.join('; ')}`), { exitCode: 1 });
-  }
+  if (!result.valid) throw failure(`state 校验失败: ${result.errors.join('; ')}`);
   return next;
 }
 
-function initState({ workflowId, projectRoot, skillName, skillVersion, skillRoot, workflowPath, runType, args }) {
+function initState({ workflowId, projectRoot, skillName, skillVersion, skillRoot, workflowPath, runType, args, initialStage, stateSchema }) {
   const now = new Date().toISOString();
-  return {
+  const state = {
     runId: null,
+    bootstrapId: crypto.randomUUID(),
     workflowId,
     createdAt: now,
-    projectRoot,
+    projectRoot: path.resolve(projectRoot),
     worktreePath: null,
     skillName,
     skillVersion,
-    skillRoot,
+    skillRoot: path.resolve(skillRoot),
     configPath: '.ddo/config.json',
     workflowPath,
     type: runType,
     dateDescription: null,
     artifactDir: null,
     args: args || {},
-    currentStage: 'context',
-    stages: {},
+    currentStage: initialStage || 'context',
+    stages: { [initialStage || 'context']: { status: 'running', startedAt: now } },
     artifacts: {},
     pendingOutputs: {},
     history: [{ event: 'created', at: now, note: `workflowId=${workflowId}` }],
   };
+  if (stateSchema) {
+    buildFieldOwner(stateSchema);
+    const result = validate(stateSchema, state);
+    if (!result.valid) throw failure(`初始 state 校验失败: ${result.errors.join('; ')}`);
+  }
+  return state;
 }
 
-// 扫描可恢复 run。返回候选数组；多候选由调用方 exit 1 求选择。
-function findResumable({ projectRoot, worktreeDir, stateSchema }) {
-  const roots = [];
-  if (worktreeDir) roots.push(worktreeDir);
-  roots.push(path.dirname(projectRoot));
-
-  const candidates = [];
-  for (const root of roots) {
+function findResumable({ projectRoot, worktreeDir }) {
+  const project = path.resolve(projectRoot);
+  const pendingRoot = path.join(project, '.ddo', 'runs', '.pending');
+  const roots = [pendingRoot];
+  if (worktreeDir) roots.push(path.resolve(worktreeDir));
+  roots.push(path.dirname(project));
+  const byBootstrap = new Map();
+  for (const root of [...new Set(roots)]) {
     if (!fs.existsSync(root)) continue;
     for (const statePath of walkStateFiles(root)) {
       let state;
       try { state = readJson(statePath); } catch { continue; }
-      if (state.currentStage === 'done') continue;
-      if (state.projectRoot !== projectRoot) continue;
-      if (!state.worktreePath || !fs.existsSync(state.worktreePath)) continue;
-      if (state.artifactDir && !statePath.startsWith(path.resolve(state.artifactDir))) continue;
-      candidates.push({ state, statePath });
+      if (state.currentStage === 'done' || path.resolve(state.projectRoot || '') !== project) continue;
+      const inPending = isWithin(pendingRoot, statePath);
+      let phase;
+      if (inPending && !state.worktreePath) phase = 'bootstrap';
+      else if (state.worktreePath && fs.existsSync(state.worktreePath) && state.artifactDir && isWithin(path.resolve(state.artifactDir), statePath)) phase = 'worktree';
+      else continue;
+      const candidate = { phase, state, statePath };
+      const key = state.bootstrapId || state.runId || statePath;
+      const previous = byBootstrap.get(key);
+      if (!previous || (previous.phase === 'bootstrap' && phase === 'worktree')) byBootstrap.set(key, candidate);
     }
   }
-  return candidates;
+  return [...byBootstrap.values()];
 }
 
 function walkStateFiles(root) {
-  const out = [];
-  const stack = [root];
+  const output = [];
+  const stack = [path.resolve(root)];
   const seen = new Set();
   while (stack.length) {
-    const dir = stack.pop();
-    if (seen.has(dir)) continue;
-    seen.add(dir);
+    const directory = stack.pop();
+    if (seen.has(directory)) continue;
+    seen.add(directory);
     let entries;
-    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { continue; }
-    for (const e of entries) {
-      const full = path.join(dir, e.name);
-      if (e.isDirectory()) {
-        if (e.name === 'node_modules' || e.name === '.git') continue;
-        stack.push(full);
-      } else if (e.name === '.state.json') {
-        out.push(full);
-      }
+    try { entries = fs.readdirSync(directory, { withFileTypes: true }); } catch { continue; }
+    for (const entry of entries) {
+      const fullPath = path.join(directory, entry.name);
+      if (entry.isDirectory()) {
+        if (!['node_modules', '.git'].includes(entry.name)) stack.push(fullPath);
+      } else if (entry.name === '.state.json') output.push(fullPath);
     }
   }
-  return out;
+  return output;
 }
 
-module.exports = { buildFieldOwner, applyMutation, initState, findResumable };
+function isWithin(root, target) {
+  const relative = path.relative(path.resolve(root), path.resolve(target));
+  return relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative));
+}
+
+function failure(message) { return Object.assign(new Error(message), { exitCode: 1 }); }
+
+module.exports = { buildFieldOwner, applyMutation, initState, findResumable, walkStateFiles, isWithin };

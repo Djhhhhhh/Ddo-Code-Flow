@@ -1,70 +1,44 @@
 'use strict';
-// advance-stage 终态硬检查后推进 currentStage（G8 / AC-8）。
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const { advanceStage } = require('../lib/advance');
 
-function workflow(gates = []) {
-  return {
-    pipeline: [
-      { stage: 'spec', atomTasks: { nodes: { a: {} } } },
-      { stage: 'planning', atomTasks: { nodes: { b: {} } } },
-    ],
-    confirmationGates: gates,
-  };
+function stage(name, nodes = ['node'], enabled = true) {
+  return { stage: name, enabled, atomTasks: { nodes: Object.fromEntries(nodes.map((node) => [node, {}])) } };
 }
 
-describe('advance-stage（G8 / AC-8）', () => {
-  it('未满足终态时 exit 1 且不推进 currentStage', () => {
-    const w = workflow();
-    const state = { currentStage: 'spec', stages: { spec: { status: 'running' } }, history: [] };
-    assert.throws(() => advanceStage(state, w), (e) => e.exitCode === 1);
-    assert.equal(state.currentStage, 'spec');
-  });
+function done(node, stageName, at = '2026-08-29T00:00:00Z') { return { event: 'node-done', node, stage: stageName, at }; }
 
-  it('终态全满足时推进 currentStage（返回 patch，不原地改 state）', () => {
-    const w = workflow();
-    const state = {
-      currentStage: 'spec',
-      stages: { spec: { status: 'running' } },
-      history: [{ event: 'node-done', stage: 'spec', node: 'a', at: '2026-08-24T00:00:00.000Z' }],
-    };
-    const r = advanceStage(state, w);
-    assert.equal(r.currentStage, 'planning');
-    assert.equal(r.patch.currentStage, 'planning');
-    assert.equal(r.patch.stages.spec.status, 'done');
-    assert.equal(r.patch.stages.planning.status, 'running');
-    // 纯函数：原 state 未被原地修改
-    assert.equal(state.currentStage, 'spec');
-    assert.equal(state.stages.spec.status, 'running');
+describe('advance-stage', () => {
+  it('推进到下一真实 stage，并跳过 disabled stage', () => {
+    const workflow = { pipeline: [stage('a', ['one']), stage('skip', [], false), stage('b', ['two'])], confirmationGates: [] };
+    const state = { currentStage: 'a', stages: { a: { status: 'running' } }, artifacts: {}, pendingOutputs: {}, history: [done('one', 'a')] };
+    const result = advanceStage(state, workflow);
+    assert.equal(result.currentStage, 'b');
+    assert.equal(result.patch.stages.a.status, 'done');
+    assert.equal(result.patch.stages.b.status, 'running');
+    assert.equal(state.currentStage, 'a');
   });
-
-  it('确认门未批准时 exit 1', () => {
-    const w = workflow(['spec']);
-    const state = {
-      currentStage: 'spec',
-      stages: { spec: { status: 'running' } },
-      history: [{ event: 'node-done', stage: 'spec', node: 'a', at: '2026-08-24T00:00:00.000Z' }],
-    };
-    assert.throws(() => advanceStage(state, w), (e) => e.exitCode === 1 && /门/.test(e.message));
+  it('最后真实 stage 完成后进入 done，但不创建 done stage', () => {
+    const workflow = { pipeline: [stage('cleanup', ['cleanup-worktree'])], confirmationGates: [] };
+    const state = { currentStage: 'cleanup', stages: { cleanup: { status: 'running' } }, artifacts: {}, pendingOutputs: {}, history: [done('cleanup-worktree', 'cleanup')] };
+    const result = advanceStage(state, workflow);
+    assert.equal(result.currentStage, 'done');
+    assert.equal(Object.prototype.hasOwnProperty.call(result.patch.stages, 'done'), false);
   });
-
-  it('末阶段推进到 done 伪阶段时直接落终态，不把 done 标 running', () => {
-    const w = {
-      pipeline: [
-        { stage: 'spec', atomTasks: { nodes: { a: {} } } },
-        { stage: 'done', atomTasks: { nodes: {} } },
-      ],
-      confirmationGates: [],
-    };
-    const state = {
-      currentStage: 'spec',
-      stages: { spec: { status: 'running' } },
-      history: [{ event: 'node-done', stage: 'spec', node: 'a', at: '2026-08-24T00:00:00.000Z' }],
-    };
-    const r = advanceStage(state, w);
-    assert.equal(r.currentStage, 'done');
-    assert.equal(r.patch.stages.spec.status, 'done');
-    assert.equal(r.patch.stages.done.status, 'done');
+  it('未完成、failed/running/waiting-human 均阻止推进', () => {
+    const workflow = { pipeline: [stage('a', ['one'])], confirmationGates: [] };
+    const base = { currentStage: 'a', stages: { a: { status: 'running' } }, artifacts: {}, pendingOutputs: {}, history: [] };
+    assert.throws(() => advanceStage(base, workflow), /未完成/);
+    for (const event of ['node-failed', 'node-running', 'waiting-human']) {
+      assert.throws(() => advanceStage({ ...base, history: [done('one', 'a'), { event, node: 'one', stage: 'a', at: '2026-08-30T00:00:00Z' }] }, workflow), new RegExp(event));
+    }
+  });
+  it('最新 gate 必须 approved，pendingOutputs 阻止终态', () => {
+    const workflow = { pipeline: [stage('spec', ['one'])], confirmationGates: ['spec'] };
+    const base = { currentStage: 'spec', stages: { spec: { status: 'running' } }, artifacts: {}, pendingOutputs: {}, history: [done('one', 'spec'), { event: 'gate-approved', stage: 'spec', at: '2026-08-29T00:00:01Z' }] };
+    assert.equal(advanceStage(base, workflow).currentStage, 'done');
+    assert.throws(() => advanceStage({ ...base, history: [...base.history, { event: 'gate-pending', stage: 'spec', at: '2026-08-29T00:00:02Z' }] }, workflow), /approved/);
+    assert.throws(() => advanceStage({ ...base, pendingOutputs: { x: { stage: 'spec' } } }, workflow), /pendingOutputs/);
   });
 });

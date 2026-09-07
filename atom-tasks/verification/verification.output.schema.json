@@ -51,6 +51,10 @@
       "description": "ALL PASSED 或 FAILED（如有任何条目失败）"
     }
   ],
+  "validators": [
+    { "name": "verification-final-result" },
+    { "name": "verification-group-summary" }
+  ],
   "rules": [
     "每个 cmd: 条目必须有 [PASS] 或 [FAIL] 结果标记",
     "每个 G 分组必须有组摘要行（PASSED 或 FAILED + 失败计数）",

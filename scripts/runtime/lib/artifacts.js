@@ -1,87 +1,98 @@
 'use strict';
-const path = require('path');
+const crypto = require('crypto');
 const fs = require('fs');
+const path = require('path');
 const { readJson } = require('./json');
-const { resolveProtocol } = require('./protocol');
+const { resolveEffectiveNode } = require('./effective-node');
+const { validateOutput, validateOutputContent } = require('./output-validator');
 
-// stdin 产出文本 → 落盘 + 返回 artifactRecord / historyEvent（由调用方经 applyMutation 持久化）。
-function registerArtifact({ stdin, role, state, skillRoot, producer, stage }) {
+function registerArtifact({ stdin = '', role, state, skillRoot, workflow, effectiveConfig = {}, producer, stage = state.currentStage }) {
   const catalog = readJson(path.join(skillRoot, 'atom-tasks', 'artifacts.json'));
-  const roleDef = catalog.roles[role];
-  if (!roleDef) throw Object.assign(new Error(`role "${role}" 未在 artifacts.json 登记`), { exitCode: 1 });
-  if (!state.artifactDir) throw Object.assign(new Error('artifactDir 尚未可用（git-worktree 未完成）'), { exitCode: 1 });
+  const roleDefinition = catalog.roles && catalog.roles[role];
+  if (!roleDefinition) throw failure(`role "${role}" 未在 artifacts.json 登记`);
+  if (!producer) throw failure('register-artifact 必须提供 workflow node producer');
+  const effectiveNode = resolveEffectiveNode({ skillRoot, workflow, effectiveConfig, stageName: stage, nodeName: producer });
+  const declaration = effectiveNode.produces.find((output) => output.role === role);
+  if (!declaration) throw failure(`role "${role}" 不在 node ${producer} 的 produces 中`);
+  const outputSchemaRef = declaration.primary ? effectiveNode.outputSchemaRef : null;
 
-  let relPath = roleDef.file;
-  if (relPath === null) relPath = `${role}.${roleDef.kind === 'json' ? 'json' : 'md'}`;
+  if (!state.artifactDir) {
+    const pendingOutput = makePendingOutput({ content: stdin, role, producer, task: effectiveNode.taskName, stage, outputSchemaRef });
+    if (outputSchemaRef) assertOutputContent({ content: stdin, outputSchemaRef, skillRoot });
+    const existing = state.pendingOutputs && state.pendingOutputs[role];
+    if (existing && existing.contentHash !== pendingOutput.contentHash) throw failure(`pending role ${role} 已存在不同内容`);
+    return {
+      status: 'pending', role, path: null, absPath: null, artifactRecord: null,
+      pendingOutput: existing || pendingOutput,
+      historyEvent: existing ? null : { event: 'artifact-pending', at: pendingOutput.createdAt, stage, node: producer, task: effectiveNode.taskName, role },
+    };
+  }
 
-  const absPath = path.join(path.resolve(state.artifactDir), relPath);
-  if (roleDef.kind === 'dir' || relPath.endsWith('/')) {
-    fs.mkdirSync(absPath, { recursive: true });
+  const artifactRoot = path.resolve(state.artifactDir);
+  if (!state.worktreePath) throw failure('artifactDir 已设置但 worktreePath 缺失');
+  assertWithin(path.resolve(state.worktreePath), artifactRoot, 'artifactDir');
+  const relativePath = roleDefinition.file;
+  if (!relativePath) throw failure(`role ${role} 没有固定 file，当前 runtime 不支持未定义 dynamic path`);
+  const absolutePath = path.resolve(artifactRoot, relativePath);
+  assertWithin(artifactRoot, absolutePath, `artifact role ${role}`);
+  if (roleDefinition.kind === 'dir' || relativePath.endsWith('/')) {
+    fs.mkdirSync(absolutePath, { recursive: true });
   } else {
-    fs.mkdirSync(path.dirname(absPath), { recursive: true });
-    fs.writeFileSync(absPath, stdin || '', 'utf8');
+    fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
+    const tempPath = path.join(path.dirname(absolutePath), `.${path.basename(absolutePath)}.tmp-${process.pid}-${Date.now()}`);
+    fs.writeFileSync(tempPath, stdin, 'utf8');
+    try {
+      if (outputSchemaRef) assertOutputFile({ artifactPath: tempPath, outputSchemaRef, skillRoot });
+      if (fs.existsSync(absolutePath)) {
+        const existingHash = sha256(fs.readFileSync(absolutePath));
+        const nextHash = sha256(Buffer.from(stdin));
+        if (existingHash !== nextHash) throw failure(`artifact ${role} 已存在不同内容，拒绝覆盖`);
+        fs.rmSync(tempPath);
+      } else {
+        fs.renameSync(tempPath, absolutePath);
+      }
+    } catch (error) {
+      if (fs.existsSync(tempPath)) fs.rmSync(tempPath);
+      throw error;
+    }
   }
 
-  const relToWorktree = path.relative(state.worktreePath || '', absPath).split(path.sep).join('/');
-  const runRef = `run://${relToWorktree}`;
+  const relativeToWorktree = path.relative(path.resolve(state.worktreePath), absolutePath).split(path.sep).join('/');
+  if (relativeToWorktree.startsWith('../')) throw failure(`artifact ${role} 不在 worktreePath 内`);
   const now = new Date().toISOString();
-  const artifactRecord = { path: runRef, producer: producer || role, stage: stage || state.currentStage, at: now };
-  const historyEvent = { event: 'node-done', at: now, stage: stage || state.currentStage, node: producer || role };
-  return { path: runRef, absPath, artifactRecord, historyEvent };
+  const artifactRecord = { path: `run://${relativeToWorktree}`, producer, task: effectiveNode.taskName, stage, at: now };
+  return {
+    status: 'registered', role, path: artifactRecord.path, absPath: absolutePath, artifactRecord, pendingOutput: null,
+    historyEvent: { event: 'artifact-registered', at: now, stage, node: producer, task: effectiveNode.taskName, role },
+  };
 }
 
-// 按 outputSchemaRef 校验产物（json 校验 jsonFields，markdown 校验 required section）。
-function validateOutput({ artifactPath, outputSchemaRef, skillRoot }) {
-  const schemaPath = resolveProtocol(outputSchemaRef, { skillRoot });
-  const outputSchema = readJson(schemaPath);
-  const content = fs.readFileSync(artifactPath, 'utf8');
-  const errors = [];
-
-  if (outputSchema.outputFormat === 'json' || outputSchema.jsonFields) {
-    let json;
-    try { json = JSON.parse(content); } catch (e) {
-      return { valid: false, errors: [`产物不是合法 JSON: ${e.message}`] };
-    }
-    for (const field of outputSchema.jsonFields || []) {
-      if (field.required && !Object.prototype.hasOwnProperty.call(json, field.name)) {
-        errors.push(`缺少必需字段 "${field.name}"`);
-      } else if (field.type && Object.prototype.hasOwnProperty.call(json, field.name) && !matchesFieldType(field.type, json[field.name])) {
-        errors.push(`字段 "${field.name}" 类型应为 ${JSON.stringify(field.type)}`);
-      }
-    }
-  } else if (outputSchema.outputFormat === 'markdown' || outputSchema.sections) {
-    for (const section of outputSchema.sections || []) {
-      if (section.required && !hasSection(content, section.heading)) {
-        errors.push(`缺少必需 section "${section.heading}"`);
-      }
-    }
-  }
-
-  return { valid: errors.length === 0, errors };
+function makePendingOutput({ content, role, producer, task, stage, outputSchemaRef }) {
+  return {
+    role, producer, task, stage, encoding: 'base64',
+    content: Buffer.from(content, 'utf8').toString('base64'),
+    contentHash: sha256(Buffer.from(content, 'utf8')),
+    outputSchemaRef: outputSchemaRef || null,
+    createdAt: new Date().toISOString(),
+  };
 }
 
-function matchesFieldType(t, value) {
-  if (Array.isArray(t)) return t.some((x) => matchesFieldType(x, value));
-  switch (t) {
-    case 'string': return typeof value === 'string';
-    case 'array': return Array.isArray(value);
-    case 'object': return typeof value === 'object' && value !== null && !Array.isArray(value);
-    case 'integer': return typeof value === 'number' && Number.isInteger(value);
-    case 'number': return typeof value === 'number';
-    case 'boolean': return typeof value === 'boolean';
-    case 'null': return value === null;
-    default: return true;
-  }
+function assertOutputContent(args) {
+  const result = validateOutputContent(args);
+  if (!result.valid) throw failure(`产物校验失败:\n${result.errors.join('\n')}`);
 }
 
-function hasSection(md, heading) {
-  const staticHeading = String(heading).replace(/\\\./g, '.').replace(/\\/g, '').replace(/{{.*?}}/g, '').trim();
-  if (!staticHeading) return true;
-  const lines = md.split('\n');
-  return lines.some((l) => {
-    const m = l.match(/^#{1,6}\s+(.*)$/);
-    return m && m[1].trim().startsWith(staticHeading);
-  });
+function assertOutputFile(args) {
+  const result = validateOutput(args);
+  if (!result.valid) throw failure(`产物校验失败:\n${result.errors.join('\n')}`);
 }
 
-module.exports = { registerArtifact, validateOutput };
+function assertWithin(root, target, label) {
+  const relative = path.relative(root, target);
+  if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) throw failure(`${label} 路径越界`);
+}
+
+function sha256(value) { return crypto.createHash('sha256').update(value).digest('hex'); }
+function failure(message) { return Object.assign(new Error(message), { exitCode: 1 }); }
+
+module.exports = { registerArtifact, validateOutput, makePendingOutput, sha256 };
