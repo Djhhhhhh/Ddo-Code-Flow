@@ -1,0 +1,12 @@
+{
+  "name": "remote-gate",
+  "version": "2.0.0",
+  "output": "gate-result.md",
+  "defaults": {
+    "extra_ctx": "",
+    "rules": [
+      "仅轮询声明的信号 label，不做其他写操作",
+      "超时后按配置动作执行并如实记录"
+    ]
+  }
+}

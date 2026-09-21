@@ -1,0 +1,12 @@
+{
+  "name": "delivery-doc",
+  "version": "2.0.0",
+  "output": "delivery-doc.md",
+  "defaults": {
+    "extra_ctx": "",
+    "rules": [
+      "需求回溯引用 spec 原文，不得改写",
+      "验证结论如实转述，不得夸大通过状态"
+    ]
+  }
+}

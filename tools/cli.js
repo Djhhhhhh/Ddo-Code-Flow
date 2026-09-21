@@ -9,6 +9,10 @@
 const { readState, writeState, assertState } = require('./lib/state');
 const registry = require('./lib/index-registry');
 const history = require('./lib/history');
+const { assemble, mergeConfig } = require('./lib/assemble');
+const { loadTaskSchema, validateArtifact } = require('./lib/output-schema');
+
+const ATOM_TASKS_DIR = require('path').join(__dirname, '..', 'atom-tasks');
 
 class UsageError extends Error {}
 
@@ -115,6 +119,89 @@ function runRollback(f) {
   return { rolledBack, pathReset, currentStage: state.currentStage };
 }
 
+function runExec(f) {
+  const statePath = f.state;
+  const taskName = f.task;
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(taskName)) {
+    throw new UsageError(`--task 非法: ${taskName}`);
+  }
+  const phase = f.phase === undefined ? '01' : String(f.phase).padStart(2, '0');
+  const state = readState(statePath);
+  assertState(state);
+
+  const taskDir = require('path').join(f['tasks-dir'] ? require('path').resolve(f['tasks-dir']) : ATOM_TASKS_DIR, taskName);
+  const promptFile = require('path').join(taskDir, 'prompt.md');
+  if (!require('fs').existsSync(promptFile) || !require('fs').existsSync(require('path').join(taskDir, 'config.json'))) {
+    throw new Error(`原子任务不存在或结构不完整: ${taskDir}（需含 prompt.md + config.json）`);
+  }
+  const { cfg } = mergeConfig(taskDir, state, registry.ddoHome());
+  if (cfg.phases) {
+    const ids = cfg.phases.map((p) => String(p.id).padStart(2, '0'));
+    if (!ids.includes(phase)) {
+      throw new Error(`相位未声明: ${phase}（已声明: ${ids.join(', ')}）`);
+    }
+  } else if (phase !== '01') {
+    throw new Error(`相位未声明: ${phase}（该任务为单相位）`);
+  }
+
+  return assemble({ taskDir, taskName, phase, state, statePath, ddoHome: registry.ddoHome() });
+}
+
+function runValidate(f) {
+  const statePath = f.state;
+  const taskName = f.task;
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(taskName)) {
+    throw new UsageError(`--task 非法: ${taskName}`);
+  }
+  const phase = f.phase === undefined ? '01' : String(f.phase).padStart(2, '0');
+  const state = readState(statePath);
+  assertState(state);
+
+  const path = require('path');
+  const fs = require('fs');
+  const tasksDir = f['tasks-dir'] ? path.resolve(f['tasks-dir']) : ATOM_TASKS_DIR;
+  const taskDir = path.join(tasksDir, taskName);
+  const cfgFile = path.join(taskDir, 'config.json');
+  if (!fs.existsSync(path.join(taskDir, 'prompt.md')) || !fs.existsSync(cfgFile)) {
+    throw new Error(`原子任务不存在或结构不完整: ${taskDir}（需含 prompt.md + config.json）`);
+  }
+  const cfg = JSON.parse(fs.readFileSync(cfgFile, 'utf8'));
+
+  // 定位 output 声明：多相位挂 phases[]，单相位挂顶层；字符串 = 产出文件，{updates} = 只写回
+  let decl = null;
+  if (Array.isArray(cfg.phases)) {
+    const entry = cfg.phases.find((p) => String(p.id).padStart(2, '0') === phase);
+    if (!entry) throw new Error(`相位未声明: ${phase}（已声明: ${cfg.phases.map((p) => p.id).join(', ')}）`);
+    decl = entry.output || null;
+  } else {
+    if (phase !== '01') throw new Error(`相位未声明: ${phase}（该任务为单相位）`);
+    decl = cfg.output || null;
+  }
+  if (!decl) return { validated: null, reason: '任务未声明产出' };
+
+  // schema 加载 + meta 校验先于产物检查——schema 写坏是设计时错误，不依赖产物存在
+  const schema = loadTaskSchema(taskDir, taskName);
+
+  const runDir = path.dirname(statePath);
+  const files = typeof decl === 'string' ? [decl] : (decl.updates || []);
+  const missing = files.filter((file) => !fs.existsSync(path.join(runDir, file)));
+
+  const errors = [];
+  if (typeof decl === 'string' && schema && !missing.length) {
+    errors.push(...validateArtifact(schema, fs.readFileSync(path.join(runDir, decl), 'utf8')));
+  }
+
+  if (missing.length || errors.length) {
+    const detail = [];
+    if (missing.length) detail.push(`缺失: ${missing.join('；')}`);
+    if (errors.length) detail.push(`结构: ${errors.join('；')}`);
+    process.stderr.write(`[校验不通过] ${detail.join('，')}\n`);
+    process.exitCode = 1;
+    return { validated: false, missing, errors };
+  }
+  return { validated: true };
+}
+
 // ---------------------------------------------------------------- 命令注册表
 
 const REGISTRY = [
@@ -138,6 +225,31 @@ const REGISTRY = [
       { flag: '--reason', desc: '回滚原因（记入 stderr 日志，不写 state）' },
     ],
     run: runRollback,
+  },
+  {
+    name: 'exec',
+    summary: '执行原子任务：组装「恰好必需」的 prompt（裸文本输出，渐进式加载）',
+    usage: 'exec --state <path> --task <name> [--phase <id>]',
+    options: [
+      { flag: '--state', desc: '.state.json 绝对路径', required: true },
+      { flag: '--task', desc: '原子任务名（atom-tasks/<name>/）', required: true },
+      { flag: '--phase', desc: '相位 id（两位，缺省 01；须在 config.json phases 声明内）' },
+      { flag: '--tasks-dir', desc: '原子任务根目录（缺省仓库 atom-tasks/；测试/扩展用）' },
+    ],
+    run: runExec,
+    rawOutput: true, // 04 P2 定稿：exec 输出裸 prompt 文本，四通道唯一例外
+  },
+  {
+    name: 'validate',
+    summary: '产出规范化校验：按任务 output 声明硬校验产物（存在/必填 section/无占位）',
+    usage: 'validate --state <path> --task <name> [--phase <id>]',
+    options: [
+      { flag: '--state', desc: '.state.json 绝对路径', required: true },
+      { flag: '--task', desc: '原子任务名（atom-tasks/<name>/）', required: true },
+      { flag: '--phase', desc: '相位 id（两位，缺省 01）' },
+      { flag: '--tasks-dir', desc: '原子任务根目录（缺省仓库 atom-tasks/；测试/扩展用）' },
+    ],
+    run: runValidate,
   },
 ];
 
@@ -249,8 +361,9 @@ function main() {
       return 0;
     }
     const result = cmd.run(flags);
-    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
-    return 0;
+    if (cmd.rawOutput) process.stdout.write(`${result}\n`);
+    else process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    return process.exitCode || 0; // 命令可自设 exitCode（如 validate 校验失败仍输出 JSON）
   }
   if (positional.length === 1) {
     throw new UsageError(`未知命令: ${name}（用 --help 查看全部）`);
@@ -268,13 +381,16 @@ function main() {
   throw new UsageError(`未知命令: ${name}（用 --help 查看全部）`);
 }
 
+// 不用 process.exit()：管道下它会截断未冲刷的 stdout。设 exitCode 让 Node
+// 在流冲刷完毕后自然退出（validate 的自设 exitCode 经 main 的返回值回传）。
 try {
-  process.exit(main());
+  process.exitCode = main();
 } catch (e) {
   if (e instanceof UsageError) {
     process.stderr.write(`[用法错误] ${e.message}\n`);
-    process.exit(2);
+    process.exitCode = 2;
+  } else {
+    process.stderr.write(`[失败] ${e.message}\n`);
+    process.exitCode = 1;
   }
-  process.stderr.write(`[失败] ${e.message}\n`);
-  process.exit(1);
 }

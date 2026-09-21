@@ -1,0 +1,31 @@
+{
+  "name": "plan",
+  "version": "2.0.0",
+  "phases": [
+    {
+      "id": "01",
+      "summary": "基于已确认 spec 生成技术 Plan",
+      "type": "action",
+      "output": "plan.md"
+    },
+    {
+      "id": "02",
+      "summary": "用户确认门（同意/修改/提问/归档）",
+      "type": "human",
+      "output": {
+        "updates": [
+          "plan.md"
+        ]
+      }
+    }
+  ],
+  "defaults": {
+    "extra_ctx": "",
+    "rules": [
+      "spec 中每个开放问题必须有唯一确定答案或明确阻塞，不得伪造仓库事实",
+      "Plan 不生成测试用例、不写普通业务代码",
+      "所有正式图使用 Mermaid，禁止 PlantUML 与 ASCII 架构图",
+      "人类可读信息在前，FR/AC/DEC/Q 等 AI 索引仅放表格末列"
+    ]
+  }
+}

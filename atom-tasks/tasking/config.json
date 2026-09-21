@@ -1,0 +1,12 @@
+{
+  "name": "tasking",
+  "version": "2.0.0",
+  "output": "tasks/task-group.json",
+  "defaults": {
+    "extra_ctx": "",
+    "rules": [
+      "任务小到可独立 review；超过约 5 个文件考虑拆分",
+      "不得编造 plan/test-plan 之外的任务"
+    ]
+  }
+}

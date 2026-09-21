@@ -1,0 +1,11 @@
+{
+  "name": "coding",
+  "version": "2.0.0",
+  "defaults": {
+    "extra_ctx": "",
+    "rules": [
+      "所有代码改动必须落在 git.worktreePath 指向的工作树内",
+      "不得为通过检查而注释/删除既有测试，除非任务本身要求"
+    ]
+  }
+}

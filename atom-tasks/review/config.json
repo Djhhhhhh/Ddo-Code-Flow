@@ -1,0 +1,11 @@
+{
+  "name": "review",
+  "version": "2.0.0",
+  "output": "review-report.md",
+  "defaults": {
+    "extra_ctx": "",
+    "rules": [
+      "逐条对照 check-list.md 核对，每条给出 通过/不通过/不适用 与备注"
+    ]
+  }
+}

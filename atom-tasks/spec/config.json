@@ -1,0 +1,31 @@
+{
+  "name": "spec",
+  "version": "2.0.0",
+  "phases": [
+    {
+      "id": "01",
+      "summary": "基于需求生成 Alignment Spec",
+      "type": "action",
+      "output": "spec.md"
+    },
+    {
+      "id": "02",
+      "summary": "用户确认门（批准 / 修改 / 提问 / 驳回）",
+      "type": "human",
+      "output": {
+        "updates": [
+          "spec.md"
+        ]
+      }
+    }
+  ],
+  "defaults": {
+    "extra_ctx": "",
+    "rules": [
+      "不得改写或概括用户需求原文",
+      "上下文缺失时如实标注，不得虚构仓库事实",
+      "用户必须明确选择「同意」才能批准，任何其他回复不得视为隐式同意",
+      "FR、AC、BQ 使用稳定 ID，修订中不得重排或复用"
+    ]
+  }
+}

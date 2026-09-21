@@ -4,7 +4,12 @@
   "title": "ddo-code-flow output schema",
   "$comment": "定义 atom-task 输出产物的结构规范。支持纯 MD 输出和 JSON+MD 双输出两种模式。每个 .output.schema.json 必须符合此 schema。",
   "type": "object",
-  "required": ["description", "outputFormat", "document", "sections"],
+  "required": [
+    "description",
+    "outputFormat",
+    "document",
+    "sections"
+  ],
   "additionalProperties": false,
   "properties": {
     "description": {
@@ -14,29 +19,42 @@
     },
     "outputFormat": {
       "type": "string",
-      "enum": ["markdown", "json+markdown"],
-      "description": "输出模式：markdown=仅输出 MD 文件；json+markdown=同时输出 JSON 和对应的 MD 文件"
+      "enum": [
+        "markdown",
+        "json",
+        "json+markdown"
+      ],
+      "description": "输出模式：markdown=仅输出 MD 文件；json=仅输出 JSON 文件；json+markdown=同时输出 JSON 和对应的 MD 文件"
     },
     "templateRef": {
       "type": "string",
       "pattern": "^skill://",
       "description": "可选：引用现有的 _template.md 文件（兼容过渡期使用）"
     },
-    "document": { "$ref": "#/$defs/document" },
+    "document": {
+      "$ref": "#/$defs/document"
+    },
     "jsonFields": {
       "type": "array",
-      "items": { "$ref": "#/$defs/jsonField" },
+      "items": {
+        "$ref": "#/$defs/jsonField"
+      },
       "description": "outputFormat=json+markdown 时必填：定义 JSON 文件的字段结构"
     },
     "sections": {
       "type": "array",
       "minItems": 1,
-      "items": { "$ref": "#/$defs/section" },
+      "items": {
+        "$ref": "#/$defs/section"
+      },
       "description": "MD 文件的模块化结构定义，按文档中的出现顺序排列。json+markdown 模式下描述 JSON 到 MD 的渲染规则"
     },
     "rules": {
       "type": "array",
-      "items": { "type": "string", "minLength": 1 },
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
       "description": "全局校验规则，描述 sections 无法表达的约束"
     },
     "example": {
@@ -56,7 +74,12 @@
   "$defs": {
     "jsonField": {
       "type": "object",
-      "required": ["name", "type", "required", "description"],
+      "required": [
+        "name",
+        "type",
+        "required",
+        "description"
+      ],
       "additionalProperties": false,
       "properties": {
         "name": {
@@ -66,7 +89,13 @@
         },
         "type": {
           "type": "string",
-          "enum": ["string", "number", "boolean", "array", "object"],
+          "enum": [
+            "string",
+            "number",
+            "boolean",
+            "array",
+            "object"
+          ],
           "description": "字段类型"
         },
         "required": {
@@ -84,7 +113,10 @@
     },
     "document": {
       "type": "object",
-      "required": ["title", "titleFormat"],
+      "required": [
+        "title",
+        "titleFormat"
+      ],
       "additionalProperties": false,
       "properties": {
         "title": {
@@ -94,7 +126,11 @@
         },
         "titleFormat": {
           "type": "string",
-          "enum": ["固定文本", "动态拼接", "占位符"],
+          "enum": [
+            "固定文本",
+            "动态拼接",
+            "占位符"
+          ],
           "description": "标题格式模式：固定文本=原样输出；动态拼接=由多个字段拼接（如 task-{{ NN }} — {{ 标题 }}）；占位符=模板替换（如 {{ 项目名称 }} Specification）"
         },
         "description": {
@@ -110,7 +146,12 @@
     },
     "section": {
       "type": "object",
-      "required": ["heading", "level", "required", "format"],
+      "required": [
+        "heading",
+        "level",
+        "required",
+        "format"
+      ],
       "additionalProperties": false,
       "properties": {
         "heading": {
@@ -120,7 +161,12 @@
         },
         "level": {
           "type": "integer",
-          "enum": [1, 2, 3, 4],
+          "enum": [
+            1,
+            2,
+            3,
+            4
+          ],
           "description": "heading 层级（1=#, 2=##, 3=###, 4=####）"
         },
         "required": {
@@ -134,7 +180,16 @@
         },
         "format": {
           "type": "string",
-          "enum": ["text", "list", "table", "structured-list", "group", "template", "prose", "code"],
+          "enum": [
+            "text",
+            "list",
+            "table",
+            "structured-list",
+            "group",
+            "template",
+            "prose",
+            "code"
+          ],
           "description": "此 section 的内容格式类型"
         },
         "placeholder": {
@@ -143,7 +198,10 @@
         },
         "columns": {
           "type": "array",
-          "items": { "type": "string", "minLength": 1 },
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
           "minItems": 1,
           "description": "format=table 时：表头列名"
         },
@@ -169,7 +227,9 @@
         },
         "subsections": {
           "type": "array",
-          "items": { "$ref": "#/$defs/section" },
+          "items": {
+            "$ref": "#/$defs/section"
+          },
           "description": "format=group 时：子 section 列表"
         }
       }

@@ -1,0 +1,12 @@
+{
+  "name": "create-pr",
+  "version": "2.0.0",
+  "output": "pr-info.md",
+  "defaults": {
+    "extra_ctx": "",
+    "rules": [
+      "默认创建 draft PR",
+      "PR 正文引用交付文档，不改写其结论"
+    ]
+  }
+}

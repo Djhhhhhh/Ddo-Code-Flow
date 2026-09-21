@@ -1,0 +1,30 @@
+{
+  "name": "reflection",
+  "version": "2.0.0",
+  "phases": [
+    {
+      "id": "01",
+      "summary": "扫描遗留 TODO/风险并生成复盘报告",
+      "type": "action",
+      "output": "reflection-report.md"
+    },
+    {
+      "id": "02",
+      "summary": "用户确认门（同意后进入结束流程）",
+      "type": "human",
+      "output": {
+        "updates": [
+          "reflection-report.md"
+        ]
+      }
+    }
+  ],
+  "defaults": {
+    "extra_ctx": "",
+    "rules": [
+      "仅扫描本次 run 的 worktree",
+      "TODO 引用文件路径与行号",
+      "后续动作须为可执行任务"
+    ]
+  }
+}
