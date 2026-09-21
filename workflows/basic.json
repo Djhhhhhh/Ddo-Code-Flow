@@ -1,0 +1,12 @@
+{
+  "name": "basic",
+  "version": "1.0.0",
+  "description": "基础链路：requirement → spec → plan → coding → reporting",
+  "stages": [
+    { "task": "requirement", "dependOn": [] },
+    { "task": "spec", "dependOn": ["requirement"] },
+    { "task": "plan", "dependOn": ["spec"] },
+    { "task": "coding", "dependOn": ["plan"] },
+    { "task": "reporting", "dependOn": ["coding"] }
+  ]
+}

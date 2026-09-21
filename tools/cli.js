@@ -4,15 +4,21 @@
 // 契约：命令注册表即文档源（--help 纯渲染）；四通道输出
 // （stdout=JSON / stderr=人话 / exit 0·1·2 / 状态文件现读不缓存）。
 // 命令在归属的设计轮次登记（03 plan §3.4 命名空间政策）；
-// 当前登记：run finish、rollback（04 plan v1.0 契约）。
+// 当前登记：run start（06）、run finish、rollback（04）、exec、validate（05）、next（06）。
 
+const path = require('path');
+const fs = require('fs');
 const { readState, writeState, assertState } = require('./lib/state');
 const registry = require('./lib/index-registry');
 const history = require('./lib/history');
 const { assemble, mergeConfig } = require('./lib/assemble');
 const { loadTaskSchema, validateArtifact } = require('./lib/output-schema');
+const { loadWorkflow, expandStages, phaseType, nextPhase, readyStages, statusForPhase } = require('./lib/workflow');
+const { gitInfo } = require('./lib/git-info');
 
-const ATOM_TASKS_DIR = require('path').join(__dirname, '..', 'atom-tasks');
+const ATOM_TASKS_DIR = path.join(__dirname, '..', 'atom-tasks');
+const WORKFLOWS_DIR = path.join(__dirname, '..', 'workflows');
+const NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 class UsageError extends Error {}
 
@@ -202,9 +208,110 @@ function runValidate(f) {
   return { validated: true };
 }
 
+function runStart(f) {
+  const workflowName = f.workflow === undefined ? 'basic' : f.workflow;
+  const type = f.type === undefined ? 'feat' : f.type;
+  const project = f.project ? path.resolve(f.project) : process.cwd();
+  const workflowsDir = f['workflows-dir'] ? path.resolve(f['workflows-dir']) : WORKFLOWS_DIR;
+  const tasksDir = f['tasks-dir'] ? path.resolve(f['tasks-dir']) : ATOM_TASKS_DIR;
+  if (!NAME_RE.test(type)) throw new UsageError(`--type 非法: ${type}`);
+  if (f['dir-name'] !== undefined && !NAME_RE.test(f['dir-name'])) {
+    throw new UsageError(`--dir-name 非法: ${f['dir-name']}（仅限单段安全字符）`);
+  }
+
+  const preset = loadWorkflow(workflowsDir, workflowName); // fail fast（06 §2.2），不产生半截 run
+  const startedAt = nowIso();
+  const runId = registry.freshRunId();
+  const stages = expandStages(preset, tasksDir, startedAt);
+
+  // 起点：dependOn 为空的阶段全部点亮，status 按各自首相位类型（P2 数据先行）
+  const currentStage = Object.keys(stages)
+    .filter((id) => !(stages[id].dependOn || []).length)
+    .map((id) => {
+      stages[id] = { ...stages[id], status: statusForPhase(phaseType(tasksDir, id, '01')) };
+      return `${id}:01`;
+    });
+
+  const dirName = f['dir-name'] || runId;
+  const runDir = path.join(project, '.ddo', 'runs', type, dirName);
+  const statePath = path.join(runDir, '.state.json');
+  if (fs.existsSync(statePath)) throw new Error(`运行目录已存在: ${runDir}`);
+  fs.mkdirSync(runDir, { recursive: true });
+
+  const state = {
+    runId,
+    title: f.title,
+    startedAt,
+    git: gitInfo(project), // D5 推断链：仓库推断或置空；worktree 场景归 git-worktree 任务
+    currentStage,
+    stages,
+    atomTasks: {},
+  };
+  assertState(state);
+  writeState(statePath, state);
+  registry.register(runId, { statePath, startedAt });
+  return { runId, title: state.title, statePath, workflow: preset.name, currentStage };
+}
+
+function runNext(f) {
+  const state = readState(f.state);
+  assertState(state);
+  if (!state.currentStage.length) throw new Error('无待推进阶段（run 已结束或未启动）');
+  const tasksDir = f['tasks-dir'] ? path.resolve(f['tasks-dir']) : ATOM_TASKS_DIR;
+  const now = nowIso();
+
+  const advanced = [];
+  const finished = [];
+  const nextEntries = [];
+  for (const entry of state.currentStage) {
+    const stageId = stageIdOf(entry);
+    if (!(stageId in state.stages)) throw new Error(`stage 不存在: ${stageId}（现有: ${Object.keys(state.stages).join(', ')}）`);
+    const phase = String(entry).split(':')[1] || '01';
+    const np = nextPhase(tasksDir, stageId, phase);
+    if (np) {
+      // 相位内推进：status 按新相位类型（action→running / human→waiting-human，P2）
+      state.stages[stageId] = { ...state.stages[stageId], status: statusForPhase(phaseType(tasksDir, stageId, np)), at: now };
+      nextEntries.push(`${stageId}:${np}`);
+      advanced.push({ stage: stageId, from: entry, to: `${stageId}:${np}` });
+    } else {
+      // 相位耗尽：阶段收尾
+      state.stages[stageId] = { ...state.stages[stageId], status: 'done', at: now };
+      finished.push(stageId);
+    }
+  }
+
+  // DAG 推进：收尾后新就绪的 pending 阶段全部激活（基础线性链恒为一个）
+  const activated = [];
+  for (const id of readyStages(state.stages)) {
+    state.stages[id] = { ...state.stages[id], status: statusForPhase(phaseType(tasksDir, id, '01')), at: now };
+    nextEntries.push(`${id}:01`);
+    activated.push(id);
+  }
+
+  state.currentStage = nextEntries;
+  writeState(f.state, state);
+  // 终点不自动 run finish（04 D6：生命周期唯一入口保持 run finish）
+  return { advanced, finished, activated, currentStage: state.currentStage, completed: nextEntries.length === 0 };
+}
+
 // ---------------------------------------------------------------- 命令注册表
 
 const REGISTRY = [
+  {
+    name: 'run start',
+    summary: '按预设装配启动 run：物化 .state.json + 注册 index（06）',
+    usage: 'run start --title <text> [--workflow basic] [--type feat] [--dir-name <name>] [--project <path>] [--workflows-dir <path>] [--tasks-dir <path>]',
+    options: [
+      { flag: '--title', desc: 'run 标题（一句话描述，进 state 与 history）', required: true },
+      { flag: '--workflow', desc: 'workflow 预设名（workflows/<name>.json，缺省 basic）' },
+      { flag: '--type', desc: 'run 类型（目录第一段，缺省 feat）' },
+      { flag: '--dir-name', desc: '运行目录名（目录第二段，缺省 runId）' },
+      { flag: '--project', desc: '项目根（缺省 cwd）' },
+      { flag: '--workflows-dir', desc: '预设根目录（缺省仓库 workflows/；测试用）' },
+      { flag: '--tasks-dir', desc: '原子任务根目录（缺省仓库 atom-tasks/；测试用）' },
+    ],
+    run: runStart,
+  },
   {
     name: 'run finish',
     summary: '结束迁移：清 currentStage → history 追加 → index 移除',
@@ -250,6 +357,16 @@ const REGISTRY = [
       { flag: '--tasks-dir', desc: '原子任务根目录（缺省仓库 atom-tasks/；测试/扩展用）' },
     ],
     run: runValidate,
+  },
+  {
+    name: 'next',
+    summary: '推进 currentStage：按任务 phases 声明纯状态推进（相位内 / 跨阶段 / DAG 就绪，06）',
+    usage: 'next --state <path> [--tasks-dir <path>]',
+    options: [
+      { flag: '--state', desc: '.state.json 绝对路径', required: true },
+      { flag: '--tasks-dir', desc: '原子任务根目录（缺省仓库 atom-tasks/；测试用）' },
+    ],
+    run: runNext,
   },
 ];
 

@@ -100,7 +100,7 @@ v2 需要在本机层面回答三个问题：
 | `runId` | string | ✔ | 机器标识，计算方法见 §5.2.1；不承载任何业务语义 |
 | `title` | string | ✔ | 人类可读的 run 标题（本次工作内容的一句话描述），供面板/历史列表展示；生成规则（取自需求关键词或用户指定）归脚本工作项 |
 | `startedAt` | date-time | ✔ | run 启动时间；结束迁移时作为 history 的起始时间来源 |
-| `git.mainBranch` | string | ✔ | 主干分支名称 |
+| `git.mainBranch` | string | ✔（值可空） | 主干分支名称；**字段必存、值可空**（v1.1 修正，06 D5：非 git 环境置空；使用 worktree 时由 git-worktree 任务注册） |
 | `git.releaseBranch` | string | ✖ | 发布分支；不使用时不填 |
 | `git.developmentBranch` | string | ✖ | 开发分支；不使用时不填 |
 | `git.worktreePath` | string（绝对路径） | ✖ | 使用 Git worktree 时填写 |
@@ -205,7 +205,7 @@ runId = <YYYYMMDD>-<HHMMSS>-<XXXX>
 | # | 问题 | 状态 |
 |---|---|---|
 | O1 | history 行字段是否扩展（阶段摘要、失败原因、issue 关联等） | 待定（D3：后续设计） |
-| O2 | 相位由 workflow 预设的哪一层声明；无相位 stage 是否统一 `:01` | 移交 workflow 预设配置工作项 |
+| O2 | ~~相位由 workflow 预设的哪一层声明；无相位 stage 是否统一 `:01`~~ | **已关闭（v1.1）**：相位声明归**原子任务 config.phases**（05 定稿）；无声明 = 单相位 `:01` 且视为 action；workflow 预设不声明相位 |
 | ~~O3~~ | ~~同名项目目录的 runId 前缀冲突~~ | **已消解**：runId 不再嵌项目名（v0.3） |
 
 ## 11. 定版结论（v1.0，用户已确认）
@@ -224,3 +224,4 @@ runId = <YYYYMMDD>-<HHMMSS>-<XXXX>
 | v0.2 | 2026-09-21 | 修订：index 简化为纯指针（D2）；完整状态结构移入 `.state.json` 并去除 workflowId、增加 stages 动态生成契约（D8） |
 | v0.3 | 2026-09-21 | 修订：新增 runId 计算方法（时间+随机，替代项目名-分支名拼接，D9）；新增 title 字段；O3 消解 |
 | **v1.0** | 2026-09-21 | **定版**：用户确认全部结论，作为后续工作项的架构基线 |
+| v1.1 | 2026-09-22 | 修正（06 轮联动，06 D5）：`git.mainBranch` 必填放宽为**字段必存、值可空**（非 git 置空 / worktree 场景由 git-worktree 任务注册）；O2 关闭——相位声明层归属原子任务 `config.phases` |
