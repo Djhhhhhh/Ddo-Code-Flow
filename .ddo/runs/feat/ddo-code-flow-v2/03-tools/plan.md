@@ -1,90 +1,69 @@
-# 工作项 03 · tools — 基础架构设计方案
+# 工作项 03 · tools — 工具注册框架设计
 
-> 版本：v0.1（2026-09-22 初版）
+> 版本：v0.2（2026-09-22 收敛修订）
 > 需求依据：[requirement.md](./requirement.md)（D1–D7）
-> 契约依据：[../02-index-structure/plan.md](../02-index-structure/plan.md) v1.0
 
 ## 1. 定位
 
-`tools/` 是 v2 的确定性执行内核：把索引基线（runId 计算、`.state.json` 读写、index 注册/移除、history 追加）落成可被 agent 直接调用的 CLI。**模型只调用、不实现**这些逻辑。
+`tools/` 在当前阶段只承载**工具注册框架**：命令的声明、分发、帮助与输出契约。业务逻辑（状态推进、索引维护、查询等）不在本阶段实现——它们的机制规格以 [02-index-structure/plan.md](../02-index-structure/plan.md) v1.0 为准，实现随归属设计轮次登记。
 
-## 2. 目录结构
+## 2. 当前形态
 
 ```text
 tools/
-├── cli.js                 # 唯一入口：命令注册表 + 参数解析 + 分发 + help 渲染 + 四通道封装
-└── lib/
-    ├── fsutil.js          # 原子写（临时文件+rename）、锁文件（O_EXCL + 超时重试 + 陈旧锁打破）
-    ├── runid.js           # §5.2.1 runId 计算：YYYYMMDD-HHMMSS-<4位hex>；防碰撞重试
-    ├── state.js           # .state.json 现读/原子写/基本校验（必填字段）
-    ├── index-registry.js  # ~/.ddo/index.json：register / unregister / readAll（加锁+原子写）
-    └── history.js         # ~/.ddo/history/runs.jsonl：追加 / 查询
+└── cli.js    # 纯框架（约 140 行）：命令注册表 + 参数解析 + help 渲染 + 分发 + 四通道封装
 ```
 
-零 npm 依赖，仅用 Node 内置模块（fs / path / os / crypto）。
+注册表当前为空——命令随各设计轮次逐步登记，help 如实反映「暂无已注册命令」。
 
-## 3. CLI 契约
+## 3. 框架契约
 
-### 3.1 调用形态
+### 3.1 命令声明
+
+```js
+{ name: '<domain> <verb>',      // 位置式两段（D5）
+  summary: '一句话职责',
+  usage:   '调用形态（含全部 flag）',
+  options: [{ flag: '--xxx', desc: '参数说明' }],
+  run(flags) }                  // 返回值 → stdout JSON；抛 UsageError → exit 2；其他异常 → exit 1
+```
+
+- 命令在归属设计轮登记；不预留占位接口（D7）。
+- `--help` 三级渲染（全局 / 域 / 命令）均从注册表生成，无第二份文档（D4）。
+
+### 3.2 调用形态与退出码
 
 ```text
 node tools/cli.js <domain> <verb> [--flag value | --flag=value]
-node tools/cli.js --help | -h          # 全局总览
-node tools/cli.js <domain> --help      # 域内子命令
-node tools/cli.js <domain> <verb> --help
+node tools/cli.js --help | <domain> --help | <domain> <verb> --help
 ```
 
-- 位置式两段子命令（D5）；无参数 = help（exit 0）；未知子命令 = stderr + exit 2。
-- **命令注册表即文档源**（D4）：每个命令在注册表中声明 `{ name, summary, usage, options }`，help 纯渲染，不存在第二份文档。
-
-### 3.2 四通道契约（D6）
-
-| 通道 | 约定 |
+| 行为 | 结果 |
 |---|---|
-| stdout | 仅结构化 JSON（命令的正式输出） |
-| stderr | 非零退出时的人类可读说明 |
-| exit code | `0` 成功 · `1` 硬失败（业务/IO 错误）· `2` 用法错误 |
-| 状态文件 | `.state.json` / `index.json` 唯一事实源，每次调用现读，无内存缓存 |
+| 无参数 / `--help` | help → stdout，exit 0 |
+| 未知命令 / flag 缺值 / 用法错误 | stderr + exit 2 |
+| `run` 抛普通错误 | stderr + exit 1 |
+| 成功 | stdout JSON + exit 0 |
 
-### 3.3 环境变量
+### 3.3 环境变量（登记命令时按需启用）
 
-| 变量 | 默认 | 说明 |
-|---|---|---|
-| `DDO_HOME` | `~/.ddo` | 索引根目录（index.json、history/、锁文件所在）；测试/沙箱用 |
+`DDO_HOME`（默认 `~/.ddo`）——全局索引根目录；测试/沙箱隔离用。框架本身不读取它。
 
-## 4. 子命令清单（本轮）
+## 4. 存档说明
 
-| 命令 | 职责 | 关键参数 |
-|---|---|---|
-| `run start` | 算 runId（防碰撞）→ 物化 stages → 建 `.state.json` → 注册 index | `--state <path>` `--title <text>` `--main-branch <name>` `--stages <json>` `--release-branch` `--development-branch` `--worktree-path` `--current` |
-| `run update` | 状态推进：stage 状态/相位 + currentStage + at 刷新 | `--state <path>` `--stage <id>` `--status <enum>` `--current <a:01,b:01>` |
-| `run finish` | 结束迁移：state.currentStage 清空 → history 追加 → index 移除 | `--state <path>` `--status done\|aborted\|failed` |
-| `run show` | 读单 run 状态 | `--state <path>` |
-| `list active` | 运行中列表（读 index + 惰性校验） | — |
-| `list history` | 历史查询 | `--last <N>` |
+完整基础架构第一版（cli 框架 + lib 五模块 + 六命令，冒烟/回归测试通过）存档于 commit **`9072da5`**。机制代码（runid 计算、state 读写、index 锁与原子写、history 追加）可从该提交整块找回，供归属设计轮复用。
 
-**stages 物化规则**（`run start`）：调用方传**逻辑结构** `{"spec":{"dependOn":["requirement"]}}`，工具物化运行时字段——`status:"pending"`、`at:<startedAt>`；`currentStage` 缺省取 stages 首键 + `:01`。workflow 预设自动展开是下一轮能力。
+## 5. 下一轮路线（届时设计，不在本期实现）
 
-**惰性校验**（`list active`）：`statePath` 不存在，或 state 的 `currentStage` 为空 → 条目标记 `valid:false`，不剔除（清理策略后续定）。
-
-**结束迁移顺序**（`run finish`，对应基线 §7）：① `.state.json` 置 `currentStage: []`（原子写）→ ② history 追加一行（信息取自 state）→ ③ index 移除该 runId。崩溃于任意步均可被惰性校验兜住。
-
-## 5. 并发与原子性（对应基线 §8）
-
-- **原子写**：同目录临时文件 + `rename`（state / index / history 落盘前必经）。
-- **index 锁**：`$DDO_HOME/.index.lock`，`O_EXCL` 创建；获取失败 50ms 重试、2s 超时报 exit 1；锁龄 >10s 视为陈旧，直接打破。
-- **runId 防碰撞**：生成后与 index 现有 key 比对，冲突重掷随机后缀（至多 5 次）。
-- **幂等**：注册同 runId 覆盖写；history 追加不去重（读取方容忍）。
-
-## 6. 下一轮路线（D7，不在本期实现）
-
-1. `next`：currentStage + stages DAG 推导下一个原子任务
-2. 原子任务产物登记（依赖产物机制设计）
-3. Prompt 组装/注入
-4. workflow 预设格式 + `run start` 自动展开 stages
+1. run 生命周期命令（start / update / finish——推进语义随执行循环设计定型）
+2. `next`：currentStage + stages DAG → 下一个原子任务
+3. 原子任务产物登记（依赖产物机制设计）
+4. Prompt 组装/注入
+5. workflow 预设格式与 stages 自动展开
 
 ## 变更记录
 
 | 版本 | 日期 | 说明 |
 |---|---|---|
-| v0.1 | 2026-09-22 | 初版：基础架构（骨架 + 生命周期 + 查询） |
+| v0.1 | 2026-09-22 | 初版：基础架构（框架 + 六命令 + lib 五模块） |
+| v0.2 | 2026-09-22 | 收敛：砍到纯框架（零命令零 lib）；完整版存档于 `9072da5`；登记原则固化为「命令随归属设计轮登记」 |
