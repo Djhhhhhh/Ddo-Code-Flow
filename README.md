@@ -26,8 +26,10 @@ node tools/cli.js next --state <statePath>                     # 推进（相位
 # 确认门（next 输出 openedGates 时）：agent 呈现门的三元组（name/desc/action）→ 用户选择 → agent 代跑
 node tools/cli.js next --state <statePath> --decision 同意       # 推进型决议（用户词汇）；转移型走声明的 rollback/finish；修改/提问为 in-phase 相位内交互
 
-# 中断恢复 / 回滚一个阶段 / 结束 run
-node tools/cli.js status --state <statePath>                   # 当前位置 + 开着的门 + 可执行操作清单
+# 中断恢复（新会话接手：先发现，再加载）/ 回滚 / 结束 run
+node tools/cli.js resume                                       # 全局列运行中的 run（位置/门概要）
+node tools/cli.js resume --run-id <runId>                      # 加载选定 run 的完整状态（含 statePath）
+node tools/cli.js status --state <statePath>                   # 已知 statePath 时：当前位置 + 门 + 可执行命令
 node tools/cli.js rollback --state <statePath> --stage <stageId>
 node tools/cli.js run finish --state <statePath> --status done
 ```
@@ -44,7 +46,8 @@ node tools/cli.js run finish --state <statePath> --status done
 | `next` | 纯状态推进：相位内前进（human 相位写门置 `waiting-human`）→ 阶段 done → DAG 就绪点亮；**门未关必须 `--decision <用户词汇>`**（如 同意；推进型决议留痕） |
 | `rollback` | 回滚指定一个阶段：目标→当前路径上的节点重置为 pending，清除未关闭的确认门 |
 | `run finish` | 生命周期收口：清 currentStage → history 追加一行 → index 移除 |
-| `status` | 中断恢复定位：当前位置 + 开着的门选项（gateOptions，含 in-phase）+ 派生的可执行命令（availableCommands） |
+| `status` | 中断恢复定位（细节层，需 statePath）：当前位置 + 开着的门选项（gateOptions，含 in-phase）+ 派生的可执行命令（availableCommands） |
+| `resume` | 断点重续入口（发现层，读全局 index）：惰性校验后列运行中 run 概要（多项目可见）；`--run-id` 加载完整状态视图 |
 
 退出码：`0` 成功 · `1` 硬失败 · `2` 用法错误；stdout 输出 JSON（`exec` 为裸文本例外），stderr 输出人话。
 
@@ -61,8 +64,8 @@ atom-tasks/_schema/output-schema.schema.json  # 输出契约的 meta-schema
 atom-tasks/_schema/task-config.schema.json    # 任务 config 标准格式（装配时校验，增量兼容）
 tools/cli.js                      # 确定性执行内核（命令注册表即文档源）
 tools/lib/                        # state / index-registry / history / assemble / output-schema / workflow / git-info …
-tools/tests/                      # 沙箱隔离测试（60 用例）
-.ddo/runs/feat/ddo-code-flow-v2/  # v2 设计文档（工作项 00–07）
+tools/tests/                      # 沙箱隔离测试（64 用例）
+.ddo/runs/feat/ddo-code-flow-v2/  # v2 设计文档（工作项 00–08）
 ```
 
 ## 配置分层
@@ -78,4 +81,4 @@ node tools/tests/cli.test.js && node tools/tests/start.test.js && node tools/tes
 
 ## 设计文档
 
-v2 的需求与定版方案按工作项归档在 `.ddo/runs/feat/ddo-code-flow-v2/`：00 总览、01 预清理、02 索引结构、03 工具框架、04 命令集、05 原子任务改造、06 工作流预设、07 执行节律与确认门。后续规划中的轮次（并行多门决议粒度 / 严格用户亲跑通道 / 窗口绑定登记 / rollback 文档归档 / 用户级预设）见各工作项开放问题表。
+v2 的需求与定版方案按工作项归档在 `.ddo/runs/feat/ddo-code-flow-v2/`：00 总览、01 预清理、02 索引结构、03 工具框架、04 命令集、05 原子任务改造、06 工作流预设、07 执行节律与确认门、08 断点重续。后续规划中的轮次（并行多门决议粒度 / 严格用户亲跑通道 / 窗口绑定登记 / rollback 文档归档 / 用户级预设）见各工作项开放问题表。

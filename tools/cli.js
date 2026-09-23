@@ -4,7 +4,7 @@
 // 契约：命令注册表即文档源（--help 纯渲染）；四通道输出
 // （stdout=JSON / stderr=人话 / exit 0·1·2 / 状态文件现读不缓存）。
 // 命令在归属的设计轮次登记（03 plan §3.4 命名空间政策）；
-// 当前登记：run start（06）、run finish、rollback（04）、exec、validate（05）、next（06）、status（07）。
+// 当前登记：run start（06）、run finish、rollback（04）、exec、validate（05）、next（06）、status（07）、resume（08）。
 
 const path = require('path');
 const fs = require('fs');
@@ -426,7 +426,13 @@ function runStatus(f) {
   const state = readState(statePath);
   assertState(state);
   const tasksDir = f['tasks-dir'] ? path.resolve(f['tasks-dir']) : ATOM_TASKS_DIR;
+  return statusView(state, statePath, tasksDir);
+}
 
+// ---------------------------------------------------------------- statusView / resume（07/08）
+
+/** 状态细节视图（07 status 与 08 resume --run-id 共用）：位置 + gateOptions + availableCommands。 */
+function statusView(state, statePath, tasksDir) {
   const positions = state.currentStage.map((entry) => {
     const stage = stageIdOf(entry);
     const phase = phaseOf(entry);
@@ -472,6 +478,93 @@ function runStatus(f) {
     availableCommands.push({ cmd: `run finish --state ${statePath} --status aborted`, desc: '中止本次 run' });
   }
   return { runId: state.runId, title: state.title, currentStage: positions, gateOptions, availableCommands };
+}
+
+
+// ---------------------------------------------------------------- resume（08：断点重续发现层）
+
+/** 从 statePath 推导项目根与 run 类型：<projectRoot>/.ddo/runs/<type>/<dirName>/.state.json */
+function runMetaFromPath(statePath) {
+  const parts = statePath.split(path.sep);
+  if (parts.length < 5 || parts[parts.length - 5] !== '.ddo' || parts[parts.length - 4] !== 'runs') return {};
+  return { projectRoot: parts.slice(0, parts.length - 5).join(path.sep), type: parts[parts.length - 3] };
+}
+
+/** 惰性加载（02 §7）：statePath 缺失/结构非法 → null（stale）；合法 → state。 */
+function tryLoadState(statePath) {
+  try {
+    if (!fs.existsSync(statePath)) return null;
+    const state = readState(statePath);
+    assertState(state);
+    return state;
+  } catch {
+    return null;
+  }
+}
+
+/** 概要位置（列清单用）：相位类型读取失败（任务目录变动）时省略，不阻断发现。 */
+function summaryPosition(state, tasksDir, entry) {
+  const stage = stageIdOf(entry);
+  const phase = phaseOf(entry);
+  const gate = state.stages[stage] && state.stages[stage].gate;
+  let type;
+  try {
+    type = phaseType(tasksDir, stage, phase);
+  } catch {
+    type = null;
+  }
+  return { stage, phase, ...(type ? { phaseType: type } : {}), ...(gate && !gate.decision ? { gateOpen: true } : {}) };
+}
+
+function runResume(f) {
+  const tasksDir = f['tasks-dir'] ? path.resolve(f['tasks-dir']) : ATOM_TASKS_DIR;
+  const index = registry.readAll();
+  const proj = f.project ? path.resolve(f.project) : null;
+
+  // 选定加载（D3 第二步）：--run-id → 完整状态视图（与 status 同构）+ run 元数据
+  if (f['run-id'] !== undefined) {
+    const entry = index[f['run-id']];
+    if (!entry) {
+      throw new Error(`未知 runId: ${f['run-id']}（运行中: ${Object.keys(index).join(', ') || '无'}）`);
+    }
+    const state = tryLoadState(entry.statePath);
+    if (!state) throw new Error(`run ${f['run-id']} 的 statePath 已失效: ${entry.statePath}`);
+    const meta = runMetaFromPath(entry.statePath);
+    return {
+      ...statusView(state, entry.statePath, tasksDir),
+      ...(meta.projectRoot ? { projectRoot: meta.projectRoot, type: meta.type } : {}),
+      startedAt: state.startedAt,
+      statePath: entry.statePath,
+    };
+  }
+
+  // 发现（D2 全局清单，D3 一律先列）：惰性校验 → 概要清单；currentStage 空 = 待收束仍展示（D4）
+  const runs = [];
+  let staleCount = 0;
+  for (const [runId, entry] of Object.entries(index)) {
+    if (proj && !entry.statePath.startsWith(proj + path.sep)) continue;
+    const state = tryLoadState(entry.statePath);
+    if (!state) {
+      staleCount++;
+      continue;
+    }
+    const meta = runMetaFromPath(entry.statePath);
+    runs.push({
+      runId,
+      title: state.title,
+      ...(meta.projectRoot ? { projectRoot: meta.projectRoot, type: meta.type } : {}),
+      startedAt: state.startedAt,
+      currentStage: state.currentStage.map((e) => summaryPosition(state, tasksDir, e)),
+      ...(state.currentStage.length ? {} : { completable: true, note: '全部相位完成，待收束（run finish --status done）' }),
+    });
+  }
+  return {
+    runs,
+    staleCount,
+    hint: runs.length
+      ? '用 resume --run-id <runId> 加载选定 run 的完整状态（含门选项与可执行命令）'
+      : '无运行中的 run：新起用 run start；历史见 ~/.ddo/history/runs.jsonl',
+  };
 }
 
 // ---------------------------------------------------------------- 命令注册表
@@ -548,6 +641,17 @@ const REGISTRY = [
       { flag: '--tasks-dir', desc: '原子任务根目录（缺省仓库 atom-tasks/；测试用）' },
     ],
     run: runNext,
+  },
+  {
+    name: 'resume',
+    summary: '断点重续入口：发现运行中的 run（全局 index，惰性校验）→ 概要清单 → --run-id 加载完整状态（08）',
+    usage: 'resume [--run-id <id>] [--project <path>] [--tasks-dir <path>]',
+    options: [
+      { flag: '--run-id', desc: '选定 runId，输出其完整状态视图（与 status 同构，另含 projectRoot/type/startedAt）' },
+      { flag: '--project', desc: '项目根过滤（statePath 前缀匹配；缺省不过滤，全局清单）' },
+      { flag: '--tasks-dir', desc: '原子任务根目录（缺省仓库 atom-tasks/；测试用）' },
+    ],
+    run: runResume,
   },
   {
     name: 'status',

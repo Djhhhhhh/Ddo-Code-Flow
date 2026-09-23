@@ -59,8 +59,10 @@ node tools/cli.js next --state <statePath> --decision 同意    # 推进型决�
 #    转移型（action 是 rollback / run finish）→ agent 代跑声明的命令；
 #    相位内交互（action 是 in-phase，如 修改/提问）→ 按该相位 prompt 的行为定义处理，不触推进命令
 
-# ④ 中断恢复（新会话接手 run 时）
-node tools/cli.js status --state <statePath>    # 当前位置 + gateOptions（呈现集）+ availableCommands（可执行集）
+# ④ 中断恢复（新会话接手 run 时——先发现，再加载）
+node tools/cli.js resume                        # 全局列运行中的 run（位置/门概要；stale 惰性淘汰）
+node tools/cli.js resume --run-id <runId>       # 加载选定 run 的完整状态（含 statePath 与双清单）
+#    已知 statePath 时可直接 status；之后按 availableCommands 继续
 
 # ⑤ 结束（唯一收口入口）
 node tools/cli.js run finish --state <statePath> --status done   # 或 aborted / failed
@@ -71,7 +73,8 @@ node tools/cli.js run finish --state <statePath> --status done   # 或 aborted /
 不得省略呈现直接带 `--decision` 推进；转移型（如 驳回→rollback）与相位内交互
 （in-phase，如 修改/提问）喂给 `next` 同样会被拦。
 
-**中断恢复协议**：调 `status`，把 `gateOptions`（呈现集，含相位内交互）与
+**中断恢复协议**：先 `resume` 发现运行中的 run（全局清单，多项目可见），用户选定后
+`resume --run-id` 取完整状态，把 `gateOptions`（呈现集，含相位内交互）与
 `availableCommands`（可执行集）原样转述给用户后等选择——提示来自结构化输出，不自行发挥。
 
 `validate` 失败（exit 1）时进入修正循环：按 stderr 指出的缺失/结构问题修正产物后重新校验，
