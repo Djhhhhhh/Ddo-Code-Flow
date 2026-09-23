@@ -109,6 +109,7 @@ v2 需要在本机层面回答三个问题：
 | `stages[k].status` | string enum | ✔ | v4 八值：`pending` / `running` / `done` / `failed` / `skipped` / `rework` / `waiting-human` / `waiting-remote-gate`（D7） |
 | `stages[k].dependOn` | string[] | ✔（可为空） | 依赖的 stageId 列表——阶段级 DAG，源自 workflow 预设 |
 | `stages[k].at` | date-time | ✔ | 该阶段最近一次状态变更时间 |
+| `stages[k].gate` | object | ✖ | **确认门实例**（v1.2 新增，07）：进入 human 相位的推进命令写入 `{ phase, openedAt, options: [{name, desc, action} 三元组——name 为用户词汇决议名，action 分推进型/转移型/in-phase], decision?, closedAt? }`；推进型决议落 decision/closedAt 留痕，rollback 重置清门 |
 | `atomTasks` | object | ✖ | key 为 atom-task 类型；value 为该 run 的项目级定制配置快照（仅配置，D6） |
 
 **明确不含**：`workflowId`（D8——预设配置在启动时展开为 `stages`，状态文件不回指配置）；Prompt、上下文、长日志（D6）。
@@ -225,3 +226,4 @@ runId = <YYYYMMDD>-<HHMMSS>-<XXXX>
 | v0.3 | 2026-09-21 | 修订：新增 runId 计算方法（时间+随机，替代项目名-分支名拼接，D9）；新增 title 字段；O3 消解 |
 | **v1.0** | 2026-09-21 | **定版**：用户确认全部结论，作为后续工作项的架构基线 |
 | v1.1 | 2026-09-22 | 修正（06 轮联动，06 D5）：`git.mainBranch` 必填放宽为**字段必存、值可空**（非 git 置空 / worktree 场景由 git-worktree 任务注册）；O2 关闭——相位声明层归属原子任务 `config.phases` |
+| v1.2 | 2026-09-23 | 扩展（07 轮联动）：`stages[k].gate` 可选字段——确认门实例（操作三元组注册 + 决议留痕），生命周期与语义见 07 plan §3；state 其余字段不变 |

@@ -4,7 +4,7 @@
 // 契约：命令注册表即文档源（--help 纯渲染）；四通道输出
 // （stdout=JSON / stderr=人话 / exit 0·1·2 / 状态文件现读不缓存）。
 // 命令在归属的设计轮次登记（03 plan §3.4 命名空间政策）；
-// 当前登记：run start（06）、run finish、rollback（04）、exec、validate（05）、next（06）。
+// 当前登记：run start（06）、run finish、rollback（04）、exec、validate（05）、next（06）、status（07）。
 
 const path = require('path');
 const fs = require('fs');
@@ -13,7 +13,7 @@ const registry = require('./lib/index-registry');
 const history = require('./lib/history');
 const { assemble, mergeConfig } = require('./lib/assemble');
 const { loadTaskSchema, validateArtifact } = require('./lib/output-schema');
-const { loadWorkflow, expandStages, phaseType, nextPhase, readyStages, statusForPhase } = require('./lib/workflow');
+const { loadWorkflow, expandStages, phaseType, nextPhase, readyStages, statusForPhase, standardOptions, buildGate, isAdvancing } = require('./lib/workflow');
 const { gitInfo } = require('./lib/git-info');
 
 const ATOM_TASKS_DIR = path.join(__dirname, '..', 'atom-tasks');
@@ -24,6 +24,33 @@ class UsageError extends Error {}
 
 const nowIso = () => new Date().toISOString();
 const stageIdOf = (entry) => String(entry).split(':')[0];
+const phaseOf = (entry) => String(entry).split(':')[1] || '01';
+
+/**
+ * 执行位置（07 plan §4.1 节律结构锁）：task 在 currentStage 中的当前相位；不在 → null。
+ * exec/validate 以此校验位置一致并取相位缺省。
+ */
+function currentPosition(state, taskName) {
+  for (const entry of state.currentStage) {
+    if (stageIdOf(entry) === taskName) return phaseOf(entry);
+  }
+  return null;
+}
+
+/** 门选项（options 三元组）的人话渲染（stderr 提示用——错误信息本身就是提示）。 */
+function renderOptions(gates) {
+  return gates
+    .map((g) => `  ${g.stage}:${g.phase}\n${g.options.map((t) => `    - ${t.name}：${t.desc}（${t.action === 'in-phase' ? '相位内交互' : t.action}）`).join('\n')}`)
+    .join('\n');
+}
+
+/** 门声明的 action 命令补全 --state（status 的 availableCommands 用，agent 可直接执行）。 */
+function fillState(action, statePath) {
+  return action
+    .replace(/^next\b/, `next --state ${statePath}`)
+    .replace(/^rollback\b/, `rollback --state ${statePath}`)
+    .replace(/^run finish\b/, `run finish --state ${statePath}`);
+}
 
 // ---------------------------------------------------------------- DAG 工具
 
@@ -112,9 +139,14 @@ function runRollback(f) {
   const reset = rollbackResetSet(state.stages, target, state.currentStage);
   const rolledBack = [];
   const pathReset = [];
+  const clearedGates = [];
   for (const s of reset) {
     const from = state.stages[s].status;
     state.stages[s] = { ...state.stages[s], status: 'pending', at: nowIso() };
+    if (state.stages[s].gate) {
+      delete state.stages[s].gate; // 阶段重置 = 干净重做（07 §3.2：转移型决议/上游回滚清门）
+      clearedGates.push(s);
+    }
     if (s === target) rolledBack.push({ stage: s, from, to: 'pending' });
     else pathReset.push(s);
   }
@@ -122,7 +154,7 @@ function runRollback(f) {
   writeState(statePath, state);
   if (f.reason) process.stderr.write(`[rollback] reason: ${f.reason}\n`);
   // 文档归档（_del/rollback-<n>/）随产物登记机制落地（04 plan §2.2），届时补充 archivedTo 字段
-  return { rolledBack, pathReset, currentStage: state.currentStage };
+  return { rolledBack, pathReset, ...(clearedGates.length ? { clearedGates } : {}), currentStage: state.currentStage };
 }
 
 function runExec(f) {
@@ -131,9 +163,22 @@ function runExec(f) {
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(taskName)) {
     throw new UsageError(`--task 非法: ${taskName}`);
   }
-  const phase = f.phase === undefined ? '01' : String(f.phase).padStart(2, '0');
   const state = readState(statePath);
   assertState(state);
+
+  // 位置校验（07 §4.1）：--task 须 ∈ currentStage；--phase 缺省 = 当前相位，显式须一致
+  const cur = currentPosition(state, taskName);
+  if (!cur) {
+    throw new Error(
+      `执行位置不符：${taskName} 不在 currentStage [${state.currentStage.join(', ')}]（run 已结束、未启动或位置未对齐；用 status 查看）`
+    );
+  }
+  let phase;
+  if (f.phase === undefined) phase = cur;
+  else {
+    phase = String(f.phase).padStart(2, '0');
+    if (phase !== cur) throw new Error(`执行位置不符：当前位置 ${taskName}:${cur}，不能 exec ${taskName}:${phase}`);
+  }
 
   const taskDir = require('path').join(f['tasks-dir'] ? require('path').resolve(f['tasks-dir']) : ATOM_TASKS_DIR, taskName);
   const promptFile = require('path').join(taskDir, 'prompt.md');
@@ -159,9 +204,22 @@ function runValidate(f) {
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(taskName)) {
     throw new UsageError(`--task 非法: ${taskName}`);
   }
-  const phase = f.phase === undefined ? '01' : String(f.phase).padStart(2, '0');
   const state = readState(statePath);
   assertState(state);
+
+  // 位置校验（07 §4.1）：与 exec 同一协议（缺省 = 当前相位，显式须一致）
+  const cur = currentPosition(state, taskName);
+  if (!cur) {
+    throw new Error(
+      `执行位置不符：${taskName} 不在 currentStage [${state.currentStage.join(', ')}]（run 已结束、未启动或位置未对齐；用 status 查看）`
+    );
+  }
+  let phase;
+  if (f.phase === undefined) phase = cur;
+  else {
+    phase = String(f.phase).padStart(2, '0');
+    if (phase !== cur) throw new Error(`执行位置不符：当前位置 ${taskName}:${cur}，不能校验 ${taskName}:${phase}`);
+  }
 
   const path = require('path');
   const fs = require('fs');
@@ -224,11 +282,18 @@ function runStart(f) {
   const runId = registry.freshRunId();
   const stages = expandStages(preset, tasksDir, startedAt);
 
-  // 起点：dependOn 为空的阶段全部点亮，status 按各自首相位类型（P2 数据先行）
+  // 起点：dependOn 为空的阶段全部点亮，status 按各自首相位类型（P2 数据先行）；
+  // 首相位为 human → 开门（07 §4.3，机制对称支持）
+  const openedGates = [];
   const currentStage = Object.keys(stages)
     .filter((id) => !(stages[id].dependOn || []).length)
     .map((id) => {
       stages[id] = { ...stages[id], status: statusForPhase(phaseType(tasksDir, id, '01')) };
+      const gate = buildGate(stages, id, '01', tasksDir, startedAt);
+      if (gate) {
+        stages[id] = { ...stages[id], gate };
+        openedGates.push({ stage: id, phase: '01', options: gate.options });
+      }
       return `${id}:01`;
     });
 
@@ -250,7 +315,7 @@ function runStart(f) {
   assertState(state);
   writeState(statePath, state);
   registry.register(runId, { statePath, startedAt });
-  return { runId, title: state.title, statePath, workflow: preset.name, currentStage };
+  return { runId, title: state.title, statePath, workflow: preset.name, currentStage, openedGates };
 }
 
 function runNext(f) {
@@ -260,16 +325,64 @@ function runNext(f) {
   const tasksDir = f['tasks-dir'] ? path.resolve(f['tasks-dir']) : ATOM_TASKS_DIR;
   const now = nowIso();
 
+  // 门检查（07 §4.2）：human 相位必须经用户决议才能推进——
+  // 无 gate 视同开门（严格语义：手工/legacy state 不放行，提示用标准兜底操作）
+  const openGates = [];
+  for (const entry of state.currentStage) {
+    const stageId = stageIdOf(entry);
+    const phase = phaseOf(entry);
+    if (phaseType(tasksDir, stageId, phase) !== 'human') continue;
+    const gate = state.stages[stageId].gate;
+    if (!(gate && gate.decision)) openGates.push({ stageId, phase, gate: gate || null });
+  }
+  const decision = f.decision;
+  if (openGates.length) {
+    if (decision === undefined) {
+      // 错误信息本身就是提示：stderr 人话 + stdout JSON 含门全量（07 D3）
+      const gates = openGates.map((g) => ({
+        stage: g.stageId, phase: g.phase,
+        options: (g.gate && g.gate.options) || standardOptions(state.stages, g.stageId, g.phase, tasksDir),
+      }));
+      process.stderr.write(
+        `[确认门未关闭] ${gates.map((g) => `${g.stage}:${g.phase} 需用户决议`).join('；')}\n` +
+        `请向用户呈现以下选项并由其选择——命令型由 agent 代跑，相位内交互按该相位 prompt 处理：\n${renderOptions(gates)}\n`
+      );
+      process.exitCode = 1;
+      return { blocked: 'gate-open', gates };
+    }
+    for (const g of openGates) {
+      const options = (g.gate && g.gate.options) || standardOptions(state.stages, g.stageId, g.phase, tasksDir);
+      const hit = options.find((t) => t.name === decision);
+      if (!hit) {
+        throw new UsageError(`未知决议: ${decision}（${g.stageId}:${g.phase} 声明: ${options.map((t) => t.name).join(', ')}）`);
+      }
+      if (hit.action === 'in-phase') {
+        throw new Error(`决议 ${decision} 是相位内交互（${hit.desc}）——按该相位 prompt 的行为定义处理，不走 next`);
+      }
+      if (!isAdvancing(hit.action)) {
+        throw new Error(`决议 ${decision} 的动作不是推进（${hit.action}）——请执行该声明的命令`);
+      }
+    }
+  } else if (decision !== undefined) {
+    throw new UsageError('--decision 仅在存在未关闭确认门时使用');
+  }
+
   const advanced = [];
   const finished = [];
+  const closedGates = [];
   const nextEntries = [];
   for (const entry of state.currentStage) {
     const stageId = stageIdOf(entry);
     if (!(stageId in state.stages)) throw new Error(`stage 不存在: ${stageId}（现有: ${Object.keys(state.stages).join(', ')}）`);
-    const phase = String(entry).split(':')[1] || '01';
+    const phase = phaseOf(entry);
+    // 推进型决议留痕：本轮被决议的门落 decision/closedAt（gate 对象不存在则跳过——不伪造）
+    if (decision !== undefined && state.stages[stageId].gate && !state.stages[stageId].gate.decision) {
+      state.stages[stageId].gate = { ...state.stages[stageId].gate, decision, closedAt: now };
+      closedGates.push({ stage: stageId, decision });
+    }
     const np = nextPhase(tasksDir, stageId, phase);
     if (np) {
-      // 相位内推进：status 按新相位类型（action→running / human→waiting-human，P2）
+      // 相位内推进：status 按新相位类型（action→running / human→waiting-human + 开门）
       state.stages[stageId] = { ...state.stages[stageId], status: statusForPhase(phaseType(tasksDir, stageId, np)), at: now };
       nextEntries.push(`${stageId}:${np}`);
       advanced.push({ stage: stageId, from: entry, to: `${stageId}:${np}` });
@@ -280,18 +393,85 @@ function runNext(f) {
     }
   }
 
-  // DAG 推进：收尾后新就绪的 pending 阶段全部激活（基础线性链恒为一个）
+  // DAG 推进：收尾后新就绪的 pending 阶段全部激活（基础线性链恒为一个）；首相位 human → 开门
   const activated = [];
+  const openedGates = [];
   for (const id of readyStages(state.stages)) {
     state.stages[id] = { ...state.stages[id], status: statusForPhase(phaseType(tasksDir, id, '01')), at: now };
     nextEntries.push(`${id}:01`);
     activated.push(id);
   }
+  // 开门统一后置处理：进入 human 相位（相位内推进 + DAG 点亮）时写门
+  const tryOpen = (stageId, phase) => {
+    if (phaseType(tasksDir, stageId, phase) !== 'human') return;
+    const gate = buildGate(state.stages, stageId, phase, tasksDir, now);
+    if (gate) {
+      state.stages[stageId] = { ...state.stages[stageId], gate };
+      openedGates.push({ stage: stageId, phase, options: gate.options });
+    }
+  };
+  for (const a of advanced) tryOpen(a.stage, a.to.split(':')[1]);
+  for (const id of activated) tryOpen(id, '01');
 
   state.currentStage = nextEntries;
   writeState(f.state, state);
   // 终点不自动 run finish（04 D6：生命周期唯一入口保持 run finish）
-  return { advanced, finished, activated, currentStage: state.currentStage, completed: nextEntries.length === 0 };
+  return { advanced, finished, activated, openedGates, closedGates, currentStage: state.currentStage, completed: nextEntries.length === 0 };
+}
+
+// ---------------------------------------------------------------- status（07 §4.4）
+
+function runStatus(f) {
+  const statePath = f.state;
+  const state = readState(statePath);
+  assertState(state);
+  const tasksDir = f['tasks-dir'] ? path.resolve(f['tasks-dir']) : ATOM_TASKS_DIR;
+
+  const positions = state.currentStage.map((entry) => {
+    const stage = stageIdOf(entry);
+    const phase = phaseOf(entry);
+    const gate = state.stages[stage] && state.stages[stage].gate;
+    return {
+      stage, phase,
+      phaseType: phaseType(tasksDir, stage, phase),
+      status: state.stages[stage].status,
+      ...(gate ? { gate } : {}),
+    };
+  });
+
+  // gateOptions（呈现集）/ availableCommands（可执行集）派生（不存储，单一事实源）：
+  // human 开门位 → gateOptions = 门全部选项（含 in-phase 相位内交互，供向用户呈现），
+  //                availableCommands 仅命令型选项（--state 补全）；
+  // action 位 → exec/validate/next；全局 → rollback/finish
+  const gateOptions = [];
+  const availableCommands = [];
+  if (!state.currentStage.length) {
+    availableCommands.push({ cmd: `run finish --state ${statePath} --status done`, desc: '全部阶段完成，收束本次 run' });
+  } else {
+    for (const p of positions) {
+      const openGate = p.phaseType === 'human' && (!p.gate || !p.gate.decision);
+      if (openGate) {
+        const options = (p.gate && p.gate.options) || standardOptions(state.stages, p.stage, p.phase, tasksDir);
+        for (const t of options) {
+          gateOptions.push({ name: t.name, desc: t.desc, action: t.action });
+          if (t.action !== 'in-phase') {
+            availableCommands.push({ name: t.name, cmd: fillState(t.action, statePath), desc: t.desc });
+          }
+        }
+      } else {
+        availableCommands.push({ cmd: `exec --state ${statePath} --task ${p.stage} --phase ${p.phase}`, desc: `执行 ${p.stage}:${p.phase}（组装恰好必需的 prompt）` });
+        availableCommands.push({ cmd: `validate --state ${statePath} --task ${p.stage} --phase ${p.phase}`, desc: `校验 ${p.stage}:${p.phase} 产物` });
+        availableCommands.push({ cmd: `next --state ${statePath}`, desc: '推进（相位内 / 跨阶段 / DAG 就绪）' });
+      }
+    }
+    for (const id of Object.keys(state.stages)) {
+      if (state.stages[id].status !== 'pending') {
+        availableCommands.push({ cmd: `rollback --state ${statePath} --stage ${id}`, desc: `回滚 ${id} 阶段（重置为 pending 重做）` });
+      }
+    }
+    availableCommands.push({ cmd: `run finish --state ${statePath} --status aborted`, desc: '中止本次 run' });
+  }
+  return { runId: state.runId, title: state.title, currentStage: positions, gateOptions, availableCommands };
 }
 
 // ---------------------------------------------------------------- 命令注册表
@@ -361,12 +541,23 @@ const REGISTRY = [
   {
     name: 'next',
     summary: '推进 currentStage：按任务 phases 声明纯状态推进（相位内 / 跨阶段 / DAG 就绪，06）',
-    usage: 'next --state <path> [--tasks-dir <path>]',
+    usage: 'next --state <path> [--decision <name>] [--tasks-dir <path>]',
+    options: [
+      { flag: '--state', desc: '.state.json 绝对路径', required: true },
+      { flag: '--decision', desc: '确认门决议（推进型决议名；门开着时必填，非推进型决议走其声明的命令）' },
+      { flag: '--tasks-dir', desc: '原子任务根目录（缺省仓库 atom-tasks/；测试用）' },
+    ],
+    run: runNext,
+  },
+  {
+    name: 'status',
+    summary: '中断恢复定位：当前位置 + 开着的确认门选项 + 派生的可执行命令清单（07）',
+    usage: 'status --state <path> [--tasks-dir <path>]',
     options: [
       { flag: '--state', desc: '.state.json 绝对路径', required: true },
       { flag: '--tasks-dir', desc: '原子任务根目录（缺省仓库 atom-tasks/；测试用）' },
     ],
-    run: runNext,
+    run: runStatus,
   },
 ];
 

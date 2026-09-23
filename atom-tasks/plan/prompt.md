@@ -52,12 +52,16 @@
 必须调用宿主提问工具向用户请求确认，未获得明确回复前不得调用任何推进命令。
 <!-- /interact -->
 
-向用户展示 plan.md 路径、文档模式（single/split）、revision、分册数与静态检查结果，提供动作：
+向用户展示 plan.md 路径、文档模式（single/split）、revision、分册数与静态检查结果。
 
-- `同意`：批准当前 revision，本相位完成；
+**门选项从确认门数据呈现**：读 state 的 `stages.plan.gate.options`（可经 `status` 获取），把每个选项的 name/desc 原样呈现给用户。用户选择后按 action 处理：
+- 命令型（`next --decision <name>` / `rollback --stage …` / `run finish …`）→ agent 代跑该命令；
+- 相位内交互（`in-phase`）→ 按下方行为定义处理，不触任何推进命令。
+不得在门数据之外自造推进/回滚选项。
+
+相位内交互行为定义：
+
 - `修改：<反馈>`：反馈应用到新 revision（补充的候选方案加入同一集合并重评估），展示变化摘要后再次请求确认；
 - `提问：<问题>`：只答疑，不改文档、revision 与确认状态；
 - `归档` / `归档：<模板名>`：见相位 01 §5；不代表批准。
-
-用户明确驳回 Plan 本身时：执行 `rollback --stage plan --reason <用户意见>`，随后按意见回到相位 01 重新生成。
 <!-- /phase:02 -->

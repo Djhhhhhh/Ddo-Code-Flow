@@ -242,7 +242,7 @@ module.exports = {
 | # | 问题 | 状态 |
 |---|---|---|
 | O-A | ~~`ctx` 的 `role` 解析~~ | **已关闭（v0.3）**：ctx 不静态声明（D12），钩子从 state 动态现算；产物定位的约定随产物登记机制在钩子内演进 |
-| O-B | `waiting-human` 状态的进入/离开（exec 输出后谁置状态、human 相位完成谁推进）——即交互保证 L3 状态机门 | 执行循环轮；`type: human` + `@interact` 声明已就位（L3 的数据来源） |
+| O-B | ~~`waiting-human` 状态的进入/离开（exec 输出后谁置状态、human 相位完成谁推进）——即交互保证 L3 状态机门~~ | **已关闭（v1.5，07 轮落地）**：门实例注册进 `stages[k].gate`（操作三元组）；next 拦截「门未关就推进」，推进须经 `--decision <name>`（agent 呈现、用户选择、agent 代跑，决议留痕）；L3 强度 = 结构拦「不问就推」+ 留痕审计，不防伪造（严格亲跑通道留 07 O2） |
 | O-C | `stages ↔ task` 映射（next 报任务名的依据） | workflow 轮；next 仍悬置于该轮 |
 | O-D | ~~v4 目录级遗留文件的存废~~ | **已关闭（v1.4）**：删除 `artifacts.json`、`_schema/artifact-catalog.schema.json`、`_schema/atom-task-md.schema.json`——角色映射职责已由 ctx 钩子（文件定位）与 config output 声明（产物定位符）接管，v4 frontmatter 契约由 config.json + meta-schema 取代；全仓零引用，测试 26/26 与 exec/validate 冒烟无损 |
 | 原 O1 | 相位数来源 | **已关闭**：`config.json.phases` 自声明（本设计 §2.2） |
@@ -270,3 +270,4 @@ module.exports = {
 | **v1.2** | 2026-09-22 | 按用户评审升级为 **`.output.schema.json` 方式**（恢复 v4 schema 资产结构 + meta-schema 约束；config.output 简化为定位符）；exec 注入 md 渲染的 Output Contract（含 rules/example）；validate 升级为 schema 驱动（meta 先行 + required/subsection/列/idPattern/占位/jsonFields）；恢复 spec.output.schema.json（修正 v4 遗留 titleFormat 漂移）；修复管道下 process.exit 截断输出的缺陷 |
 | **v1.3** | 2026-09-22 | **全量迁移执行完毕**：剩余 14 个任务全部改为 v2 三件套（prompt.md / config.json / 可选 hook + output.schema）。v4 schema 自 `3cff557` 恢复并统一命名 `<task>.output.schema.json`，共 15 个到位（批量恢复曾部分丢失，二次补齐 10 个并重修 plan 对 meta-schema 的漂移——7 个根级自定义属性与 section 级属性折叠进 rules[]/description、字符串 subsections 转对象；meta-schema `outputFormat` 枚举扩为 markdown/json/json+markdown；补 git-worktree 顶层 `output: worktree-info.json` 定位符）；生成 9 个 ctx 钩子（requirement/plan/test-plan/tasking/verification/reporting/reflection/create-pr/delivery-doc，修复批量生成遗留的 `{{`/`}}` 未反转义）；plan 2 相位、test-plan 3 相位（含 TDD）、reflection 2 相位，交互门按 v4 语义移植；v4 旧文件 27 个 `git rm`（保留 review/check-list.md、plan/references/ddo.md）。冒烟：17 任务 × :01 + 多相位 :02/:03 共 22 项 exec 全通过，15 个 schema 任务契约块全部注入（coding/cleanup-worktree 无产物契约，符合设计），meta 校验 15/15，validate 正/负例（json+markdown 两路）验证通过，必需上下文缺失阻断验证通过；测试 26/26 |
 | **v1.4** | 2026-09-22 | **O-D 关闭（v4 遗留清理）**：删除 `artifacts.json`、`_schema/artifact-catalog.schema.json`、`_schema/atom-task-md.schema.json`；`_schema/` 仅存 meta-schema。角色/产物定位职责归属：ctx 钩子（文件定位）+ config output 声明（产物定位符）；v4 frontmatter 契约由 config.json 取代。全仓零引用，测试 26/26 + exec/validate 冒烟无损 |
+| v1.5 | 2026-09-23 | **O-B 关闭（07 轮联动）**：L3 状态机门落地形态记录——门注册进 state（`stages[k].gate`）+ CLI 拦截 + agent 呈现代跑；任务侧零改动（`type: human` + `@interact` 仍是声明源，新增可选 `gate.options` 三元组定制） |

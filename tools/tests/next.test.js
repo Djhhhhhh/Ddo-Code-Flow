@@ -88,7 +88,7 @@ test('next：单相位任务（requirement:01）→ 阶段 done + spec 就绪点
   }
 });
 
-test('next：spec:01 → :02（相位内推进，human 相位置 waiting-human）', () => {
+test('next：spec:01 → :02（相位内推进，human 相位置 waiting-human + 开门）', () => {
   const sb = sandbox();
   try {
     const done = { status: 'done', dependOn: [], at: '2026-09-22T18:00:00+08:00' };
@@ -104,9 +104,26 @@ test('next：spec:01 → :02（相位内推进，human 相位置 waiting-human�
     assert.deepStrictEqual(out.activated, []); // 无阶段收尾 → 不触发 DAG 推进
     assert.deepStrictEqual(out.currentStage, ['spec:02']);
 
+    // 07：进入 human 相位即写门（spec:02 已声明 gate.options——v1.4 用户词汇 + in-phase）
+    assert.deepStrictEqual(out.openedGates, [{
+      stage: 'spec', phase: '02',
+      options: [
+        { name: '同意', desc: '批准当前 spec（仅当不存在未解决 BQ），本相位完成', action: 'next --decision 同意' },
+        { name: '驳回', desc: '回滚 spec 阶段，按意见回到相位 01 重新生成', action: 'rollback --stage spec' },
+        { name: '修改', desc: '把反馈作为新的需求证据更新受影响条目，展示变化摘要后重新送审', action: 'in-phase' },
+        { name: '提问', desc: '只读答疑，不修改 spec、不改变任何 ID 与确认状态', action: 'in-phase' },
+      ],
+    }]);
+    assert.deepStrictEqual(out.closedGates, []);
+
     const state = readBack(sb);
     assert.equal(state.stages.spec.status, 'waiting-human'); // P2：数据先行
     assert.deepStrictEqual(state.currentStage, ['spec:02']);
+    const gate = state.stages.spec.gate;
+    assert.equal(gate.phase, '02');
+    assert.ok(gate.openedAt);
+    assert.equal(gate.options.length, 4); // v1.4：spec 声明 同意/驳回/修改/提问
+    assert.equal(gate.decision, undefined); // 开着
   } finally {
     cleanup(sb);
   }
@@ -116,9 +133,17 @@ test('next：spec:02（相位耗尽）→ spec done + plan 就绪', () => {
   const sb = sandbox();
   try {
     const done = { status: 'done', dependOn: [], at: '2026-09-22T18:00:00+08:00' };
+    // 门已由用户决议关闭（decision 落盘）→ 正常推进
     writeState(sb, ['spec:02'], basicStages({
       requirement: done,
-      spec: { status: 'waiting-human', dependOn: ['requirement'], at: '2026-09-22T18:00:00+08:00' },
+      spec: {
+        status: 'waiting-human', dependOn: ['requirement'], at: '2026-09-22T18:00:00+08:00',
+        gate: {
+          phase: '02', openedAt: '2026-09-22T18:01:00+08:00',
+          options: [{ name: 'approve', desc: '确认通过', action: 'next --decision approve' }],
+          decision: 'approve', closedAt: '2026-09-22T18:02:00+08:00',
+        },
+      },
     }));
     const r = cli(['next', '--state', sb.statePath], sb);
     assert.equal(r.status, 0, r.stderr);
@@ -129,6 +154,7 @@ test('next：spec:02（相位耗尽）→ spec done + plan 就绪', () => {
     const state = readBack(sb);
     assert.equal(state.stages.spec.status, 'done');
     assert.equal(state.stages.plan.status, 'running');
+    assert.equal(state.stages.spec.gate.decision, 'approve'); // 留痕保留
   } finally {
     cleanup(sb);
   }

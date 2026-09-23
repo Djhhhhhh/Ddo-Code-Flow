@@ -33,9 +33,13 @@ metadata:
    一切推进通过语义命令（`next` / `rollback` / `run finish`），不要手改 state。
 3. **渐进式加载**：每次只 `exec` 当前相位——指令、恰好必需的上下文（ctx 钩子按 state 现算）、
    Output Contract 会被组装进一个 prompt；不要全量加载任务文件。
-4. **确认门随任务走**：任务的 `type: human` 相位就是确认门（status 置 `waiting-human`），
-   workflow 不单独配置确认。
-5. **四通道**：stdout=JSON（exec 为裸文本例外）/ stderr=人话 / exit 0·1·2 / state 现读不缓存。
+4. **确认门状态化（07）**：任务的 `type: human` 相位是确认门的**声明**（注册源，可选
+   `gate.options` 选项集定制——用户词汇决议名（如 同意/驳回/修改/提问），action 分推进型/
+   转移型/相位内交互 in-phase）；进入该相位的推进命令把门实例（含选项集）注册进
+   `stages[k].gate`；CLI 拦截「门未关就推进」，agent 负责呈现与代跑，不负责放行。
+5. **节律结构锁（07）**：exec/validate 只服务 `currentStage` 中的位置（相位缺省 = 当前相位，
+   不一致即拦）——不 next 就停在原相位，执行节律由结构保证而非指令约定。
+6. **四通道**：stdout=JSON（exec 为裸文本例外）/ stderr=人话 / exit 0·1·2 / state 现读不缓存。
 
 ## 驱动一个 run
 
@@ -45,33 +49,47 @@ node tools/cli.js run start --title "<一句话描述>"
 
 # ② 逐相位循环，直到 next 返回 completed:true
 读 state.currentStage → 得 <stageId>:<phase>
-node tools/cli.js exec      --state <statePath> --task <stageId> --phase <phase>
-node tools/cli.js validate  --state <statePath> --task <stageId> --phase <phase>
+node tools/cli.js exec      --state <statePath> --task <stageId>   # 相位缺省=当前位置
+node tools/cli.js validate  --state <statePath> --task <stageId>
 node tools/cli.js next      --state <statePath>
 
-# ③ 结束（唯一收口入口）
+# ③ 确认门（next 输出 openedGates，或 status 显示 waiting-human）
+#    用宿主提问工具把门的选项清单（name/desc/action）原样呈现给用户；用户选择后按 action 处理：
+node tools/cli.js next --state <statePath> --decision 同意    # 推进型决议（用户词汇）
+#    转移型（action 是 rollback / run finish）→ agent 代跑声明的命令；
+#    相位内交互（action 是 in-phase，如 修改/提问）→ 按该相位 prompt 的行为定义处理，不触推进命令
+
+# ④ 中断恢复（新会话接手 run 时）
+node tools/cli.js status --state <statePath>    # 当前位置 + gateOptions（呈现集）+ availableCommands（可执行集）
+
+# ⑤ 结束（唯一收口入口）
 node tools/cli.js run finish --state <statePath> --status done   # 或 aborted / failed
 ```
 
-`exec` 输出的 prompt 顶部若出现「交互硬约束」块：该相位包含必须完成的交互，
-未完成前禁止调用任何推进命令（next / rollback / run finish）；
-与用户的交互必须使用宿主提问工具（如 AskUserQuestion）执行，不得以自由文本代替。
+**确认门协议（agent 呈现、用户选择、agent 代跑）**：门未关闭时 `next` 会被拦截
+（exit 1，stderr/stdout 直接给出选项清单——错误信息本身就是提示）。不得替用户决议、
+不得省略呈现直接带 `--decision` 推进；转移型（如 驳回→rollback）与相位内交互
+（in-phase，如 修改/提问）喂给 `next` 同样会被拦。
+
+**中断恢复协议**：调 `status`，把 `gateOptions`（呈现集，含相位内交互）与
+`availableCommands`（可执行集）原样转述给用户后等选择——提示来自结构化输出，不自行发挥。
 
 `validate` 失败（exit 1）时进入修正循环：按 stderr 指出的缺失/结构问题修正产物后重新校验，
-不要带错推进。
+不要带错推进（重放当前相位 exec 是合法的）。
 
 ## 硬边界
 
 - 运行期不写 `skillRoot`；不修改 `.gitignore` 或 git exclude。
-- 回滚用 `rollback --stage <stageId>`（每次一个阶段），不要手工改 stages 状态。
+- 回滚用 `rollback --stage <stageId>`（每次一个阶段），不要手工改 stages 状态；
+  回滚会清除该阶段未关闭的确认门（重做后重新送审）。
 - 需要认证/TTY 的命令（如 `gh auth login`）不得代跑——交给用户在宿主 shell 执行。
 
 ## 当前状态与边界（v2）
 
 已定版并实现：索引结构（02）、CLI 框架与命令集（03/04：run start / run finish /
 rollback / exec / validate / next）、原子任务 v2 全量改造（05，17 个任务）、
-workflow 预设与启动装配（06，`workflows/basic.json`）。
+workflow 预设与启动装配（06，`workflows/basic.json`）、执行节律与确认门状态化
+（07：`stages[k].gate` + `--decision` + `status` + 位置拦截）。
 
-`waiting-human` 相位目前只做数据表达（状态先行）；离开确认门的强制检查
-（L3 状态机门）与执行循环自动化属后续轮次——在此之前由本 SKILL 的驱动循环
-与交互硬约束约定兜底。
+诚实边界：门拦截保证「未决议不推进」（结构性），不防 agent 伪造决议——呈现协议是
+本 SKILL 级约束，决议留痕（decision/closedAt）供审计；严格用户亲跑通道留后续可选。

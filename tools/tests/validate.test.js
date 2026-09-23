@@ -33,7 +33,7 @@ function cli(args, sb) {
   });
 }
 
-function writeState(sb) {
+function writeState(sb, extra = {}) {
   fs.mkdirSync(sb.runDir, { recursive: true });
   fs.writeFileSync(sb.statePath, `${JSON.stringify({
     runId: '20260922-130000-v001',
@@ -43,6 +43,7 @@ function writeState(sb) {
     currentStage: ['spec:01'],
     stages: { spec: { status: 'running', dependOn: [], at: 'x' } },
     atomTasks: {},
+    ...extra,
   }, null, 2)}\n`);
 }
 
@@ -157,7 +158,10 @@ test('validate：jsonFields 模式（合成 schema 直测 lib）', () => {
 test('validate：schema 不符合 meta-schema → exit 1（--tasks-dir 沙箱任务）', () => {
   const sb = sandbox();
   try {
-    writeState(sb);
+    writeState(sb, {
+      currentStage: ['demo:01'],
+      stages: { demo: { status: 'running', dependOn: [], at: 'x' } },
+    });
     const tasksDir = path.join(sb.dir, 'tasks');
     fs.mkdirSync(path.join(tasksDir, 'demo'), { recursive: true });
     fs.writeFileSync(path.join(tasksDir, 'demo', 'prompt.md'), '# demo\n');
@@ -174,15 +178,26 @@ test('validate：schema 不符合 meta-schema → exit 1（--tasks-dir 沙箱任
 test('validate spec :02（updates）：存在即过，缺失 exit 1；coding 无声明 skipped；用法错误 exit 2', () => {
   const sb = sandbox();
   try {
-    writeState(sb);
+    // 07 §4.1：位置对齐——:02 校验要求 currentStage 停在 spec:02
+    writeState(sb, {
+      currentStage: ['spec:02'],
+      stages: { spec: { status: 'waiting-human', dependOn: [], at: 'x' } },
+    });
     fs.writeFileSync(path.join(sb.runDir, 'spec.md'), SPEC_OK);
     const ok = cli(['validate', '--state', sb.statePath, '--task', 'spec', '--phase', '02'], sb);
     assert.equal(ok.status, 0);
     assert.equal(JSON.parse(ok.stdout).validated, true);
+    // 相位缺省 = 当前相位（P4）：不传 --phase 也校验 :02 的 updates
+    const okDefault = cli(['validate', '--state', sb.statePath, '--task', 'spec'], sb);
+    assert.equal(okDefault.status, 0);
+    assert.equal(JSON.parse(okDefault.stdout).validated, true);
 
     const sb2 = sandbox();
     try {
-      writeState(sb2);
+      writeState(sb2, {
+        currentStage: ['spec:02'],
+        stages: { spec: { status: 'waiting-human', dependOn: [], at: 'x' } },
+      });
       const bad = cli(['validate', '--state', sb2.statePath, '--task', 'spec', '--phase', '02'], sb2);
       assert.equal(bad.status, 1);
     } finally {
@@ -190,8 +205,8 @@ test('validate spec :02（updates）：存在即过，缺失 exit 1；coding 无
     }
 
     const skipped = cli(['validate', '--state', sb.statePath, '--task', 'coding'], sb);
-    assert.equal(skipped.status, 0);
-    assert.equal(JSON.parse(skipped.stdout).validated, null);
+    assert.equal(skipped.status, 1); // 07 §4.1：coding 不在 currentStage → 位置拦截
+    assert.match(skipped.stderr, /执行位置不符/);
 
     assert.equal(cli(['validate', '--state', sb.statePath], sb).status, 2);
   } finally {

@@ -20,7 +20,19 @@
 必须调用宿主提问工具向用户请求确认，未获得明确回复前不得调用任何推进命令。
 <!-- /interact -->
 
-展示 test-plan 摘要与分组统计，提供：`同意`（批准，进入下一相位）、`修改：<反馈>`（回到生成并按反馈更新）、`提问：<问题>`（只答疑）。用户驳回时执行 `rollback --stage test-plan --reason <意见>`。
+展示 test-plan 摘要与分组统计。
+
+**门选项从确认门数据呈现**：读 state 的 `stages.test-plan.gate.options`（可经 `status` 获取），把每个选项的 name/desc 原样呈现给用户。用户选择后按 action 处理：
+- 命令型（`next --decision <name>` / `rollback --stage …` / `run finish …`）→ agent 代跑该命令；
+- 相位内交互（`in-phase`）→ 按下方行为定义处理，不触任何推进命令。
+不得在门数据之外自造推进/回滚选项。
+
+相位内交互行为定义：
+
+- `修改：<反馈>`：回到生成并按反馈更新，重新送审；
+- `提问：<问题>`：只答疑。
+
+用户已确认 test-plan 后，若 run 配置（state.atomTasks.test-plan.tdd）为 true：进入相位 03，为 cmd 项生成 Red 测试骨架。
 <!-- /phase:02 -->
 
 <!-- @phase:03 -->

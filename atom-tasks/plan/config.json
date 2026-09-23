@@ -16,6 +16,35 @@
         "updates": [
           "plan.md"
         ]
+      },
+      "gate": {
+        "options": [
+          {
+            "name": "同意",
+            "desc": "批准当前 revision，本相位完成",
+            "action": "next --decision 同意"
+          },
+          {
+            "name": "驳回",
+            "desc": "回滚 plan 阶段，按意见回到相位 01 重新生成",
+            "action": "rollback --stage plan"
+          },
+          {
+            "name": "修改",
+            "desc": "反馈应用到新 revision 并重评估，展示变化摘要后重新送审",
+            "action": "in-phase"
+          },
+          {
+            "name": "提问",
+            "desc": "只答疑，不改文档、revision 与确认状态",
+            "action": "in-phase"
+          },
+          {
+            "name": "归档",
+            "desc": "按相位 01 §5 归档当前 plan；不代表批准",
+            "action": "in-phase"
+          }
+        ]
       }
     }
   ],

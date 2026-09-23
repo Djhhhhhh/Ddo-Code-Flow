@@ -16,6 +16,25 @@
         "updates": [
           "reflection-report.md"
         ]
+      },
+      "gate": {
+        "options": [
+          {
+            "name": "同意",
+            "desc": "确认收尾，随后执行 run finish --status done",
+            "action": "next --decision 同意"
+          },
+          {
+            "name": "修改",
+            "desc": "回到相位 01 更新报告，重新送审",
+            "action": "in-phase"
+          },
+          {
+            "name": "提问",
+            "desc": "只答疑",
+            "action": "in-phase"
+          }
+        ]
       }
     }
   ],

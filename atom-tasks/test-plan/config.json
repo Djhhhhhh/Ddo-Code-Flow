@@ -16,6 +16,30 @@
         "updates": [
           "test-plan.md"
         ]
+      },
+      "gate": {
+        "options": [
+          {
+            "name": "同意",
+            "desc": "批准 test-plan，进入相位 03（TDD Red 骨架）",
+            "action": "next --decision 同意"
+          },
+          {
+            "name": "驳回",
+            "desc": "回滚 test-plan 阶段，按意见重新生成",
+            "action": "rollback --stage test-plan"
+          },
+          {
+            "name": "修改",
+            "desc": "回到生成并按反馈更新，重新送审",
+            "action": "in-phase"
+          },
+          {
+            "name": "提问",
+            "desc": "只答疑",
+            "action": "in-phase"
+          }
+        ]
       }
     },
     {
