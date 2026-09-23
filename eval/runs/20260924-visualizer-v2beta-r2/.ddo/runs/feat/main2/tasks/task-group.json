@@ -1,0 +1,9 @@
+{
+  "version": "1.0.0",
+  "tasks": [
+    { "id": "task-01", "file": "task-01.md", "title": "数据读取与图模型构建（索引 + state 容错解析）", "dependsOn": [] },
+    { "id": "task-02", "file": "task-02.md", "title": "防交叉布局算法（分层主链 + 正交通道路由 + 自检计数）", "dependsOn": ["task-01"] },
+    { "id": "task-03", "file": "task-03.md", "title": "SVG/HTML 生成与 CLI 收口（静态页面 + stdout 摘要）", "dependsOn": ["task-02"] }
+  ],
+  "parallelGroups": [["task-01"], ["task-02"], ["task-03"]]
+}

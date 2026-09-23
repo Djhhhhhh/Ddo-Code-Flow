@@ -39,3 +39,4 @@ ddo-code-flow 的 dogfooding 与评测内容长期归档区：每次评测一个
 | 沙箱 | 版本 | showcase | 备注 |
 |---|---|---|---|
 | `runs/20260924-visualizer-v2beta` | v2 内测 | `showcases/v2-beta` | **完成**（2026-09-24，done）：工作流可视化工具，standard 全链 10 阶段 4 门；发现并修复阻断缺陷 D-1（契约占位符字面匹配）；评估结论：建议转正式——见 [showcases/v2-beta/ASSESSMENT.md](showcases/v2-beta/ASSESSMENT.md) |
+| `runs/20260924-visualizer-v2beta-r2` | v2 内测（复验轮 1） | `showcases/v2-beta`（追加记录） | **完成**（2026-09-24，done）：同版本重跑，F5 专项（exec 硬约束，首跑 A-1/A-2 场景）+ 驳回注入（F8）+ D-1 复验全过，结论：通过，无断言失败——见 [showcases/v2-beta/reverify-1.md](showcases/v2-beta/reverify-1.md) |
