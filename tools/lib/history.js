@@ -24,4 +24,13 @@ function append(record, home = ddoHome()) {
   atomicWrite(file, `${prev}${JSON.stringify(record)}\n`);
 }
 
-module.exports = { append };
+/** 归档 state 副本（11 D1）：copy 到 ~/.ddo/history/<runId>/.state.json（幂等覆盖，原文件不动）。 */
+function archiveState(runId, statePath, home = ddoHome()) {
+  const dir = path.join(home, 'history', runId);
+  fs.mkdirSync(dir, { recursive: true });
+  const dest = path.join(dir, '.state.json');
+  fs.copyFileSync(statePath, dest);
+  return dest;
+}
+
+module.exports = { append, archiveState };

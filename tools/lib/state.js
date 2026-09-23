@@ -2,6 +2,7 @@
 // .state.json 读写：现读不缓存（四通道契约），原子写，基本结构校验（02 基线 §5）。
 
 const fs = require('fs');
+const path = require('path');
 const { atomicWrite } = require('./fsutil');
 
 const REQUIRED_TOP = ['runId', 'title', 'startedAt', 'currentStage', 'stages'];
@@ -32,7 +33,23 @@ function assertState(state) {
     if (typeof st.at !== 'string') throw new Error(`stages[${id}].at must be an ISO 8601 string`);
     if (st.gate !== undefined) assertGate(id, st.gate);
   }
+  if (state.dirs !== undefined) assertDirs(state.dirs);
   return true;
+}
+
+/** 目录声明校验（11 §1.2，可选字段）：两绝对路径，runDir 须位于 projectRoot 之内。缺失容错（历史 state）。 */
+function assertDirs(dirs) {
+  if (!dirs || typeof dirs !== 'object') throw new Error('state.dirs must be an object');
+  if (typeof dirs.projectRoot !== 'string' || !path.isAbsolute(dirs.projectRoot)) {
+    throw new Error('state.dirs.projectRoot must be an absolute path');
+  }
+  if (typeof dirs.runDir !== 'string' || !path.isAbsolute(dirs.runDir)) {
+    throw new Error('state.dirs.runDir must be an absolute path');
+  }
+  const rel = path.relative(dirs.projectRoot, dirs.runDir);
+  if (rel.startsWith('..') || path.isAbsolute(rel)) {
+    throw new Error('state.dirs.runDir 必须位于 projectRoot 之内');
+  }
 }
 
 /** 确认门形态校验（07 plan §3.2：可选字段，出现即须完整）。 */

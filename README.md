@@ -48,8 +48,8 @@ node tools/cli.js run finish --state <statePath> --status done
 | `exec` | 组装原子任务当前相位的 prompt（裸文本输出，渐进式加载；含 Output Contract 与交互硬约束注入）；**位置校验**：只服务 `currentStage` 内位置 |
 | `validate` | 按任务 output 声明硬校验产物（存在性 / 必填 section / 列 / idPattern / 占位符 / jsonFields）；相位缺省 = 当前位置 |
 | `next` | 纯状态推进：相位内前进（human 相位写门置 `waiting-human`）→ 阶段 done → DAG 就绪点亮；**门未关必须 `--decision <用户词汇>`**（如 同意；推进型决议留痕） |
-| `rollback` | 回滚指定一个阶段：目标→当前路径上的节点重置为 pending，清除未关闭的确认门 |
-| `run finish` | 生命周期收口：清 currentStage → history 追加一行 → index 移除 |
+| `rollback` | 回滚指定一个阶段：目标→当前路径上的节点重置为 pending，清除未关闭的确认门；重置阶段已声明的产物**移动**归档到 `<runDir>/_del/rollback-<n>/`（输出 `archivedTo`/`archived`） |
+| `run finish` | 生命周期收口：state 副本归档 `~/.ddo/history/<runId>/` → history 追加一行 → index 移除 → 清 currentStage（原 state 文件随项目版控走） |
 | `status` | 中断恢复定位（细节层，需 statePath）：当前位置 + 开着的门选项（gateOptions，含 in-phase）+ 派生的可执行命令（availableCommands） |
 | `resume` | 断点重续入口（发现层，读全局 index）：惰性校验后列运行中 run 概要（多项目可见）；`--run-id` 加载完整状态视图 |
 | `list tasks` | 原子任务注册表（config.desc 直读，不另建注册文件）：desc / 相位概要 / 人审位 / 可配置项 |
@@ -70,9 +70,14 @@ atom-tasks/_schema/output-schema.schema.json  # 输出契约的 meta-schema
 atom-tasks/_schema/task-config.schema.json    # 任务 config 标准格式（装配时校验，增量兼容）
 tools/cli.js                      # 确定性执行内核（命令注册表即文档源）
 tools/lib/                        # state / index-registry / history / assemble / output-schema / workflow / git-info …
-tools/tests/                      # 沙箱隔离测试（68 用例）
-.ddo/runs/feat/ddo-code-flow-v2/  # v2 设计文档（工作项 00–10）
+tools/tests/                      # 沙箱隔离测试（77 用例）
+.ddo/runs/feat/ddo-code-flow-v2/  # v2 设计文档（工作项 00–11）
 ```
+
+运行期目录语义：`projectRoot`（版控根）/ 代码工作目录（`git.worktreePath` || projectRoot）/
+`runDir`（`.ddo/runs/<type>/<dirName>/`，run 工作目录 = 流水线产物目录，同址不分家——state 的
+`dirs` 字段显式携带，产物只许落此）；失效产物隔离在 `<runDir>/_del/rollback-<n>/`，结束副本归档
+在 `~/.ddo/history/<runId>/.state.json`。
 
 ## 配置分层
 
@@ -81,10 +86,9 @@ tools/tests/                      # 沙箱隔离测试（68 用例）
 ## 测试
 
 ```bash
-node tools/tests/cli.test.js && node tools/tests/start.test.js && node tools/tests/next.test.js \
-  && node tools/tests/exec.test.js && node tools/tests/validate.test.js && node tools/tests/gate.test.js
+node --test tools/tests/*.test.js
 ```
 
 ## 设计文档
 
-v2 的需求与定版方案按工作项归档在 `.ddo/runs/feat/ddo-code-flow-v2/`：00 总览、01 预清理、02 索引结构、03 工具框架、04 命令集、05 原子任务改造、06 工作流预设、07 执行节律与确认门、08 断点重续、10 冷启动引导（09-coding-worktree 为并行线）。后续规划中的轮次（并行多门决议粒度 / 严格用户亲跑通道 / 窗口绑定登记 / rollback 文档归档 / 用户级预设）见各工作项开放问题表。
+v2 的需求与定版方案按工作项归档在 `.ddo/runs/feat/ddo-code-flow-v2/`：00 总览、01 预清理、02 索引结构、03 工具框架、04 命令集、05 原子任务改造、06 工作流预设、07 执行节律与确认门、08 断点重续、10 冷启动引导、11 产物生命周期（09-coding-worktree 为并行线）。后续规划中的轮次（并行多门决议粒度 / 严格用户亲跑通道 / 窗口绑定登记 / 用户级预设 / 预设自我进化）见各工作项开放问题表。

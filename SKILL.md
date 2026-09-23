@@ -22,9 +22,18 @@ metadata:
 ## 运行位置
 
 - `skillRoot`：本 SKILL.md 所在目录（atom-tasks / workflows / tools）。运行期只读，不得写入。
-- `projectRoot`：用户调用时的项目根。run 状态写在 `<projectRoot>/.ddo/runs/<type>/<dirName>/.state.json`。
-- `DDO_HOME`：全局索引目录，缺省 `~/.ddo`（`index.json` 运行中指针、`history/runs.jsonl` 历史）。
+- `projectRoot`（项目根）：用户调用时的项目根，版控根。
+- `代码工作目录`：代码改动发生地——`git.worktreePath` 非空 → worktree，否则 projectRoot。
+- `runDir`（run 工作目录 = 流水线产物目录，同址不分家）：`<projectRoot>/.ddo/runs/<type>/<dirName>/`。
+  `.state.json` 与全部流水线文档产物（spec.md / plan.md…）的唯一合法居所，state 的 `dirs` 字段显式携带。
+- `DDO_HOME`：全局索引目录，缺省 `~/.ddo`（`index.json` 运行中指针、`history/runs.jsonl` 历史、
+  `history/<runId>/.state.json` 结束归档副本）。
 - CLI 入口：`node <skillRoot>/tools/cli.js <命令>`。
+
+**产物生命周期（11）**：中间产物默认随项目版控走（留在 runDir，不搬不移）；rollback 时重置阶段
+声明的产物**移动**到 `<runDir>/_del/rollback-<n>/`（原位消失，重做产新文件）；run finish 时
+state 副本归档到 `~/.ddo/history/<runId>/.state.json`（原文件不动，随项目版控走）。output 声明
+禁绝对路径与 `..`（防逃逸，CLI 两层校验）。
 
 ## 核心契约
 
@@ -81,7 +90,7 @@ node tools/cli.js resume                        # 全局列运行中的 run（�
 node tools/cli.js resume --run-id <runId>       # 加载选定 run 的完整状态（含 statePath 与双清单）
 #    已知 statePath 时可直接 status；之后按 availableCommands 继续
 
-# ⑤ 结束（唯一收口入口）
+# ⑤ 结束（唯一收口入口；state 副本自动归档到 ~/.ddo/history/<runId>/，原文件随项目版控走）
 node tools/cli.js run finish --state <statePath> --status done   # 或 aborted / failed
 ```
 
@@ -101,17 +110,20 @@ node tools/cli.js run finish --state <statePath> --status done   # 或 aborted /
 
 - 运行期不写 `skillRoot`；不修改 `.gitignore` 或 git exclude。
 - 回滚用 `rollback --stage <stageId>`（每次一个阶段），不要手工改 stages 状态；
-  回滚会清除该阶段未关闭的确认门（重做后重新送审）。
+  回滚会清除该阶段未关闭的确认门（重做后重新送审），并把重置阶段已声明的产物移动到
+  `<runDir>/_del/rollback-<n>/`（输出 `archivedTo`/`archived` 告知去向）——不要手工删产物或
+  手工往 `_del` 搬文件。
 - 需要认证/TTY 的命令（如 `gh auth login`）不得代跑——交给用户在宿主 shell 执行。
 
 ## 当前状态与边界（v2）
 
-已定版并实现：索引结构（02）、CLI 框架与命令集（03/04：run start / run finish /
-rollback / exec / validate / next）、原子任务 v2 全量改造（05，17 个任务）、
-workflow 预设与启动装配（06，`workflows/basic.json`）、执行节律与确认门状态化
+已定版并实现：索引结构（02 v1.5：dirs 字段 + history/<runId>/ 归档布局）、CLI 框架与命令集
+（03/04：run start / run finish / rollback / exec / validate / next）、原子任务 v2 全量改造
+（05，17 个任务）、workflow 预设与启动装配（06，`workflows/basic.json`）、执行节律与确认门状态化
 （07：`stages[k].gate` + `--decision` + `status` + 位置拦截）、断点重续
 （08：`resume` 发现层）、冷启动引导（10：`list tasks` / `list workflows` +
-configurable 预填 + 错误指路）。
+configurable 预填 + 错误指路）、产物生命周期（11：目录术语定版 + dirs 显式化 +
+state 结束归档 + rollback `_del` 移动归档 + output 防逃逸）。
 
 诚实边界：门拦截保证「未决议不推进」（结构性），不防 agent 伪造决议——呈现协议是
 本 SKILL 级约束，决议留痕（decision/closedAt）供审计；严格用户亲跑通道留后续可选。

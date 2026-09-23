@@ -19,7 +19,24 @@ function validateTaskConfig(cfg, taskName) {
   const { valid, errors } = validate(schema, cfg);
   if (!valid) throw new Error(`任务 ${taskName} 的 config.json 不符合标准格式: ${errors.join('；')}`);
   if (cfg.name !== taskName) throw new Error(`任务 ${taskName} 的 config.name 不一致: ${cfg.name}`);
+  if (cfg.output !== undefined) safeOutputFiles(cfg.output, `任务 ${taskName}`);
+  for (const ph of Array.isArray(cfg.phases) ? cfg.phases : []) {
+    if (ph.output !== undefined) safeOutputFiles(ph.output, `任务 ${taskName} 相位 ${ph.id}`);
+  }
   return true;
+}
+
+/** output 声明防逃逸（11 §4）：文件须为 runDir 内相对路径，禁绝对路径与 .. 段。 */
+function safeOutputFiles(decl, where) {
+  const files = typeof decl === 'string' ? [decl] : decl && Array.isArray(decl.updates) ? decl.updates : [];
+  for (const f of files) {
+    if (
+      typeof f !== 'string' || !f ||
+      path.isAbsolute(f) || f.split('/').includes('..') || f.split(path.sep).includes('..')
+    ) {
+      throw new Error(`${where} 的 output 声明非法: ${JSON.stringify(f)}（须为 runDir 内相对路径，禁绝对路径与 ..）`);
+    }
+  }
 }
 
 /**

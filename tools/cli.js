@@ -52,6 +52,41 @@ function fillState(action, statePath) {
     .replace(/^run finish\b/, `run finish --state ${statePath}`);
 }
 
+/** 产物路径防逃逸（11 §4）：file 须为 runDir 内相对路径，返回拼接后的绝对路径。 */
+function artifactPath(runDir, file) {
+  if (typeof file !== 'string' || !file || path.isAbsolute(file) || file.split('/').includes('..')) {
+    throw new Error(`产物声明非法: ${JSON.stringify(file)}（须为 runDir 内相对路径，禁绝对路径与 ..）`);
+  }
+  const joined = path.join(runDir, file);
+  const rel = path.relative(runDir, joined);
+  if (rel.startsWith('..') || path.isAbsolute(rel)) throw new Error(`产物声明越界: ${file}`);
+  return joined;
+}
+
+/** _del 归档子目录（11 §3）：<runDir>/_del/rollback-<n>，n = 现有最大编号 + 1（扫描推导，不加 state 字段）。 */
+function nextDelDir(runDir) {
+  const del = path.join(runDir, '_del');
+  let max = 0;
+  if (fs.existsSync(del)) {
+    for (const e of fs.readdirSync(del)) {
+      const m = e.match(/^rollback-(\d+)$/);
+      if (m) max = Math.max(max, Number(m[1]));
+    }
+  }
+  return path.join(del, `rollback-${max + 1}`);
+}
+
+/** 阶段的 output 声明文件全集（去重）：相位级 + 顶层。 */
+function stageOutputFiles(tasksDir, stageId) {
+  const cfg = JSON.parse(fs.readFileSync(path.join(tasksDir, stageId, 'config.json'), 'utf8'));
+  const decls = [];
+  for (const ph of Array.isArray(cfg.phases) ? cfg.phases : []) {
+    if (ph.output !== undefined) decls.push(ph.output);
+  }
+  if (cfg.output !== undefined) decls.push(cfg.output);
+  return [...new Set(decls.flatMap((d) => (typeof d === 'string' ? [d] : (d && d.updates) || [])))];
+}
+
 // ---------------------------------------------------------------- DAG 工具
 
 /** ancestors(x)：x 的全部传递依赖（不含 x 自身）。 */
@@ -107,11 +142,9 @@ function runFinish(f) {
   }
   const state = readState(statePath);
   assertState(state);
-  // 迁移顺序（02 基线 §7）：① 清空 currentStage ② history 追加 ③ index 移除
-  if (state.currentStage.length > 0) {
-    state.currentStage = [];
-    writeState(statePath, state);
-  }
+  // 迁移顺序（11 §2，02 §7 修订）：① state 归档副本（保留收束前最后位置，幂等覆盖）
+  // ② history 追加 ③ index 移除 ④ currentStage 清空——①② 幂等，崩溃残留被惰性校验兜住
+  history.archiveState(state.runId, statePath);
   history.append({
     runId: state.runId,
     title: state.title,
@@ -122,6 +155,10 @@ function runFinish(f) {
     statePath,
   });
   registry.unregister(state.runId);
+  if (state.currentStage.length > 0) {
+    state.currentStage = [];
+    writeState(statePath, state);
+  }
   return { finished: state.runId, finalStatus };
 }
 
@@ -136,7 +173,25 @@ function runRollback(f) {
   if (state.stages[target].status === 'pending') {
     throw new Error(`stage ${target} 为 pending，无可回滚内容`);
   }
+  const tasksDir = f['tasks-dir'] ? path.resolve(f['tasks-dir']) : ATOM_TASKS_DIR;
   const reset = rollbackResetSet(state.stages, target, state.currentStage);
+
+  // 失效产物归档（11 §3，激活 04 §2.2 契约）：重置集合各阶段声明的 output 文件，
+  // 存在则移动到 <runDir>/_del/rollback-<n>/（移动语义，重做产新文件；缺失跳过）
+  const runDir = (state.dirs && state.dirs.runDir) || path.dirname(statePath);
+  const delDir = nextDelDir(runDir);
+  const archived = [];
+  for (const s of reset) {
+    for (const file of stageOutputFiles(tasksDir, s)) {
+      const src = artifactPath(runDir, file); // 防逃逸双保险
+      if (fs.existsSync(src)) {
+        fs.mkdirSync(delDir, { recursive: true });
+        fs.renameSync(src, path.join(delDir, path.basename(file)));
+        archived.push(file);
+      }
+    }
+  }
+
   const rolledBack = [];
   const pathReset = [];
   const clearedGates = [];
@@ -153,8 +208,12 @@ function runRollback(f) {
   state.currentStage = [`${target}:01`];
   writeState(statePath, state);
   if (f.reason) process.stderr.write(`[rollback] reason: ${f.reason}\n`);
-  // 文档归档（_del/rollback-<n>/）随产物登记机制落地（04 plan §2.2），届时补充 archivedTo 字段
-  return { rolledBack, pathReset, ...(clearedGates.length ? { clearedGates } : {}), currentStage: state.currentStage };
+  return {
+    rolledBack, pathReset,
+    ...(clearedGates.length ? { clearedGates } : {}),
+    ...(archived.length ? { archivedTo: `_del/${path.basename(delDir)}`, archived } : {}),
+    currentStage: state.currentStage,
+  };
 }
 
 function runExec(f) {
@@ -246,13 +305,14 @@ function runValidate(f) {
   // schema 加载 + meta 校验先于产物检查——schema 写坏是设计时错误，不依赖产物存在
   const schema = loadTaskSchema(taskDir, taskName);
 
-  const runDir = path.dirname(statePath);
+  const runDir = (state.dirs && state.dirs.runDir) || path.dirname(statePath);
   const files = typeof decl === 'string' ? [decl] : (decl.updates || []);
-  const missing = files.filter((file) => !fs.existsSync(path.join(runDir, file)));
+  const resolved = files.map((file) => artifactPath(runDir, file)); // 防逃逸（11 §4）
+  const missing = resolved.filter((abs) => !fs.existsSync(abs));
 
   const errors = [];
   if (typeof decl === 'string' && schema && !missing.length) {
-    errors.push(...validateArtifact(schema, fs.readFileSync(path.join(runDir, decl), 'utf8')));
+    errors.push(...validateArtifact(schema, fs.readFileSync(resolved[0], 'utf8')));
   }
 
   if (missing.length || errors.length) {
@@ -324,6 +384,7 @@ function runStart(f) {
     title: f.title,
     startedAt,
     git: gitInfo(project), // D5 推断链：仓库推断或置空；worktree 场景归 git-worktree 任务
+    dirs: { projectRoot: project, runDir }, // 目录定版（11 §1.2）：产物唯一合法居所显式化
     currentStage,
     stages,
     atomTasks,
@@ -683,6 +744,7 @@ const REGISTRY = [
       { flag: '--state', desc: '.state.json 绝对路径', required: true },
       { flag: '--stage', desc: '回滚目标 stageId（每次一个阶段）', required: true },
       { flag: '--reason', desc: '回滚原因（记入 stderr 日志，不写 state）' },
+      { flag: '--tasks-dir', desc: '原子任务根目录（缺省仓库 atom-tasks/；归档清单与门声明读取用）' },
     ],
     run: runRollback,
   },

@@ -1,6 +1,6 @@
 # 工作项 02 · index-structure — 设计方案（架构定版基线）
 
-> 版本：**v1.0（2026-09-21 已定版）**——本文件为后续工作项（状态更新脚本 / workflow 预设配置 / 可视化面板）的架构基线，变更需走版本号升级并记录于 §12。
+> 版本：**v1.0（2026-09-21 已定版，增量演进至 v1.5）**——本文件为后续工作项（状态更新脚本 / workflow 预设配置 / 可视化面板）的架构基线，变更需走版本号升级并记录于 §12。
 > 需求依据：[requirement.md](./requirement.md)（决策 D1–D9）
 
 ## 1. 背景与目标
@@ -34,10 +34,14 @@ v2 需要在本机层面回答三个问题：
 ~/.ddo/
 ├── index.json            # 全局运行索引（纯指针，仅含未结束的 run）
 └── history/
-    └── runs.jsonl        # 全局历史索引（一行一个已结束 run）
+    ├── runs.jsonl        # 全局历史索引（一行一个已结束 run）
+    └── <runId>/
+        └── .state.json   # 该 run 结束时的 state 归档副本（v1.5，11 轮）
 
-<projectRoot>/.ddo/runs/<type>/<dateDescription>/
-└── .state.json           # 项目侧唯一状态文件（源，结构见 §5）
+<projectRoot>/.ddo/runs/<type>/<dateDescription>/   ← runDir（v1.5 定版术语）
+├── .state.json           # 项目侧唯一状态文件（源，结构见 §5；结束归档后原文件不动）
+├── spec.md / plan.md …   # 流水线文档产物（随项目 VCS）
+└── _del/rollback-<n>/    # 失效/回滚产物归档（v1.5，11 轮激活 04 §2.2 契约）
 ```
 
 - 首次 run 时由脚本确保 `~/.ddo/` 与 `~/.ddo/history/` 存在。
@@ -79,6 +83,11 @@ v2 需要在本机层面回答三个问题：
     "worktreePath": "/Users/djhhh/work_area/Ddo-Code-Flow-feat-ddo-code-flow-v2"
   },
 
+  "dirs": {
+    "projectRoot": "/Users/djhhh/work_area/Ddo-Code-Flow-feat-ddo-code-flow-v2",
+    "runDir": "/Users/djhhh/work_area/Ddo-Code-Flow-feat-ddo-code-flow-v2/.ddo/runs/feat/20260921-224130-9f2c"
+  },
+
   "currentStage": ["spec:02"],
 
   "stages": {
@@ -104,6 +113,7 @@ v2 需要在本机层面回答三个问题：
 | `git.releaseBranch` | string | ✖ | 发布分支；不使用时不填 |
 | `git.developmentBranch` | string | ✖ | 开发分支；不使用时不填 |
 | `git.worktreePath` | string（绝对路径） | ✖ | 使用 Git worktree 时填写 |
+| `dirs` | object | ✖ | **目录声明**（v1.5 新增，11）：`{projectRoot, runDir}` 两绝对路径，run start 物化；runDir 必须位于 projectRoot 之内（= run 工作目录 = 流水线产物目录，同址不分家）——产物唯一合法居所显式化，output 声明防逃逸的锚点；缺失容错（历史 state 由消费方回落 `dirname(statePath)`，不强制迁移） |
 | `currentStage` | string[]（≥1） | ✔ | 待继续执行的阶段，元素为 `stageId:phase`（见 §5.3） |
 | `stages` | object | ✔ | key 为 stageId（阶段级）；**由脚本按 workflow 预设动态生成**（D8） |
 | `stages[k].status` | string enum | ✔ | v4 八值：`pending` / `running` / `done` / `failed` / `skipped` / `rework` / `waiting-human` / `waiting-remote-gate`（D7） |
@@ -177,13 +187,18 @@ runId = <YYYYMMDD>-<HHMMSS>-<XXXX>
    │        → index.json 写入 runId → {statePath, startedAt}
 执行中      每次状态变更：脚本只更新 .state.json
    │        （index.json 不动——它是纯指针，运行期零变化）
-结束        → 先向 history/runs.jsonl 追加一行（信息取自 .state.json，endedAt/finalStatus 定格）
+结束        → state 副本 copy 到 ~/.ddo/history/<runId>/.state.json（v1.5，11——保留收束前
+   │          最后位置，幂等覆盖；per-run 追溯与后续自我进化分析的数据地基，不碰项目内文件）
+   │        → 向 history/runs.jsonl 追加一行（信息取自 .state.json，endedAt/finalStatus 定格）
    │        → 再从 index.json 移除该 runId，原子写回
+   │        → 最后 state.currentStage = []（原文件随项目版控走）
 异常中断     无结束迁移 → index 残留指针
               读取方惰性校验：statePath 不存在，或 .state.json 无待继续阶段 → 条目视为失效不展示
 ```
 
-迁移顺序先 history 后 index：崩溃时最坏情况是 history 多一行重复或 index 残留一条，均可被惰性校验兜住；反之会丢记录。
+迁移顺序（v1.5 修订）：归档 copy → history → index → 清空。①② 幂等（copy 覆盖 / JSONL 重复行由
+读取方容忍），③④ 天然幂等——崩溃时最坏情况是 history 多一行重复或 index 残留一条，均可被惰性
+校验兜住；反之会丢记录。归档先行是为让副本保留收束前的最后位置。
 
 ## 8. 写入协议（脚本工作项的实现约束）
 
@@ -229,3 +244,4 @@ runId = <YYYYMMDD>-<HHMMSS>-<XXXX>
 | v1.2 | 2026-09-23 | 扩展（07 轮联动）：`stages[k].gate` 可选字段——确认门实例（操作三元组注册 + 决议留痕），生命周期与语义见 07 plan §3；state 其余字段不变 |
 | v1.3 | 2026-09-24 | 细化（08 轮联动）：index 迎来第一个 CLI 读取消费方 `resume`（发现层）；§7 惰性校验细化——「无待继续阶段」不再一律视为失效，结构合法 + currentStage 空 = **待收束**（展示并引导 run finish），statePath 缺失/非法仍为 stale 不展示 |
 | v1.4 | 2026-09-24 | 扩展（10 轮联动）：`state.atomTasks` 写入方扩展——run start 物化时把链内任务 `configurable` 声明的 default 预填（可配置项预标记）；字段语义不变（run 级配置快照，exec 合并最高层） |
+| v1.5 | 2026-09-24 | 扩展（11 轮联动）：① `state.dirs` 可选字段（projectRoot/runDir 目录定版，缺失容错）；② `~/.ddo/history/<runId>/.state.json` 结束归档副本（run finish 迁移顺序修订为 归档→history→index→清空）；③ 项目侧布局补 `_del/rollback-<n>/`（04 §2.2 契约激活）与产物落位说明 |

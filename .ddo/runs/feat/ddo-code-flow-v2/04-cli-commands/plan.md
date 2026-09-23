@@ -27,21 +27,24 @@
 ```text
 用法:   run finish --state <path> --status <done|aborted|failed>
 前置:   .state.json 存在且结构合法（不要求 currentStage 为空—— aborted/failed 常态是中途结束）
-逻辑:   ① state.currentStage = []（原子写）
+逻辑:   ① state 副本 copy 到 ~/.ddo/history/<runId>/.state.json（v1.2，11——归档先行，
+           副本保留收束前最后位置；原文件不动，随项目版控走）
         ② history/runs.jsonl 追加一行（信息取自 state：runId/title/git/startedAt，
            补 endedAt 与 finalStatus）
         ③ index.json 移除该 runId（持锁+原子写）
+        ④ state.currentStage = []（原子写）
 输出:   { "finished": "<runId>", "finalStatus": "done|aborted|failed" }
 错误:   exit 1 —— state 不存在/结构非法；exit 2 —— 参数缺失、--status 非法
-幂等:   重复 finish：currentStage 已空 → 跳过①；history 重复行由读取方容忍；index 移除天然幂等
+幂等:   重复 finish：归档 copy 覆盖；history 重复行由读取方容忍；index 移除天然幂等；
+        currentStage 已空 → 跳过④
 ```
 
-迁移顺序 = 02 基线 §7（先 history 后 index，崩溃可被惰性校验兜住）。
+迁移顺序 = 02 基线 §7（v1.5 修订：归档 → history → index → 清空；①② 幂等，崩溃可被惰性校验兜住）。
 
 ### 2.2 `rollback`
 
 ```text
-用法:   rollback --state <path> --stage <stageId> [--reason <text>]
+用法:   rollback --state <path> --stage <stageId> [--reason <text>] [--tasks-dir <dir>]
 前置:   --stage 必须存在于 stages；且位于「从初始到当前执行位置」的有效回滚范围内
 语义:   每次执行回滚【指定的一个阶段】。回滚按 DAG 逻辑进行：
 
@@ -53,17 +56,19 @@
         currentStage → ["<目标stage>:01"]；
         不在路径上的并行分支保持原状（P4 定稿：只回滚图中路径上的节点）。
 
-归档:   回滚需要清理的文档归档到 run 产物目录下 `_del/`（保留历史，不直接删除）：
-          .ddo/runs/<type>/<dateDescription>/_del/rollback-<n>/<原文件名>
+归档:   （v1.2，11 轮激活）重置集合内各阶段 config 声明的 output 文件（字符串产出 +
+        {updates} 写回清单；数据源 = 05 的 config output 声明），**移动**到：
+          <runDir>/_del/rollback-<n>/<原文件名>
         n = 该 run `_del/` 下现有 rollback-* 编号最大值 + 1（扫描目录推导，不加 state 字段）
-        —— 每次回滚独立子目录，天然隔离多次回滚（P4 补充逻辑）。
+        —— 一次 rollback 的全部文件进同一 rollback-<n>（多阶段重置汇总隔离，天然区分多次回滚）；
+        存在才归档（缺失跳过不报错）；移动语义 = 原位消失，重做产新文件，新旧不混放；
+        相位内更新（BQ 改写等）不进 _del（原地改写保稳定 ID，11 D5）。
 输出:   { "rolledBack": [ {"stage": "spec", "from": "done", "to": "pending"} ],
           "pathReset": ["plan", "coding"],
           "currentStage": ["spec:01"],
-          "archivedTo": "_del/rollback-3" }
+          "archivedTo": "_del/rollback-3", "archived": ["spec.md", "plan.md"] }
+        （无产物可归档时 archivedTo/archived 不出现）
 错误:   exit 1 —— stage 不存在、不在可回滚范围（如为 pending）；exit 2 —— 参数缺失
-约束:   文档归档的「哪些文档属于被回滚阶段」依赖产物登记机制（尚未设计）——
-        本轮登记状态回滚部分，归档逻辑随产物机制落地；届时仅补归档实现，本契约不变。
 ```
 
 ### 2.3 `exec`
@@ -135,3 +140,4 @@
 | v0.2 | 2026-09-22 | P2–P5 评审定稿：exec 裸文本输出；next 移交原子任务轮；rollback 重定义（单阶段/DAG 路径重置/_del 隔离归档）；finish 保留。本轮登记集合 = run finish + rollback（状态部分） |
 | **v1.0** | 2026-09-22 | **定版**：实现说明——rollback 本轮输出的 `archivedTo` 字段随文档归档落地后出现（当前无产物机制，省略该字段） |
 | v1.1 | 2026-09-22 | 新增 `tools/tests/cli.test.js`（11 用例全过）：框架行为 + rollback 路径语义 + finish 迁移/幂等；固化沙箱隔离约定（mkdtemp + finally 递归删除 + DDO_HOME 指向沙箱） |
+| v1.2 | 2026-09-24 | （11 轮联动）**激活 §2.2 归档契约**：数据源就位（05 config output 声明）——rollback 输出新增 `archived` 清单、`--tasks-dir` 参数（读重置阶段 config）；归档语义细化（移动 / 重置集合汇总同一 rollback-n / 缺失跳过 / 相位内更新不进 _del）。**§2.1 finish 迁移顺序修订**：新增首步「state 归档副本 → `~/.ddo/history/<runId>/.state.json`」（02 v1.5），清空 currentStage 移至末步 |
