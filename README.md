@@ -40,20 +40,20 @@
 - 一个宿主 AI coding agent（Claude Code / Codex 等）
 - Node.js ≥ 18（流水线内核是零依赖的 Node CLI，宿主机器需能运行 `node`，无需 `npm install`）
 
-**作为 skill 安装（推荐）**：把本仓库放入宿主 agent 的 skills 目录（Claude Code 为 `~/.claude/skills/` 或项目内 `.claude/skills/`，其他宿主按其规范放置），agent 会依据 [SKILL.md](SKILL.md) 的描述在用户提出多阶段开发任务时自动触发。
+**作为 skill 安装（推荐）**：把本仓库放入宿主 agent 的 skills 目录（Claude Code 为 `~/.claude/skills/ddo-code-flow/` 或项目内 `.claude/skills/ddo-code-flow/`，其他宿主按其规范放置）。安装后有两种触发方式：显式调用斜杠命令 `/ddo-code-flow`，或由 agent 依据 [SKILL.md](SKILL.md) 的描述在多阶段开发任务场景自动触发。
 
 **clone 仓库（开发与手动调试）**：`git clone https://github.com/Djhhhhhh/Ddo-Code-Flow.git` 后可直接调用 CLI（见[命令参考](#命令参考agent-驱动机制)）。
 
 ## 快速开始
 
-安装后，**用一句话把任务交给 agent 即可**——触发、推进、产物落盘均由 skill 机制驱动，用户只在确认门处做出决议：
+安装后，**通过 `/ddo-code-flow` 命令启动**——斜杠命令后可直接附带一句话任务描述；触发、推进、产物落盘均由 skill 机制驱动，用户只在确认门处做出决议：
 
-> 按 ddo 流程开发：给导出函数补充边界处理
+> /ddo-code-flow 给导出函数补充边界处理
 
 一个 run 大致长这样（本例选缺省预设 basic）：
 
 ```text
-你      按 ddo 流程开发：给导出函数补充边界处理
+你      /ddo-code-flow 给导出函数补充边界处理
 agent   目标收到。流水线用内置 basic 预设（requirement → spec → plan → coding → reporting），
          还是从 17 个原子任务中自定义阶段链？类型采用 feat，可以吗？
 你      用 basic
@@ -73,7 +73,7 @@ agent   （门关闭、决议留痕，进入 plan；按同一节律完成 coding
 
 全程无需记忆任何命令：决议直接使用自然语言选项（同意 / 驳回 / 修改 / 提问），命令由 agent 代为执行；阶段链同样如此——启动引导时说明所需阶段与依赖，装配由 agent 完成。过程产物自动写入项目的 `.ddo/runs/<type>/<runId>/`，run 结束后 state 归档到 `~/.ddo/history/`。
 
-中断接手：新会话里说「继续之前的 ddo run」，agent 从全局索引发现运行中的 run、恢复现场、从断点相位继续。
+中断接续：在新会话中输入 `/ddo-code-flow 继续`，agent 从全局索引发现运行中的 run、恢复现场、从断点相位继续。
 
 ## 它是怎么工作的
 
