@@ -1,6 +1,7 @@
 {
   "name": "tasking",
   "version": "2.0.0",
+  "desc": "基于 Plan 与 Test Plan 拆分可独立 review 的任务集与依赖描述",
   "output": "tasks/task-group.json",
   "defaults": {
     "extra_ctx": "",

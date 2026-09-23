@@ -1,6 +1,7 @@
 {
   "name": "create-pr",
   "version": "2.0.0",
+  "desc": "推送特性分支、创建 draft PR 并关联 issue（产出 pr-info）",
   "output": "pr-info.md",
   "defaults": {
     "extra_ctx": "",
@@ -8,5 +9,11 @@
       "默认创建 draft PR",
       "PR 正文引用交付文档，不改写其结论"
     ]
-  }
+  },
+  "configurable": [
+    {
+      "key": "issueNumber",
+      "desc": "关联 issue 号（缺省从当前分支名解析）"
+    }
+  ]
 }

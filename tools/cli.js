@@ -4,7 +4,7 @@
 // 契约：命令注册表即文档源（--help 纯渲染）；四通道输出
 // （stdout=JSON / stderr=人话 / exit 0·1·2 / 状态文件现读不缓存）。
 // 命令在归属的设计轮次登记（03 plan §3.4 命名空间政策）；
-// 当前登记：run start（06）、run finish、rollback（04）、exec、validate（05）、next（06）、status（07）、resume（08）。
+// 当前登记：run start（06）、run finish、rollback（04）、exec、validate（05）、next（06）、status（07）、resume（08）、list tasks / list workflows（10）。
 
 const path = require('path');
 const fs = require('fs');
@@ -183,7 +183,7 @@ function runExec(f) {
   const taskDir = require('path').join(f['tasks-dir'] ? require('path').resolve(f['tasks-dir']) : ATOM_TASKS_DIR, taskName);
   const promptFile = require('path').join(taskDir, 'prompt.md');
   if (!require('fs').existsSync(promptFile) || !require('fs').existsSync(require('path').join(taskDir, 'config.json'))) {
-    throw new Error(`原子任务不存在或结构不完整: ${taskDir}（需含 prompt.md + config.json）`);
+    throw new Error(`原子任务不存在或结构不完整: ${taskDir}（需含 prompt.md + config.json；可用任务见 list tasks）`);
   }
   const { cfg } = mergeConfig(taskDir, state, registry.ddoHome());
   if (cfg.phases) {
@@ -227,7 +227,7 @@ function runValidate(f) {
   const taskDir = path.join(tasksDir, taskName);
   const cfgFile = path.join(taskDir, 'config.json');
   if (!fs.existsSync(path.join(taskDir, 'prompt.md')) || !fs.existsSync(cfgFile)) {
-    throw new Error(`原子任务不存在或结构不完整: ${taskDir}（需含 prompt.md + config.json）`);
+    throw new Error(`原子任务不存在或结构不完整: ${taskDir}（需含 prompt.md + config.json；可用任务见 list tasks）`);
   }
   const cfg = JSON.parse(fs.readFileSync(cfgFile, 'utf8'));
 
@@ -303,6 +303,22 @@ function runStart(f) {
   if (fs.existsSync(statePath)) throw new Error(`运行目录已存在: ${runDir}`);
   fs.mkdirSync(runDir, { recursive: true });
 
+  // configurable 预填（10 D3）：workflow 内任务声明的可配置项，带 default 的预填进
+  // state.atomTasks——用户打开 state 即知本次 run 可改哪些旋钮（无 default 的仅在 list tasks 呈现）
+  const atomTasks = {};
+  for (const s of preset.stages) {
+    try {
+      const cfg = JSON.parse(fs.readFileSync(path.join(tasksDir, s.task, 'config.json'), 'utf8'));
+      for (const c of Array.isArray(cfg.configurable) ? cfg.configurable : []) {
+        if (c && c.key && c.default !== undefined) {
+          atomTasks[s.task] = { ...(atomTasks[s.task] || {}), [c.key]: c.default };
+        }
+      }
+    } catch {
+      // 任务 config 已在 expandStages 校验过，此处容错不阻断
+    }
+  }
+
   const state = {
     runId,
     title: f.title,
@@ -310,7 +326,7 @@ function runStart(f) {
     git: gitInfo(project), // D5 推断链：仓库推断或置空；worktree 场景归 git-worktree 任务
     currentStage,
     stages,
-    atomTasks: {},
+    atomTasks,
   };
   assertState(state);
   writeState(statePath, state);
@@ -567,9 +583,73 @@ function runResume(f) {
   };
 }
 
+// ---------------------------------------------------------------- list 域（09：发现层数据面）
+
+function listTasks(f) {
+  const tasksDir = f['tasks-dir'] ? path.resolve(f['tasks-dir']) : ATOM_TASKS_DIR;
+  const tasks = [];
+  for (const name of fs.readdirSync(tasksDir).sort()) {
+    const cfgFile = path.join(tasksDir, name, 'config.json');
+    if (!fs.existsSync(cfgFile)) continue; // _schema 等非任务目录
+    const cfg = JSON.parse(fs.readFileSync(cfgFile, 'utf8'));
+    tasks.push({
+      name: cfg.name,
+      version: cfg.version,
+      ...(cfg.desc ? { desc: cfg.desc } : {}),
+      phases: (Array.isArray(cfg.phases) ? cfg.phases : [{ id: '01', type: 'action' }]).map((ph) => ({
+        id: String(ph.id).padStart(2, '0'),
+        ...(ph.summary ? { summary: ph.summary } : {}),
+        type: ph.type === 'human' ? 'human' : 'action',
+      })),
+      ...(Array.isArray(cfg.configurable) && cfg.configurable.length ? { configurable: cfg.configurable } : {}),
+    });
+  }
+  return { tasks };
+}
+
+function listWorkflows(f) {
+  const workflowsDir = f['workflows-dir'] ? path.resolve(f['workflows-dir']) : WORKFLOWS_DIR;
+  const workflows = [];
+  if (fs.existsSync(workflowsDir)) {
+    for (const file of fs.readdirSync(workflowsDir).sort()) {
+      if (!file.endsWith('.json')) continue;
+      try {
+        const wf = JSON.parse(fs.readFileSync(path.join(workflowsDir, file), 'utf8'));
+        workflows.push({
+          name: wf.name,
+          version: wf.version,
+          ...(wf.description ? { description: wf.description } : {}),
+          stages: (Array.isArray(wf.stages) ? wf.stages : []).map((s) => s.task),
+        });
+      } catch {
+        // 解析失败的预设不在发现层报错——run start 加载时 fail fast
+      }
+    }
+  }
+  return { workflows };
+}
+
 // ---------------------------------------------------------------- 命令注册表
 
 const REGISTRY = [
+  {
+    name: 'list tasks',
+    summary: '原子任务注册表：全部任务的 desc/相位概要/可配置项（10 冷启动引导数据面）',
+    usage: 'list tasks [--tasks-dir <path>]',
+    options: [
+      { flag: '--tasks-dir', desc: '原子任务根目录（缺省仓库 atom-tasks/；测试用）' },
+    ],
+    run: listTasks,
+  },
+  {
+    name: 'list workflows',
+    summary: '预设工作流清单：name/version/description/阶段链（10 冷启动引导数据面）',
+    usage: 'list workflows [--workflows-dir <path>]',
+    options: [
+      { flag: '--workflows-dir', desc: '预设根目录（缺省仓库 workflows/；测试用）' },
+    ],
+    run: listWorkflows,
+  },
   {
     name: 'run start',
     summary: '按预设装配启动 run：物化 .state.json + 注册 index（06）',

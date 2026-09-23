@@ -228,3 +228,4 @@ runId = <YYYYMMDD>-<HHMMSS>-<XXXX>
 | v1.1 | 2026-09-22 | 修正（06 轮联动，06 D5）：`git.mainBranch` 必填放宽为**字段必存、值可空**（非 git 置空 / worktree 场景由 git-worktree 任务注册）；O2 关闭——相位声明层归属原子任务 `config.phases` |
 | v1.2 | 2026-09-23 | 扩展（07 轮联动）：`stages[k].gate` 可选字段——确认门实例（操作三元组注册 + 决议留痕），生命周期与语义见 07 plan §3；state 其余字段不变 |
 | v1.3 | 2026-09-24 | 细化（08 轮联动）：index 迎来第一个 CLI 读取消费方 `resume`（发现层）；§7 惰性校验细化——「无待继续阶段」不再一律视为失效，结构合法 + currentStage 空 = **待收束**（展示并引导 run finish），statePath 缺失/非法仍为 stale 不展示 |
+| v1.4 | 2026-09-24 | 扩展（10 轮联动）：`state.atomTasks` 写入方扩展——run start 物化时把链内任务 `configurable` 声明的 default 预填（可配置项预标记）；字段语义不变（run 级配置快照，exec 合并最高层） |

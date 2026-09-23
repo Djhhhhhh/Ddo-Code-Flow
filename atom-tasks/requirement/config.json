@@ -1,6 +1,7 @@
 {
   "name": "requirement",
   "version": "2.0.0",
+  "desc": "验证用户需求已明确，将需求原文固化为 requirement 产物",
   "output": "requirement.md",
   "defaults": {
     "extra_ctx": "",

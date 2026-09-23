@@ -1,6 +1,7 @@
 {
   "name": "reporting",
   "version": "2.0.0",
+  "desc": "汇总各阶段产物与验证结果，生成本次 run 的 execution-report",
   "output": "execution-report.md",
   "defaults": {
     "extra_ctx": "",

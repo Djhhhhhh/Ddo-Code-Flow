@@ -1,6 +1,7 @@
 {
   "name": "reflection",
   "version": "2.0.0",
+  "desc": "扫描遗留 TODO/风险生成复盘报告，用户确认后进入收尾",
   "phases": [
     {
       "id": "01",

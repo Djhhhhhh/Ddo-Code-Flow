@@ -1,6 +1,7 @@
 {
   "name": "delivery-doc",
   "version": "2.0.0",
+  "desc": "生成交付文档（需求回溯/变更清单/风险说明/验证结论）",
   "output": "delivery-doc.md",
   "defaults": {
     "extra_ctx": "",

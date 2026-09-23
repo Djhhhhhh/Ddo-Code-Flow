@@ -33,7 +33,12 @@ function loadWorkflow(workflowsDir, name) {
   try {
     preset = JSON.parse(fs.readFileSync(file, 'utf8'));
   } catch (e) {
-    if (e.code === 'ENOENT') throw new Error(`workflow 预设不存在: ${file}`);
+    if (e.code === 'ENOENT') {
+      const existing = fs.existsSync(workflowsDir)
+        ? fs.readdirSync(workflowsDir).filter((x) => x.endsWith('.json')).map((x) => x.slice(0, -5)).join(', ')
+        : '';
+      throw new Error(`workflow 预设不存在: ${file}${existing ? `（现有: ${existing}——完整清单用 list workflows）` : '（预设目录为空）'}`);
+    }
     throw new Error(`workflow 预设解析失败: ${file}: ${e.message}`);
   }
   if (preset.name !== name) throw new Error(`预设 name 与文件名不一致: ${preset.name} vs ${name}`);

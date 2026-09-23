@@ -1,6 +1,7 @@
 {
   "name": "spec",
   "version": "2.0.0",
+  "desc": "生成对齐规格（对齐摘要/FR/AC/BQ）并经用户确认门批准",
   "phases": [
     {
       "id": "01",

@@ -1,6 +1,7 @@
 {
   "name": "test-plan",
   "version": "2.0.0",
+  "desc": "生成两段式 checklist 验收计划（可配 TDD Red 骨架）并经用户确认",
   "phases": [
     {
       "id": "01",
@@ -61,5 +62,12 @@
       "每组末尾必须有「通过标准」行",
       "cmd 条目必须可在 worktree 中运行，无需 sudo 与网络"
     ]
-  }
+  },
+  "configurable": [
+    {
+      "key": "tdd",
+      "desc": "为 cmd 验收项生成 TDD Red 测试骨架（相位 03）",
+      "default": false
+    }
+  ]
 }

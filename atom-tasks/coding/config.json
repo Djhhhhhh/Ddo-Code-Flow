@@ -1,6 +1,7 @@
 {
   "name": "coding",
   "version": "2.0.0",
+  "desc": "按任务清单/plan 实施步骤执行真实代码改动（产物是代码变更本身）",
   "defaults": {
     "extra_ctx": "",
     "rules": [

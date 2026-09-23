@@ -1,6 +1,7 @@
 {
   "name": "remote-gate",
   "version": "2.0.0",
+  "desc": "远程门：打信号 label 轮询审批结果（产出 gate-result）",
   "output": "gate-result.md",
   "defaults": {
     "extra_ctx": "",
@@ -8,5 +9,11 @@
       "仅轮询声明的信号 label，不做其他写操作",
       "超时后按配置动作执行并如实记录"
     ]
-  }
+  },
+  "configurable": [
+    {
+      "key": "issueNumber",
+      "desc": "关联 issue 号（缺省从当前分支名解析）"
+    }
+  ]
 }

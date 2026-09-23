@@ -1,6 +1,7 @@
 {
   "name": "plan",
   "version": "2.0.0",
+  "desc": "基于已确认 spec 生成技术 Plan（候选评估 + revision 送审）",
   "phases": [
     {
       "id": "01",

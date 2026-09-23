@@ -14,6 +14,10 @@
 ## 快速开始
 
 ```bash
+# 冷启动（无参数/参数不合法时走引导：目标 → 预设或自定义 → 类型）
+node tools/cli.js list workflows              # 预设清单（描述 + 阶段链）
+node tools/cli.js list tasks                  # 原子任务注册表（desc/相位/可配置项）——自定义链的积木目录
+
 # 启动一个 run（读 workflows/basic.json，物化 state + 注册全局索引）
 node tools/cli.js run start --title "实现某功能"
 
@@ -48,6 +52,8 @@ node tools/cli.js run finish --state <statePath> --status done
 | `run finish` | 生命周期收口：清 currentStage → history 追加一行 → index 移除 |
 | `status` | 中断恢复定位（细节层，需 statePath）：当前位置 + 开着的门选项（gateOptions，含 in-phase）+ 派生的可执行命令（availableCommands） |
 | `resume` | 断点重续入口（发现层，读全局 index）：惰性校验后列运行中 run 概要（多项目可见）；`--run-id` 加载完整状态视图 |
+| `list tasks` | 原子任务注册表（config.desc 直读，不另建注册文件）：desc / 相位概要 / 人审位 / 可配置项 |
+| `list workflows` | 预设清单：description + 阶段链（自定义引导与预设选择的数据面） |
 
 退出码：`0` 成功 · `1` 硬失败 · `2` 用法错误；stdout 输出 JSON（`exec` 为裸文本例外），stderr 输出人话。
 
@@ -64,8 +70,8 @@ atom-tasks/_schema/output-schema.schema.json  # 输出契约的 meta-schema
 atom-tasks/_schema/task-config.schema.json    # 任务 config 标准格式（装配时校验，增量兼容）
 tools/cli.js                      # 确定性执行内核（命令注册表即文档源）
 tools/lib/                        # state / index-registry / history / assemble / output-schema / workflow / git-info …
-tools/tests/                      # 沙箱隔离测试（64 用例）
-.ddo/runs/feat/ddo-code-flow-v2/  # v2 设计文档（工作项 00–08）
+tools/tests/                      # 沙箱隔离测试（68 用例）
+.ddo/runs/feat/ddo-code-flow-v2/  # v2 设计文档（工作项 00–10）
 ```
 
 ## 配置分层
@@ -81,4 +87,4 @@ node tools/tests/cli.test.js && node tools/tests/start.test.js && node tools/tes
 
 ## 设计文档
 
-v2 的需求与定版方案按工作项归档在 `.ddo/runs/feat/ddo-code-flow-v2/`：00 总览、01 预清理、02 索引结构、03 工具框架、04 命令集、05 原子任务改造、06 工作流预设、07 执行节律与确认门、08 断点重续。后续规划中的轮次（并行多门决议粒度 / 严格用户亲跑通道 / 窗口绑定登记 / rollback 文档归档 / 用户级预设）见各工作项开放问题表。
+v2 的需求与定版方案按工作项归档在 `.ddo/runs/feat/ddo-code-flow-v2/`：00 总览、01 预清理、02 索引结构、03 工具框架、04 命令集、05 原子任务改造、06 工作流预设、07 执行节律与确认门、08 断点重续、10 冷启动引导（09-coding-worktree 为并行线）。后续规划中的轮次（并行多门决议粒度 / 严格用户亲跑通道 / 窗口绑定登记 / rollback 文档归档 / 用户级预设）见各工作项开放问题表。

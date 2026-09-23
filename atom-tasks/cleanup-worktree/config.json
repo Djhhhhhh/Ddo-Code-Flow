@@ -1,6 +1,7 @@
 {
   "name": "cleanup-worktree",
   "version": "2.0.0",
+  "desc": "流水线收尾时清理 worktree 与本地分支（仅 worktree 存在时执行）",
   "defaults": {
     "extra_ctx": "",
     "rules": [

@@ -1,6 +1,7 @@
 {
   "name": "verification",
   "version": "2.0.0",
+  "desc": "按 test-plan 的 checklist 验收（cmd 自动执行 + human 用户确认）",
   "output": "verification.log",
   "defaults": {
     "extra_ctx": "",

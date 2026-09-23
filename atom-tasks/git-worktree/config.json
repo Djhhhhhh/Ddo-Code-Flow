@@ -1,6 +1,7 @@
 {
   "name": "git-worktree",
   "version": "2.0.0",
+  "desc": "基于 Requirement 关键词创建 Git 分支与隔离工作树",
   "output": "worktree-info.json",
   "defaults": {
     "extra_ctx": "",

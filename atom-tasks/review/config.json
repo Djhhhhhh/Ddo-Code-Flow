@@ -1,6 +1,7 @@
 {
   "name": "review",
   "version": "2.0.0",
+  "desc": "代码/文档复审（sub-agent 逐条核对清单，产出 review-report）",
   "output": "review-report.md",
   "defaults": {
     "extra_ctx": "",

@@ -1,6 +1,7 @@
 {
   "name": "context",
   "version": "2.0.0",
+  "desc": "读取项目基础上下文（AGENTS.md 与基线文档）并汇总为 context-summary",
   "output": "context-summary.md",
   "defaults": {
     "extra_ctx": "",

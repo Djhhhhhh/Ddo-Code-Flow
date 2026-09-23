@@ -41,6 +41,23 @@ metadata:
    不一致即拦）——不 next 就停在原相位，执行节律由结构保证而非指令约定。
 6. **四通道**：stdout=JSON（exec 为裸文本例外）/ stderr=人话 / exit 0·1·2 / state 现读不缓存。
 
+## 冷启动（skill 触发时无参数 / 参数不合法）
+
+触发后若用户没有给出可启动的参数（或 `run start` 报参数/预设不合法），**不要自由发挥**——
+按初始化引导协议走（工作流启动时明确目标是关键）：
+
+1. **问目标**：本次要做什么？一句话即为 `--title`。
+2. **问模式**（选项数据来自发现命令，原样呈现）：
+   - 预设：`node tools/cli.js list workflows` → 呈现各预设 name + description + 阶段链，用户选定；
+   - 自定义：`node tools/cli.js list tasks` → 呈现任务清单（desc / 相位与人审位 / 可配置项），
+     与用户商定阶段链（顺序与依赖）→ 写临时预设 JSON（os.tmpdir，结构同 workflows/*.json）→
+     `run start --workflows-dir <临时目录> --workflow <名>`（物化进 .state.json 后临时文件即弃）。
+3. **问 run 类型**：feat / fix / docs…（缺省 feat）。
+4. 启动后把 `state.atomTasks` 中**预填的可配置项**告知用户（有 default 的已填入，如
+   test-plan 的 tdd；其余可配置项见 list tasks 输出的 configurable）——用户可改哪些旋钮一目了然。
+
+`run start` 的报错自带指路：未知预设会列出现有预设；未知任务指向 list tasks——按提示回到引导。
+
 ## 驱动一个 run
 
 ```bash
@@ -92,7 +109,9 @@ node tools/cli.js run finish --state <statePath> --status done   # 或 aborted /
 已定版并实现：索引结构（02）、CLI 框架与命令集（03/04：run start / run finish /
 rollback / exec / validate / next）、原子任务 v2 全量改造（05，17 个任务）、
 workflow 预设与启动装配（06，`workflows/basic.json`）、执行节律与确认门状态化
-（07：`stages[k].gate` + `--decision` + `status` + 位置拦截）。
+（07：`stages[k].gate` + `--decision` + `status` + 位置拦截）、断点重续
+（08：`resume` 发现层）、冷启动引导（10：`list tasks` / `list workflows` +
+configurable 预填 + 错误指路）。
 
 诚实边界：门拦截保证「未决议不推进」（结构性），不防 agent 伪造决议——呈现协议是
 本 SKILL 级约束，决议留痕（decision/closedAt）供审计；严格用户亲跑通道留后续可选。
