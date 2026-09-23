@@ -3,8 +3,8 @@
   "outputFormat": "markdown",
   "document": {
     "title": "Spec",
-    "titleFormat": "<具体需求主题> Spec",
-    "description": "用于确认 agent 是否正确理解用户需求。",
+    "titleFormat": "动态拼接",
+    "description": "用于确认 agent 是否正确理解用户需求。标题格式：<具体需求主题> Spec。",
     "separators": true
   },
   "sections": [

@@ -1,0 +1,56 @@
+{
+  "name": "spec",
+  "version": "2.0.0",
+  "desc": "生成对齐规格（对齐摘要/FR/AC/BQ）并经用户确认门批准",
+  "phases": [
+    {
+      "id": "01",
+      "summary": "基于需求生成 Alignment Spec",
+      "type": "action",
+      "output": "spec.md"
+    },
+    {
+      "id": "02",
+      "summary": "用户确认门（批准 / 修改 / 提问 / 驳回）",
+      "type": "human",
+      "output": {
+        "updates": [
+          "spec.md"
+        ]
+      },
+      "gate": {
+        "options": [
+          {
+            "name": "同意",
+            "desc": "批准当前 spec（仅当不存在未解决 BQ），本相位完成",
+            "action": "next --decision 同意"
+          },
+          {
+            "name": "驳回",
+            "desc": "回滚 spec 阶段，按意见回到相位 01 重新生成",
+            "action": "rollback --stage spec"
+          },
+          {
+            "name": "修改",
+            "desc": "把反馈作为新的需求证据更新受影响条目，展示变化摘要后重新送审",
+            "action": "in-phase"
+          },
+          {
+            "name": "提问",
+            "desc": "只读答疑，不修改 spec、不改变任何 ID 与确认状态",
+            "action": "in-phase"
+          }
+        ]
+      }
+    }
+  ],
+  "defaults": {
+    "extra_ctx": "",
+    "rules": [
+      "不得改写或概括用户需求原文",
+      "上下文缺失时如实标注，不得虚构仓库事实",
+      "用户必须明确选择「同意」才能批准，任何其他回复不得视为隐式同意",
+      "FR、AC、BQ 使用稳定 ID，修订中不得重排或复用"
+    ]
+  }
+}

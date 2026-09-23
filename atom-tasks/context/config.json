@@ -1,0 +1,14 @@
+{
+  "name": "context",
+  "version": "2.0.0",
+  "desc": "读取项目基础上下文（AGENTS.md 与基线文档）并汇总为 context-summary",
+  "output": "context-summary.md",
+  "defaults": {
+    "extra_ctx": "",
+    "rules": [
+      "不得编造不存在的文件内容",
+      "目录输入递归 depth-3，仅收 .md/.txt",
+      "每来源摘要不超过 8 行"
+    ]
+  }
+}

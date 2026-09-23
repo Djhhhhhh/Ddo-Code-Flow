@@ -1,0 +1,13 @@
+{
+  "name": "reporting",
+  "version": "2.0.0",
+  "desc": "汇总各阶段产物与验证结果，生成本次 run 的 execution-report",
+  "output": "execution-report.md",
+  "defaults": {
+    "extra_ctx": "",
+    "rules": [
+      "不得编造 state 中不存在的阶段",
+      "决策日志原样引用 state 历史"
+    ]
+  }
+}

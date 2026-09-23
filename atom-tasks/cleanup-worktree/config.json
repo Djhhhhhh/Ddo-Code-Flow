@@ -1,0 +1,12 @@
+{
+  "name": "cleanup-worktree",
+  "version": "2.0.0",
+  "desc": "流水线收尾时清理 worktree 与本地分支（仅 worktree 存在时执行）",
+  "defaults": {
+    "extra_ctx": "",
+    "rules": [
+      "仅在 state.git.worktreePath 存在时清理",
+      "清理前确认已切换回 projectRoot"
+    ]
+  }
+}

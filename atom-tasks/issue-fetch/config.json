@@ -1,0 +1,19 @@
+{
+  "name": "issue-fetch",
+  "version": "2.0.0",
+  "desc": "认领并拉取 issue 内容，做需求完整性检查（产出 issue-context）",
+  "output": "issue-context.md",
+  "defaults": {
+    "extra_ctx": "",
+    "rules": [
+      "先打认领锁 label 再拉取内容",
+      "不得修改 issue 正文与其他 label"
+    ]
+  },
+  "configurable": [
+    {
+      "key": "repo",
+      "desc": "目标仓库 owner/name（缺省用当前仓库）"
+    }
+  ]
+}

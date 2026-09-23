@@ -1,0 +1,2 @@
+{"runId":"20260924-014319-025b","title":"ddo-code-flow 工作流可视化工具（SVG 流程图，边不相交）","git":{"mainBranch":"main"},"startedAt":"2026-09-23T17:43:19.892Z","endedAt":"2026-09-23T18:03:27.118Z","finalStatus":"done","statePath":"eval/runs/20260924-visualizer-v2beta/.ddo/runs/feat/main/.state.json"}
+{"runId":"20260924-013956-1c9d","title":"ddo-code-flow 工作流可视化工具（SVG 流程图，边不相交）","git":{"mainBranch":"main"},"startedAt":"2026-09-23T17:39:56.144Z","endedAt":"2026-09-23T17:43:19.860Z","finalStatus":"aborted","statePath":"eval/.ddo/runs/feat/20260924-013956-1c9d/.state.json"}

@@ -1,0 +1,188 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ddo atom-task config（任务配置标准格式，07 v1.4）",
+  "description": "atom-tasks/<task>/config.json 的结构契约。增量兼容策略：additionalProperties 放行（新字段不炸旧内核），已知字段严格校验；语义级约束（action 与 name 一致性等）由 buildGate 在门注册时 fail fast 保证。",
+  "type": "object",
+  "required": [
+    "name",
+    "version"
+  ],
+  "properties": {
+    "name": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+      "description": "任务标识，= 目录名"
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1,
+      "description": "任务版本（v2 从 2.0.0 起）"
+    },
+    "desc": {
+      "type": "string",
+      "minLength": 1,
+      "description": "任务一句话描述（10）：注册表数据源，list tasks 呈现；与 prompt.md 首部引言保持同义"
+    },
+    "phases": {
+      "type": "array",
+      "minItems": 1,
+      "description": "相位声明；省略 = 单相位 01/action",
+      "items": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[0-9]{2}$",
+            "description": "两位相位 id"
+          },
+          "summary": {
+            "type": "string",
+            "description": "相位一句话说明"
+          },
+          "type": {
+            "enum": [
+              "action",
+              "human"
+            ],
+            "description": "action=AI 执行；human=人审点（确认门注册源）。缺省 action"
+          },
+          "output": {
+            "description": "产出定位符：字符串=产出文件名；{updates}=只写回清单",
+            "oneOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "object",
+                "required": [
+                  "updates"
+                ],
+                "properties": {
+                  "updates": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "gate": {
+            "type": "object",
+            "required": [
+              "options"
+            ],
+            "description": "确认门选项集（仅 human 相位有意义；未声明 → CLI 标准二元兜底「同意/驳回」）",
+            "properties": {
+              "options": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "$ref": "#/$defs/gateOption"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "output": {
+      "description": "顶层产出定位符（单相位任务或任务级声明；相位级优先）",
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "object",
+          "required": [
+            "updates"
+          ],
+          "properties": {
+            "updates": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "defaults": {
+      "type": "object",
+      "description": "任务默认配置（extra_ctx / rules），配置三层的最底层",
+      "properties": {
+        "extra_ctx": {
+          "type": "string"
+        },
+        "rules": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "configurable": {
+      "type": "array",
+      "description": "run 级可配置项声明（10）：有 default 的项在 run start 物化时预填进 state.atomTasks；无 default 仅呈现（list tasks）",
+      "items": {
+        "type": "object",
+        "required": [
+          "key",
+          "desc"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]*$",
+            "description": "配置键（state.atomTasks.<task>.<key>）"
+          },
+          "desc": {
+            "type": "string",
+            "minLength": 1,
+            "description": "该配置控制什么（引导时呈现给用户）"
+          },
+          "default": {
+            "description": "默认值（可选）：给出的项会被 run start 预填进 state.atomTasks"
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "gateOption": {
+      "type": "object",
+      "required": [
+        "name",
+        "desc",
+        "action"
+      ],
+      "description": "门选项三元组：name=用户词汇（--decision 取值）；desc=呈现给用户的一句话；action=命令模板或 in-phase",
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[\\w一-鿿][\\w一-鿿-]*$",
+          "description": "无空格用户词汇：字母/数字/下划线/连字符/CJK"
+        },
+        "desc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "action": {
+          "type": "string",
+          "minLength": 1,
+          "description": "四类：next --decision <name>（推进，name 须与本选项一致）/ rollback --stage <id> / run finish --status <done|aborted|failed> / in-phase（相位内交互）。白名单在 buildGate 校验"
+        }
+      }
+    }
+  }
+}

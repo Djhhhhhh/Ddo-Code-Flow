@@ -1,0 +1,14 @@
+{
+  "name": "verification",
+  "version": "2.0.0",
+  "desc": "按 test-plan 的 checklist 验收（cmd 自动执行 + human 用户确认）",
+  "output": "verification.log",
+  "defaults": {
+    "extra_ctx": "",
+    "rules": [
+      "不得执行 human: 行，仅展示并记录用户确认",
+      "存在失败或未确认人工项时不得写 ALL PASSED",
+      "cmd 执行前去除反引号与尾部标点，保留带引号 shell 字符串原样"
+    ]
+  }
+}

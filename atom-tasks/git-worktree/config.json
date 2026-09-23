@@ -1,0 +1,13 @@
+{
+  "name": "git-worktree",
+  "version": "2.0.0",
+  "desc": "基于 Requirement 关键词创建 Git 分支与隔离工作树",
+  "output": "worktree-info.json",
+  "defaults": {
+    "extra_ctx": "",
+    "rules": [
+      "任何 git 命令失败立即暂停报告，不得带错继续",
+      "不得修改 .gitignore 或 git exclude"
+    ]
+  }
+}

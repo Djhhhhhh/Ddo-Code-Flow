@@ -1,0 +1,61 @@
+{
+  "name": "plan",
+  "version": "2.0.0",
+  "desc": "基于已确认 spec 生成技术 Plan（候选评估 + revision 送审）",
+  "phases": [
+    {
+      "id": "01",
+      "summary": "基于已确认 spec 生成技术 Plan",
+      "type": "action",
+      "output": "plan.md"
+    },
+    {
+      "id": "02",
+      "summary": "用户确认门（同意/修改/提问/归档）",
+      "type": "human",
+      "output": {
+        "updates": [
+          "plan.md"
+        ]
+      },
+      "gate": {
+        "options": [
+          {
+            "name": "同意",
+            "desc": "批准当前 revision，本相位完成",
+            "action": "next --decision 同意"
+          },
+          {
+            "name": "驳回",
+            "desc": "回滚 plan 阶段，按意见回到相位 01 重新生成",
+            "action": "rollback --stage plan"
+          },
+          {
+            "name": "修改",
+            "desc": "反馈应用到新 revision 并重评估，展示变化摘要后重新送审",
+            "action": "in-phase"
+          },
+          {
+            "name": "提问",
+            "desc": "只答疑，不改文档、revision 与确认状态",
+            "action": "in-phase"
+          },
+          {
+            "name": "归档",
+            "desc": "按相位 01 §5 归档当前 plan；不代表批准",
+            "action": "in-phase"
+          }
+        ]
+      }
+    }
+  ],
+  "defaults": {
+    "extra_ctx": "",
+    "rules": [
+      "spec 中每个开放问题必须有唯一确定答案或明确阻塞，不得伪造仓库事实",
+      "Plan 不生成测试用例、不写普通业务代码",
+      "所有正式图使用 Mermaid，禁止 PlantUML 与 ASCII 架构图",
+      "人类可读信息在前，FR/AC/DEC/Q 等 AI 索引仅放表格末列"
+    ]
+  }
+}

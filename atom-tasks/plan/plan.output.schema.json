@@ -1,46 +1,12 @@
 {
   "description": "详细技术 Plan 输出规范；支持 single 和 split 两种文档模式，并可派生简化归档文档。",
   "outputFormat": "markdown",
-  "options": {
-    "split-threshold": {
-      "type": "integer",
-      "default": 12000,
-      "minimum": 4000,
-      "countUnit": "normalized LF Unicode code point"
-    }
-  },
-  "documentModes": {
-    "single": {
-      "condition": "draftCodePoints <= split-threshold",
-      "entry": "plan.md",
-      "partsDirectory": null,
-      "rules": [
-        "plan.md 包含完整详细 Plan",
-        "不创建 plans/",
-        "不得把旧分册标记为 current"
-      ]
-    },
-    "split": {
-      "condition": "draftCodePoints > split-threshold",
-      "entry": "plan.md",
-      "partsDirectory": "plans/",
-      "partPattern": "plans/NN-<semantic-slug>.md",
-      "rules": [
-        "plan.md 是稳定入口和唯一确认入口",
-        "manifest 列出全部 current parts、职责、字符数和 revision",
-        "按语义拆分，不切断 Markdown 表格、Mermaid、Decision、接口、schema 或 DDL 契约",
-        "旧 revision 分册必须移出 current 集合或标记 stale"
-      ]
-    }
-  },
   "document": {
     "title": "{{ 项目名称 }} 技术 Plan",
     "titleFormat": "占位符",
     "description": "以仓库事实、技术决策和实现契约指导 Test-Planning、Tasking、Coding、Verification 与 Review。",
     "separators": true
   },
-  "humanReadableFirst": true,
-  "aiIndexPlacement": "table-last-column-or-paragraph-tail",
   "sections": [
     {
       "heading": "执行摘要",
@@ -75,24 +41,14 @@
         "适用边界",
         "AI 索引"
       ],
-      "allowedEvidence": [
-        "Repository Fact",
-        "Assumption"
-      ],
-      "allowedAdoption": [
-        "复用现有实现",
-        "扩展现有实现",
-        "新增实现",
-        "不适用"
-      ]
+      "description": "证据类型仅允许 Repository Fact / Assumption；采用方式仅允许 复用现有实现 / 扩展现有实现 / 新增实现 / 不适用。"
     },
     {
       "heading": "整体架构与流程",
       "level": 2,
       "required": true,
       "format": "group",
-      "diagramSyntax": "Mermaid flowchart",
-      "description": "仅描述当前改动直接相关的参与方、边界和主/异常流程。"
+      "description": "仅描述当前改动直接相关的参与方、边界和主/异常流程；正式图使用 Mermaid flowchart 语法。"
     },
     {
       "heading": "技术选型与方案对比",
@@ -108,17 +64,7 @@
         "结论",
         "AI 索引"
       ],
-      "candidateSources": [
-        "初始 Plan",
-        "用户修改"
-      ],
-      "candidateStates": [
-        "candidate",
-        "accepted",
-        "rejected",
-        "superseded"
-      ],
-      "description": "只比较真实候选，不强制凑方案数量。"
+      "description": "只比较真实候选，不强制凑方案数量。候选来源仅限 初始 Plan / 用户修改；状态取 candidate / accepted / rejected / superseded。"
     },
     {
       "heading": "数据模型设计",
@@ -126,10 +72,30 @@
       "required": true,
       "format": "group",
       "subsections": [
-        "实体与字段",
-        "schema 与 DDL（如适用）",
-        "状态与不变量",
-        "迁移、兼容与回滚"
+        {
+          "heading": "实体与字段",
+          "level": 3,
+          "required": true,
+          "format": "prose"
+        },
+        {
+          "heading": "schema 与 DDL（如适用）",
+          "level": 3,
+          "required": true,
+          "format": "prose"
+        },
+        {
+          "heading": "状态与不变量",
+          "level": 3,
+          "required": true,
+          "format": "prose"
+        },
+        {
+          "heading": "迁移、兼容与回滚",
+          "level": 3,
+          "required": true,
+          "format": "prose"
+        }
       ]
     },
     {
@@ -216,66 +182,18 @@
       "level": 2,
       "required": true,
       "format": "list",
-      "commands": [
-        "同意",
-        "修改：<反馈>",
-        "提问：<问题>",
-        "归档",
-        "归档：<模板名>"
-      ]
+      "description": "固定指令集：同意 / 修改：<反馈> / 提问：<问题> / 归档 / 归档：<模板名>。"
     }
   ],
-  "splitManifest": {
-    "heading": "Parts Manifest",
-    "requiredWhen": "documentMode == split",
-    "columns": [
-      "#",
-      "文档",
-      "职责",
-      "字符数",
-      "状态",
-      "AI 索引"
-    ],
-    "currentStatus": "current",
-    "staleStatus": "stale"
-  },
-  "archive": {
-    "listCommand": "归档",
-    "generateCommand": "归档：<模板名>",
-    "templatesDirectory": "atom-tasks/plan/references/",
-    "templatePattern": "*.md",
-    "selectionMode": "exact filename or basename",
-    "selectionRules": [
-      "归档 only lists available template names and does not generate output",
-      "归档：<模板名> resolves only within templatesDirectory",
-      "directory segments, wildcards, and traversal paths are rejected",
-      "template content, external source path, and hash are not validated",
-      "the selected template is read-only during archive generation"
-    ],
-    "output": "tech-design.md",
-    "source": "current detailed Plan revision",
-    "recordInOutput": [
-      "template name",
-      "Plan revision"
-    ],
-    "drivesDownstream": false,
-    "staleWhenPlanRevisionChanges": true
-  },
-  "staticCheck": {
-    "scope": "Markdown and Mermaid structure only",
-    "maxExecutionsPerRevision": 1,
-    "autoRetry": false,
-    "reloadContextOnFailure": false,
-    "failureTypes": [
-      "content_error",
-      "checker_execution_error"
-    ]
-  },
   "rules": [
     "数据模型设计必须位于 API 接口设计之前，API 接口设计必须位于算法设计之前",
-    "FR/AC/DEC/Q 等 AI 索引不得作为表格第一列",
+    "FR/AC/DEC/Q 等 AI 索引不得作为表格第一列，人类可读信息在前、AI 索引置于表格末列或段落尾部",
     "所有正式图使用 Mermaid 流程图语法",
     "Plan 不承担完整测试计划职责",
-    "不得新增 Plan 专属验证脚本"
+    "不得新增 Plan 专属验证脚本",
+    "文档模式：草稿字符数（normalized LF Unicode code point）≤ split 阈值（默认 12000，最小 4000）时为 single 模式——plan.md 包含完整详细 Plan，不创建 plans/，不得把旧分册标记为 current；超过阈值时为 split 模式——plan.md 是稳定入口和唯一确认入口，分册置于 plans/ 并按 plans/NN-<语义slug>.md 命名，按语义拆分且不切断 Markdown 表格、Mermaid、Decision、接口、schema 或 DDL 契约，旧 revision 分册必须移出 current 集合或标记 stale",
+    "split 模式下入口文档必须含 Parts Manifest 表（列：#、文档、职责、字符数、状态、AI 索引），列出全部 current 分册、职责、字符数和 revision；current/stale 为状态标记",
+    "归档指令：归档 仅列出可用模板名不产出文档；归档：<模板名> 只在 atom-tasks/plan/references/ 内按文件名精确解析（拒绝目录段、通配符与穿越路径），产出 tech-design.md 并在产物中记录模板名与 Plan revision；模板内容只读；归档不驱动下游，Plan revision 变化后归档文档视为 stale",
+    "静态校验仅覆盖 Markdown 与 Mermaid 结构，每 revision 至多执行 1 次，失败不自动重试、不自动重载上下文（失败类型：content_error / checker_execution_error）"
   ]
 }

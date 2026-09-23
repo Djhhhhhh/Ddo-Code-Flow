@@ -1,0 +1,73 @@
+{
+  "name": "test-plan",
+  "version": "2.0.0",
+  "desc": "生成两段式 checklist 验收计划（可配 TDD Red 骨架）并经用户确认",
+  "phases": [
+    {
+      "id": "01",
+      "summary": "基于 spec 生成 checklist 验收计划",
+      "type": "action",
+      "output": "test-plan.md"
+    },
+    {
+      "id": "02",
+      "summary": "用户确认门",
+      "type": "human",
+      "output": {
+        "updates": [
+          "test-plan.md"
+        ]
+      },
+      "gate": {
+        "options": [
+          {
+            "name": "同意",
+            "desc": "批准 test-plan，进入相位 03（TDD Red 骨架）",
+            "action": "next --decision 同意"
+          },
+          {
+            "name": "驳回",
+            "desc": "回滚 test-plan 阶段，按意见重新生成",
+            "action": "rollback --stage test-plan"
+          },
+          {
+            "name": "修改",
+            "desc": "回到生成并按反馈更新，重新送审",
+            "action": "in-phase"
+          },
+          {
+            "name": "提问",
+            "desc": "只答疑",
+            "action": "in-phase"
+          }
+        ]
+      }
+    },
+    {
+      "id": "03",
+      "summary": "TDD：为 cmd 项生成 Red 测试骨架（tdd 开启时）",
+      "type": "action",
+      "output": {
+        "updates": [
+          "test-plan.md"
+        ]
+      }
+    }
+  ],
+  "defaults": {
+    "extra_ctx": "",
+    "rules": [
+      "每个 checklist 行必须以 - [ ] cmd: 或 - [ ] human: 开头",
+      "spec 中每个 AC-N 至少有一个条目覆盖",
+      "每组末尾必须有「通过标准」行",
+      "cmd 条目必须可在 worktree 中运行，无需 sudo 与网络"
+    ]
+  },
+  "configurable": [
+    {
+      "key": "tdd",
+      "desc": "为 cmd 验收项生成 TDD Red 测试骨架（相位 03）",
+      "default": false
+    }
+  ]
+}

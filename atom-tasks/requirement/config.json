@@ -1,0 +1,13 @@
+{
+  "name": "requirement",
+  "version": "2.0.0",
+  "desc": "验证用户需求已明确，将需求原文固化为 requirement 产物",
+  "output": "requirement.md",
+  "defaults": {
+    "extra_ctx": "",
+    "rules": [
+      "不得改写或总结用户需求原文",
+      "需求不清晰时暂停询问，不要猜测或继续执行"
+    ]
+  }
+}
