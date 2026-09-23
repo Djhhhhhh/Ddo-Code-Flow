@@ -8,9 +8,9 @@
 
 ## 指令
 
-**test-plan 存在时**：逐行解析。对每条 `^- \[ \] cmd: (.+)$`：在 state `git.worktreePath` 的工作树中执行（去除反引号与尾部标点），捕获 stdout/stderr 与 exit code，结果行追加到 `verification.log`（单条超时 >120s 记 [FAIL]）。对每条 `human:`：不执行，收集到「人工检查清单」，逐项向用户展示并记录其通过/失败回答。按 `## G<N>.` 分组，每组末尾输出 `GROUP G<N> PASSED` 或 `GROUP G<N> FAILED: <n> failing`。
+**test-plan 存在时**：逐行解析。对每条 `^- \[ \] cmd: (.+)$`：在「Context: 工作目录」声明的生效目录中执行（去除反引号与尾部标点），捕获 stdout/stderr 与 exit code，结果行追加到 `verification.log`（单条超时 >120s 记 [FAIL]）。对每条 `human:`：不执行，收集到「人工检查清单」，逐项向用户展示并记录其通过/失败回答。按 `## G<N>.` 分组，每组末尾输出 `GROUP G<N> PASSED` 或 `GROUP G<N> FAILED: <n> failing`。
 
-**test-plan 缺失时**（轻量流程）：读取 Context 中的 Alignment Spec 与可选 Plan，从仓库已有配置发现最小、确定性的现有测试或静态检查命令并在工作树执行；逐项核对 spec 验收条件是否实现；结果作为 `LIGHTWEIGHT` 分组写入日志。不得仅因 test-plan 缺失而跳过验证或宣告成功。
+**test-plan 缺失时**（轻量流程）：读取 Context 中的 Alignment Spec 与可选 Plan，从生效工作目录已有配置发现最小、确定性的现有测试或静态检查命令并执行；逐项核对 spec 验收条件是否实现；结果作为 `LIGHTWEIGHT` 分组写入日志。不得仅因 test-plan 缺失而跳过验证或宣告成功。
 
 ## 终止条件
 

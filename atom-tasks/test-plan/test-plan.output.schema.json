@@ -46,7 +46,7 @@
   ],
   "rules": [
     "每个 checklist 行必须以 '- [ ] cmd:' 或 '- [ ] human:' 开头",
-    "cmd: 条目必须是可在 worktreePath 中运行的命令，无需 sudo 和网络",
+    "cmd: 条目必须是可在生效工作目录中运行的命令（工作目录按 state 判定：git.worktreePath 非空为 worktree，否则为当前项目目录），无需 sudo 和网络",
     "human: 条目描述用户手动操作步骤和预期结果",
     "每个 G 分组必须以「通过标准」行结尾",
     "spec.md 中的每个 AC-N 必须至少有一个 checklist 条目覆盖",

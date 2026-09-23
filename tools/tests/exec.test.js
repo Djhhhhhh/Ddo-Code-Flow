@@ -194,6 +194,71 @@ test('exec coding：tasks 目录存在时注入 task 文件', () => {
   }
 });
 
+// ---------------------------------------------------------------- 工作目录弱依赖（09：state 现算，全任务统一）
+
+const WORKDIR_CODING = { currentStage: ['coding:01'], stages: { coding: { status: 'running', dependOn: [], at: '...' } } };
+
+test('exec coding 工作目录：worktreePath 非空 → worktree 分支（声明路径 + 主工作树禁触）', () => {
+  const sb = sandbox();
+  try {
+    writeState(sb, WORKDIR_CODING); // 夹具默认 git.worktreePath = sb.dir
+    put(sb, 'spec.md', '# Spec');
+    put(sb, 'plan.md', '# Plan');
+    const r = cli(['exec', '--state', sb.statePath, '--task', 'coding'], sb);
+    assert.equal(r.status, 0);
+    assert.match(r.stdout, /## Context: 工作目录/);
+    assert.match(r.stdout, new RegExp(`生效工作目录：${sb.dir.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}`));
+    assert.match(r.stdout, /不得触碰主工作树/);
+    assert.doesNotMatch(r.stdout, /不涉及 worktree/);
+  } finally {
+    cleanup(sb);
+  }
+});
+
+test('exec coding 工作目录：worktreePath 缺失 / 空串 / git 对象缺失 → projectRoot 分支；不含 worktree 硬约束', () => {
+  const sb = sandbox();
+  try {
+    for (const [label, extra] of [
+      ['worktreePath 缺失', { git: { mainBranch: 'main' } }],
+      ['worktreePath 空串', { git: { mainBranch: 'main', worktreePath: '' } }],
+      ['git 对象缺失', { git: undefined }],
+    ]) {
+      writeState(sb, { ...WORKDIR_CODING, ...extra });
+      put(sb, 'spec.md', '# Spec');
+      put(sb, 'plan.md', '# Plan');
+      const r = cli(['exec', '--state', sb.statePath, '--task', 'coding'], sb);
+      assert.equal(r.status, 0, label);
+      assert.match(r.stdout, /## Context: 工作目录/, label);
+      assert.match(r.stdout, /（当前项目目录）/, label);
+      assert.match(r.stdout, /不涉及 worktree/, label);
+      assert.doesNotMatch(r.stdout, /不得触碰主工作树/, label);
+      assert.doesNotMatch(r.stdout, /git\.worktreePath` 指向的工作树/, label); // 旧硬约束不得残留
+      assert.match(r.stdout, /仅在「Context: 工作目录」声明的生效目录内/, label); // 新约束引用注入结果
+    }
+  } finally {
+    cleanup(sb);
+  }
+});
+
+test('exec verification：工作目录 ctx 与 coding 同源（共享判定，AC-5）', () => {
+  const sb = sandbox();
+  try {
+    writeState(sb, {
+      currentStage: ['verification:01'],
+      stages: { verification: { status: 'running', dependOn: [], at: '...' } },
+      git: { mainBranch: 'main' }, // projectRoot 分支
+    });
+    put(sb, 'spec.md', '# Spec');
+    const r = cli(['exec', '--state', sb.statePath, '--task', 'verification'], sb);
+    assert.equal(r.status, 0);
+    assert.match(r.stdout, /## Context: 工作目录/);
+    assert.match(r.stdout, /（当前项目目录）/);
+    assert.match(r.stdout, /在「Context: 工作目录」声明的生效目录中执行/);
+  } finally {
+    cleanup(sb);
+  }
+});
+
 test('exec git-worktree：requirement 必需，缺失 exit 1；存在时注入并输出裸文本', () => {
   const sb = sandbox();
   try {

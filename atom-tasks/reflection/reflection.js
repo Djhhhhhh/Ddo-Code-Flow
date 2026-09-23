@@ -1,15 +1,17 @@
 'use strict';
 // reflection 的 ctx 引擎（D12：执行时基于唯一事实源动态计算）。
+// 工作目录（09 弱依赖：state 现算）置首——TODO 扫描位置由它声明。
 
 const fs = require('fs');
 const path = require('path');
+const { resolveWorkdir } = require('../../tools/lib/workdir');
 
 const WANTED = [["Execution Report", "execution-report.md", true]];
 
 module.exports = {
-  assemble({ statePath, sections }) {
+  assemble({ state, statePath, sections }) {
     const runDir = path.dirname(statePath);
-    const ctxParts = [];
+    const ctxParts = [resolveWorkdir(state, statePath).ctx];
     for (const [title, file, required] of WANTED) {
       const p = path.join(runDir, file);
       if (fs.existsSync(p)) {

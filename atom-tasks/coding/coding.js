@@ -1,14 +1,16 @@
 'use strict';
 // coding 的 ctx 引擎（D12）：按「存在性容错」动态注入——
-// spec.md / plan.md 必需；test-plan.md、tasks/ 目录下的 task-NN.md 存在才注入。
+// 工作目录（09 弱依赖：state 现算）；spec.md / plan.md 必需；
+// test-plan.md、tasks/ 目录下的 task-NN.md 存在才注入。
 
 const fs = require('fs');
 const path = require('path');
+const { resolveWorkdir } = require('../../tools/lib/workdir');
 
 module.exports = {
-  assemble({ statePath, sections }) {
+  assemble({ state, statePath, sections }) {
     const runDir = path.dirname(statePath);
-    const ctxParts = [];
+    const ctxParts = [resolveWorkdir(state, statePath).ctx];
 
     const pushFile = (title, file, required) => {
       const p = path.join(runDir, file);

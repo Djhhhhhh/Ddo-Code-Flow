@@ -5,7 +5,7 @@
 <!-- @phase:01 -->
 ## 生成复盘报告
 
-1. 在 state `git.worktreePath` 的工作树中扫描本次 run 新增/修改的 TODO、FIXME、XXX 标记（引用文件路径与行号）；
+1. 在「Context: 工作目录」声明的生效目录中扫描本次 run 新增/修改的 TODO、FIXME、XXX 标记（引用文件路径与行号）；
 2. 结合 Context 中的 Execution Report 与本次 run 的决策/验证历史，生成 `reflection-report.md`：未完结项、推荐后续动作（须为可执行任务而非自由文本）、经验教训；
 3. 末尾追加标准「用户确认」section。
 <!-- /phase:01 -->
