@@ -30,7 +30,7 @@
 | D1 | A1 修法 = `state.dirs.tasksDir`（可选绝对路径）；命令取值优先级 **flag > state > skillRoot 缺省**；历史 state 无此字段容错回落 | 用户指令 1 |
 | D2 | standard 预设 = 00-overview 权威链 10 阶段线性（requirement → spec → plan → test-plan → tasking → coding → verification → review → reporting → reflection），与 2026-09-22 用户对齐的流程图一致，不新造结构 | 用户指令 2 |
 | D3 | A3 只保持数据存储（现状已满足，零改动）；`list history` 挂账 | 用户指令 3 |
-| D4 | 卫生包范围 = package.json（engines/test 脚本）+ PR/issue 模版（bug/feature）+ 死枚举收敛（skipped/rework/waiting-remote-gate 移除，无写入方无消费方）+ 04 O4 关闭（11 轮已定 runDir）；CI 不做（快速迭代期，提交前本地跑绿）；全链 E2E 不做 | 用户指令 4 + 修订（CI 移除 / 模版新增，2026-09-24） |
+| D4 | 卫生包范围 = PR/issue 模版（bug/feature）+ 死枚举收敛（skipped/rework/waiting-remote-gate 移除，无写入方无消费方）+ 04 O4 关闭（11 轮已定 runDir）；CI 不做（快速迭代期，提交前本地跑绿）；package.json v1.2 移除（纯目录零 npm 假设，`npm test` 无不可替代性）；全链 E2E 不做 | 用户指令 4 + 修订（CI 移除 / 模版新增 / package.json 移除，2026-09-24） |
 
 ## 变更记录
 

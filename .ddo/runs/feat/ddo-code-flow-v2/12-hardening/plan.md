@@ -42,7 +42,7 @@ requirement → spec → plan → test-plan → tasking → coding
 
 | 项 | 范围 | 动作 |
 |---|---|---|
-| package.json | ~10 行（name/version/private/engines ≥18/license/test 脚本） | 新增 |
+| ~~package.json~~ | ~~engines/test 脚本~~ | **v1.2 移除（用户定版：保持纯目录零 npm 假设，`npm test` 无不可替代性）**；README / PR 模版回退裸命令 |
 | ~~CI~~ | ~~单 workflow~~ | **不做（用户定版：快速迭代期不上 CI，提交前本地跑绿）** |
 | PR / issue 模版 | `.github/` 三个 markdown（PR 检查单 + bug/feature issue 模板，含 ddo 流程符合性自查） | 新增 |
 | 死枚举 | state.js 一行（grep 证实无写入方/消费方/测试断言） | 收敛 STATUS_ENUM 至实际 5 值 |
@@ -56,7 +56,7 @@ requirement → spec → plan → test-plan → tasking → coding
 | `tools/cli.js` | `tasksDirFor(f, state)` 助手；runStart `dirs.tasksDir`；四命令取值改三级 |
 | `tools/lib/state.js` | assertDirs 增可选 tasksDir 校验；STATUS_ENUM 收敛 |
 | `workflows/standard.json` | 新增（10 阶段线性） |
-| `package.json` / `.github/workflows/ci.yml` | 新增 |
+| `package.json` / ~~`.github/workflows/ci.yml`~~ | ~~新增~~（v1.2 起均移除/不做） |
 | `tools/tests/lifecycle.test.js` | 增 1 用例：--tasks-dir 启动 → dirs.tasksDir 记录 → 后续命令免 flag 走 state |
 | 台账 | 02 → v1.6；04 O4 关闭；README（standard 预设 / 仓库结构）；本工作项收尾记录 |
 
@@ -75,3 +75,4 @@ requirement → spec → plan → test-plan → tasking → coding
 | v0.9 | 2026-09-24 | 初稿：D1–D4 全部来自用户指令，无开放评审点 |
 | **v1.0** | 2026-09-24 | **定版**：随需求 D1–D4 直接定稿，进入实现 |
 | **v1.1** | 2026-09-24 | **实现完成**：`tasksDirFor` 三级取值落六个消费方（rollback / validate / next / status / resume×2；run start 为写入方、listTasks 无 state 保持原样）；standard 预设启动冒烟通过（10 阶段物化 + tasksDir 记录）；卫生包落定（package.json / 枚举收敛 / 04 O4 关闭 / PR+issue 模版；CI 按用户指示移除——快速迭代期不上，README 注明本地跑绿）。测试：lifecycle 增自包含用例、list 增 standard 断言，全量 **78/78 绿**；台账联动：02 → v1.6 |
+| **v1.2** | 2026-09-24 | **package.json 移除（用户定版）**：保持纯目录、零 npm 假设——零依赖下无 install/锁版本/分发场景，`npm test` 无不可替代性；README「开发与测试」与 PR 模版检查项回退 `node --test tools/tests/*.test.js` 裸命令。Node ≥18 约束由 README/badge 文字承载 |

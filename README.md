@@ -197,7 +197,7 @@ tools/tests/             # node:test 沙箱隔离测试（10 个文件，78 用�
 ## 开发与测试
 
 ```bash
-npm test   # = node --test tools/tests/*.test.js
+node --test tools/tests/*.test.js
 ```
 
 测试在临时目录沙箱内隔离运行，不影响真实项目与 `~/.ddo`。快速迭代期暂不上 CI，提交前本地跑绿即可。
