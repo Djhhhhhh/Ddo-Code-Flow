@@ -1,6 +1,6 @@
 # 工作项 02 · index-structure — 设计方案（架构定版基线）
 
-> 版本：**v1.0（2026-09-21 已定版，增量演进至 v1.5）**——本文件为后续工作项（状态更新脚本 / workflow 预设配置 / 可视化面板）的架构基线，变更需走版本号升级并记录于 §12。
+> 版本：**v1.0（2026-09-21 已定版，增量演进至 v1.6）**——本文件为后续工作项（状态更新脚本 / workflow 预设配置 / 可视化面板）的架构基线，变更需走版本号升级并记录于 §12。
 > 需求依据：[requirement.md](./requirement.md)（决策 D1–D9）
 
 ## 1. 背景与目标
@@ -85,7 +85,8 @@ v2 需要在本机层面回答三个问题：
 
   "dirs": {
     "projectRoot": "/Users/djhhh/work_area/Ddo-Code-Flow-feat-ddo-code-flow-v2",
-    "runDir": "/Users/djhhh/work_area/Ddo-Code-Flow-feat-ddo-code-flow-v2/.ddo/runs/feat/20260921-224130-9f2c"
+    "runDir": "/Users/djhhh/work_area/Ddo-Code-Flow-feat-ddo-code-flow-v2/.ddo/runs/feat/20260921-224130-9f2c",
+    "tasksDir": "/Users/djhhh/work_area/Ddo-Code-Flow-feat-ddo-code-flow-v2/atom-tasks"
   },
 
   "currentStage": ["spec:02"],
@@ -113,7 +114,7 @@ v2 需要在本机层面回答三个问题：
 | `git.releaseBranch` | string | ✖ | 发布分支；不使用时不填 |
 | `git.developmentBranch` | string | ✖ | 开发分支；不使用时不填 |
 | `git.worktreePath` | string（绝对路径） | ✖ | 使用 Git worktree 时填写 |
-| `dirs` | object | ✖ | **目录声明**（v1.5 新增，11）：`{projectRoot, runDir}` 两绝对路径，run start 物化；runDir 必须位于 projectRoot 之内（= run 工作目录 = 流水线产物目录，同址不分家）——产物唯一合法居所显式化，output 声明防逃逸的锚点；缺失容错（历史 state 由消费方回落 `dirname(statePath)`，不强制迁移） |
+| `dirs` | object | ✖ | **目录声明**（v1.5 新增，11）：`{projectRoot, runDir}` 两绝对路径，run start 物化；runDir 必须位于 projectRoot 之内（= run 工作目录 = 流水线产物目录，同址不分家）——产物唯一合法居所显式化，output 声明防逃逸的锚点；缺失容错（历史 state 由消费方回落 `dirname(statePath)`，不强制迁移）。v1.6（12）增可选 `tasksDir`：启动时任务目录的 resolve 值，消费方三级取值 flag > state > skillRoot——自定义链自包含，免每次传 `--tasks-dir` |
 | `currentStage` | string[]（≥1） | ✔ | 待继续执行的阶段，元素为 `stageId:phase`（见 §5.3） |
 | `stages` | object | ✔ | key 为 stageId（阶段级）；**由脚本按 workflow 预设动态生成**（D8） |
 | `stages[k].status` | string enum | ✔ | v4 八值：`pending` / `running` / `done` / `failed` / `skipped` / `rework` / `waiting-human` / `waiting-remote-gate`（D7） |
@@ -245,3 +246,4 @@ runId = <YYYYMMDD>-<HHMMSS>-<XXXX>
 | v1.3 | 2026-09-24 | 细化（08 轮联动）：index 迎来第一个 CLI 读取消费方 `resume`（发现层）；§7 惰性校验细化——「无待继续阶段」不再一律视为失效，结构合法 + currentStage 空 = **待收束**（展示并引导 run finish），statePath 缺失/非法仍为 stale 不展示 |
 | v1.4 | 2026-09-24 | 扩展（10 轮联动）：`state.atomTasks` 写入方扩展——run start 物化时把链内任务 `configurable` 声明的 default 预填（可配置项预标记）；字段语义不变（run 级配置快照，exec 合并最高层） |
 | v1.5 | 2026-09-24 | 扩展（11 轮联动）：① `state.dirs` 可选字段（projectRoot/runDir 目录定版，缺失容错）；② `~/.ddo/history/<runId>/.state.json` 结束归档副本（run finish 迁移顺序修订为 归档→history→index→清空）；③ 项目侧布局补 `_del/rollback-<n>/`（04 §2.2 契约激活）与产物落位说明 |
+| v1.6 | 2026-09-24 | 扩展（12 轮联动）：`dirs` 增可选 `tasksDir`（自定义链自包含——next/exec/validate/rollback/status/resume 六处消费方三级取值 flag > state > skillRoot）；`stages[k].status` 枚举收敛至实际 5 值（v4 遗留 skipped/rework/waiting-remote-gate 无写入方无消费方，移除） |

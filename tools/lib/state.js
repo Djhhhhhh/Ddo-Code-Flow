@@ -6,10 +6,8 @@ const path = require('path');
 const { atomicWrite } = require('./fsutil');
 
 const REQUIRED_TOP = ['runId', 'title', 'startedAt', 'currentStage', 'stages'];
-const STATUS_ENUM = new Set([
-  'pending', 'running', 'done', 'failed',
-  'skipped', 'rework', 'waiting-human', 'waiting-remote-gate',
-]);
+// 实际使用的 5 值（12 D4 收敛）：v4 遗留的 skipped/rework/waiting-remote-gate 无写入方无消费方，移除
+const STATUS_ENUM = new Set(['pending', 'running', 'done', 'failed', 'waiting-human']);
 
 function readState(statePath) {
   return JSON.parse(fs.readFileSync(statePath, 'utf8'));
@@ -49,6 +47,9 @@ function assertDirs(dirs) {
   const rel = path.relative(dirs.projectRoot, dirs.runDir);
   if (rel.startsWith('..') || path.isAbsolute(rel)) {
     throw new Error('state.dirs.runDir 必须位于 projectRoot 之内');
+  }
+  if (dirs.tasksDir !== undefined && (typeof dirs.tasksDir !== 'string' || !path.isAbsolute(dirs.tasksDir))) {
+    throw new Error('state.dirs.tasksDir must be an absolute path'); // 12 D1：可选，出现即须绝对路径
   }
 }
 

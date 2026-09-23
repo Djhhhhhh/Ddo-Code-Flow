@@ -72,6 +72,12 @@ test('list workflows：默认目录与 --workflows-dir 自定义目录（描述 
     assert.match(basic.description, /基础链路/);
     assert.deepEqual(basic.stages, ['requirement', 'spec', 'plan', 'coding', 'reporting']);
 
+    const standard = def.workflows.find((w) => w.name === 'standard'); // 12 D2：标准链全量呈现
+    assert.deepEqual(standard.stages, [
+      'requirement', 'spec', 'plan', 'test-plan', 'tasking',
+      'coding', 'verification', 'review', 'reporting', 'reflection',
+    ]);
+
     fs.mkdirSync(sb.wf, { recursive: true });
     fs.writeFileSync(path.join(sb.wf, 'custom-demo.json'), JSON.stringify({
       name: 'custom-demo', version: '1.0.0', description: '引导拼出的自定义链',

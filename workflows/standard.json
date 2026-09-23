@@ -1,0 +1,17 @@
+{
+  "name": "standard",
+  "version": "1.0.0",
+  "description": "标准链路（00-overview 权威流程全量）：requirement → spec → plan → test-plan → tasking → coding → verification → review → reporting → reflection",
+  "stages": [
+    { "task": "requirement", "dependOn": [] },
+    { "task": "spec", "dependOn": ["requirement"] },
+    { "task": "plan", "dependOn": ["spec"] },
+    { "task": "test-plan", "dependOn": ["plan"] },
+    { "task": "tasking", "dependOn": ["test-plan"] },
+    { "task": "coding", "dependOn": ["tasking"] },
+    { "task": "verification", "dependOn": ["coding"] },
+    { "task": "review", "dependOn": ["verification"] },
+    { "task": "reporting", "dependOn": ["review"] },
+    { "task": "reflection", "dependOn": ["reporting"] }
+  ]
+}

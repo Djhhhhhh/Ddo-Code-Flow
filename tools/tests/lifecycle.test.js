@@ -209,6 +209,53 @@ test('rollback 产物缺失：跳过不报错，不产生空 rollback-n 目录',
   }
 });
 
+// ---------------------------------------------------------------- tasksDir 自包含（12 D1）
+
+test('run start 记录 dirs.tasksDir：自定义链后续命令免 flag 读 state，门决议正常走通', () => {
+  const sb = sandbox();
+  try {
+    // 自定义任务目录 + 临时预设（10 引导的自定义链形态）
+    const tasksDir = path.join(sb.dir, 'tasks');
+    putTask(tasksDir, 'alpha', {
+      phases: [
+        { id: '01', type: 'action', output: 'alpha.md' },
+        { id: '02', type: 'human', gate: { options: [{ name: '同意', desc: '通过', action: 'next --decision 同意' }] } },
+      ],
+    });
+    const wfDir = path.join(sb.dir, 'wf');
+    fs.mkdirSync(wfDir, { recursive: true });
+    fs.writeFileSync(path.join(wfDir, 'alpha-only.json'), JSON.stringify({
+      name: 'alpha-only', version: '1.0.0',
+      stages: [{ task: 'alpha', dependOn: [] }],
+    }));
+
+    const proj = path.join(sb.dir, 'proj');
+    const r = cli([
+      'run', 'start', '--project', proj, '--title', '自包含', '--dir-name', 'd3',
+      '--tasks-dir', tasksDir, '--workflows-dir', wfDir, '--workflow', 'alpha-only',
+    ], sb);
+    assert.equal(r.status, 0, r.stderr);
+    const out = JSON.parse(r.stdout);
+    const state = JSON.parse(fs.readFileSync(out.statePath, 'utf8'));
+    assert.equal(state.dirs.tasksDir, tasksDir, '启动时任务目录记入 state');
+
+    // 后续命令一律不带 --tasks-dir：位置推进 / 门注册 / 决议全部经 state 内声明解析
+    const n1 = cli(['next', '--state', out.statePath], sb);
+    assert.equal(n1.status, 0, n1.stderr);
+    assert.ok(JSON.parse(n1.stdout).openedGates.length, 'human 相位开门（phaseType 读自定义 config）');
+
+    const blocked = cli(['next', '--state', out.statePath], sb);
+    assert.equal(blocked.status, 1);
+    assert.match(blocked.stderr, /同意/);
+
+    const n2 = cli(['next', '--state', out.statePath, '--decision', '同意'], sb);
+    assert.equal(n2.status, 0, n2.stderr);
+    assert.equal(JSON.parse(n2.stdout).completed, true);
+  } finally {
+    cleanup(sb);
+  }
+});
+
 // ---------------------------------------------------------------- 防逃逸
 
 test('output 声明防逃逸：validateTaskConfig 拒绝 .. 与绝对路径（顶层 / 相位级 updates）', () => {

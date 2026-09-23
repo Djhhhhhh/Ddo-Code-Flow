@@ -76,6 +76,12 @@ function nextDelDir(runDir) {
   return path.join(del, `rollback-${max + 1}`);
 }
 
+/** 任务目录三级取值（12 D1）：--tasks-dir flag > state.dirs.tasksDir（run 既定）> skillRoot 缺省。 */
+function tasksDirFor(f, state) {
+  if (f['tasks-dir']) return path.resolve(f['tasks-dir']);
+  return (state.dirs && state.dirs.tasksDir) || ATOM_TASKS_DIR;
+}
+
 /** 阶段的 output 声明文件全集（去重）：相位级 + 顶层。 */
 function stageOutputFiles(tasksDir, stageId) {
   const cfg = JSON.parse(fs.readFileSync(path.join(tasksDir, stageId, 'config.json'), 'utf8'));
@@ -173,7 +179,7 @@ function runRollback(f) {
   if (state.stages[target].status === 'pending') {
     throw new Error(`stage ${target} 为 pending，无可回滚内容`);
   }
-  const tasksDir = f['tasks-dir'] ? path.resolve(f['tasks-dir']) : ATOM_TASKS_DIR;
+  const tasksDir = tasksDirFor(f, state);
   const reset = rollbackResetSet(state.stages, target, state.currentStage);
 
   // 失效产物归档（11 §3，激活 04 §2.2 契约）：重置集合各阶段声明的 output 文件，
@@ -282,7 +288,7 @@ function runValidate(f) {
 
   const path = require('path');
   const fs = require('fs');
-  const tasksDir = f['tasks-dir'] ? path.resolve(f['tasks-dir']) : ATOM_TASKS_DIR;
+  const tasksDir = tasksDirFor(f, state);
   const taskDir = path.join(tasksDir, taskName);
   const cfgFile = path.join(taskDir, 'config.json');
   if (!fs.existsSync(path.join(taskDir, 'prompt.md')) || !fs.existsSync(cfgFile)) {
@@ -384,7 +390,7 @@ function runStart(f) {
     title: f.title,
     startedAt,
     git: gitInfo(project), // D5 推断链：仓库推断或置空；worktree 场景归 git-worktree 任务
-    dirs: { projectRoot: project, runDir }, // 目录定版（11 §1.2）：产物唯一合法居所显式化
+    dirs: { projectRoot: project, runDir, tasksDir }, // 目录定版（11 §1.2 + 12 D1）：产物居所 + 任务目录，run 自包含
     currentStage,
     stages,
     atomTasks,
@@ -399,7 +405,7 @@ function runNext(f) {
   const state = readState(f.state);
   assertState(state);
   if (!state.currentStage.length) throw new Error('无待推进阶段（run 已结束或未启动）');
-  const tasksDir = f['tasks-dir'] ? path.resolve(f['tasks-dir']) : ATOM_TASKS_DIR;
+  const tasksDir = tasksDirFor(f, state);
   const now = nowIso();
 
   // 门检查（07 §4.2）：human 相位必须经用户决议才能推进——
@@ -502,8 +508,7 @@ function runStatus(f) {
   const statePath = f.state;
   const state = readState(statePath);
   assertState(state);
-  const tasksDir = f['tasks-dir'] ? path.resolve(f['tasks-dir']) : ATOM_TASKS_DIR;
-  return statusView(state, statePath, tasksDir);
+  return statusView(state, statePath, tasksDirFor(f, state));
 }
 
 // ---------------------------------------------------------------- statusView / resume（07/08）
@@ -594,7 +599,6 @@ function summaryPosition(state, tasksDir, entry) {
 }
 
 function runResume(f) {
-  const tasksDir = f['tasks-dir'] ? path.resolve(f['tasks-dir']) : ATOM_TASKS_DIR;
   const index = registry.readAll();
   const proj = f.project ? path.resolve(f.project) : null;
 
@@ -608,7 +612,7 @@ function runResume(f) {
     if (!state) throw new Error(`run ${f['run-id']} 的 statePath 已失效: ${entry.statePath}`);
     const meta = runMetaFromPath(entry.statePath);
     return {
-      ...statusView(state, entry.statePath, tasksDir),
+      ...statusView(state, entry.statePath, tasksDirFor(f, state)),
       ...(meta.projectRoot ? { projectRoot: meta.projectRoot, type: meta.type } : {}),
       startedAt: state.startedAt,
       statePath: entry.statePath,
@@ -631,7 +635,7 @@ function runResume(f) {
       title: state.title,
       ...(meta.projectRoot ? { projectRoot: meta.projectRoot, type: meta.type } : {}),
       startedAt: state.startedAt,
-      currentStage: state.currentStage.map((e) => summaryPosition(state, tasksDir, e)),
+      currentStage: state.currentStage.map((e) => summaryPosition(state, tasksDirFor(f, state), e)),
       ...(state.currentStage.length ? {} : { completable: true, note: '全部相位完成，待收束（run finish --status done）' }),
     });
   }
