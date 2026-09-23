@@ -1,0 +1,46 @@
+# 验证日志
+
+> test-plan.md 中所有验收条目的执行结果记录。
+
+## G1. 运行发现
+
+### 执行结果
+
+- [PASS] node visualize.js | grep -q "20260924-023150-94cb" — exit code 0；stdout 含 `run: 20260924-023150-94cb (coding:01)`
+- [PASS] node visualize.js --home /tmp/ddo-nonexistent-home | grep -qi "no running\|empty\|0 run" — exit code 0；stdout 输出 `runs: 0 (no running runs)`
+
+### 组摘要
+
+GROUP G1 PASSED
+
+## G2. 渲染产出
+
+### 执行结果
+
+- [PASS] test -f ddo-visual.html && grep -q "<svg" ddo-visual.html — exit code 0；HTML 内联 1 个 `<svg>`
+- [PASS] grep -q "20260924-023150-94cb" ddo-visual.html && grep -q "当前\|current" ddo-visual.html — exit code 0；含 runId 文本与「▶ 当前」高亮标识
+- [PASS] human: 用浏览器打开 ddo-visual.html，能看到运行中 run 的执行流程：阶段链、当前位置高亮、确认门标记，且图形为 SVG 绘制 — 用户经宿主提问工具确认通过（2026-09-24）
+
+### 组摘要
+
+GROUP G2 PASSED
+
+## G3. 连线无相交
+
+### 执行结果
+
+- [PASS] node visualize.js | grep -q "crossings: 0" — exit code 0；stdout 输出 `crossings: 0`
+- [PASS] human: 目检 ddo-visual.html 流程图，确认任意两条连线不相交 — 用户经宿主提问工具确认通过（2026-09-24）
+
+### 组摘要
+
+GROUP G3 PASSED
+
+## 人工检查清单
+
+- human（G2）：浏览器打开 ddo-visual.html 检查阶段链 / 当前位置高亮 / 门标记 / SVG 绘制 — 用户回答：**通过**
+- human（G3）：目检流程图任意两条连线不相交 — 用户回答：**通过**
+
+## 最终结果
+
+ALL PASSED
