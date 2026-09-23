@@ -47,14 +47,26 @@ function renderContract(schema, artifact) {
 
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+/**
+ * heading → 匹配正则源：`{{ 占位符 }}` 段视作「同一行内的任意非空内容」（模板语义），
+ * 其余字面转义（eval dogfooding 修复：review/test-plan/verification 的契约声明了
+ * 占位符 heading，字面匹配导致任何真实产物都过不了 validate）。
+ */
+function headingPattern(heading) {
+  return String(heading)
+    .split(/(\{\{[^}]*\}\})/)
+    .map((p) => (p.startsWith('{{') && p.endsWith('}}') ? '[^\\n]+?' : escapeRe(p)))
+    .join('');
+}
+
 function hasSection(content, heading, level) {
-  return new RegExp(`^#{${level || 2}}\\s+${escapeRe(heading)}\\s*$`, 'm').test(content);
+  return new RegExp(`^#{${level || 2}}\\s+${headingPattern(heading)}\\s*$`, 'm').test(content);
 }
 
 /** 提取 section 正文：从标题行到下一个同级或更高级标题。 */
 function sectionBody(content, heading, level) {
   const lv = level || 2;
-  const re = new RegExp(`^#{${lv}}\\s+${escapeRe(heading)}\\s*\\n([\\s\\S]*?)(?=^#{1,${lv}}\\s|\\s*$)`, 'm');
+  const re = new RegExp(`^#{${lv}}\\s+${headingPattern(heading)}\\s*\\n([\\s\\S]*?)(?=^#{1,${lv}}\\s|\\s*$)`, 'm');
   const m = content.match(re);
   return m ? m[1].trim() : '';
 }

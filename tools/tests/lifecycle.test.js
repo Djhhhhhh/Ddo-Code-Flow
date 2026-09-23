@@ -288,3 +288,51 @@ test('runValidate 运行时防逃逸：非法声明在拼路径前被拦（exit 
     cleanup(sb);
   }
 });
+
+// ---------------------------------------------------------------- 内审修复（eval dogfooding D-3/D-4）
+
+test('时间戳为本地时区偏移格式，日期与 runId 一致（D-3）', () => {
+  const sb = sandbox();
+  try {
+    const proj = path.join(sb.dir, 'proj');
+    const r = cli(['run', 'start', '--project', proj, '--title', '时区', '--dir-name', 'd5'], sb);
+    assert.equal(r.status, 0, r.stderr);
+    const out = JSON.parse(r.stdout);
+    const state = JSON.parse(fs.readFileSync(out.statePath, 'utf8'));
+    // ISO 8601 带本地偏移（非 Z 结尾）；日期部分与 runId 前 8 位一致（同一本地时刻）
+    assert.match(state.startedAt, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}[+-]\d{2}:\d{2}$/);
+    assert.ok(!state.startedAt.endsWith('Z'), '不得为 UTC Z 格式');
+    assert.equal(state.startedAt.slice(0, 10).replace(/-/g, ''), out.runId.slice(0, 8));
+    // 可被 Date 解析且与当前时刻相差在 1 分钟内（偏移语义正确）
+    const ms = Math.abs(Date.parse(state.startedAt) - Date.now());
+    assert.ok(ms < 60_000, `偏移语义异常: ${ms}ms`);
+  } finally {
+    cleanup(sb);
+  }
+});
+
+test('history 的 statePath 为绝对路径，与 index 注册一致（D-4）', () => {
+  const sb = sandbox();
+  try {
+    const proj = path.join(sb.dir, 'proj');
+    const r = cli(['run', 'start', '--project', proj, '--title', '归档路径', '--dir-name', 'd6'], sb);
+    const out = JSON.parse(r.stdout);
+    // 从沙箱子目录以相对路径传 --state（复现缺陷场景：cwd ≠ 仓库根）
+    const rel = path.relative(path.join(sb.dir, 'elsewhere'), out.statePath);
+    fs.mkdirSync(path.join(sb.dir, 'elsewhere'), { recursive: true });
+    const f = spawnSync(process.execPath, [CLI, 'run', 'finish', '--state', rel, '--status', 'aborted'], {
+      cwd: path.join(sb.dir, 'elsewhere'),
+      env: { ...process.env, DDO_HOME: sb.ddoHome },
+      encoding: 'utf8',
+    });
+    assert.equal(f.status, 0, f.stderr);
+    const line = JSON.parse(fs.readFileSync(path.join(sb.ddoHome, 'history', 'runs.jsonl'), 'utf8').trim());
+    assert.ok(path.isAbsolute(line.statePath), `history statePath 须绝对: ${line.statePath}`);
+    // macOS /var ↔ /private/var 符号链接：run start 记词法路径、finish 经 cwd 得物理路径——realpath 等价即可
+    assert.equal(fs.realpathSync(line.statePath), fs.realpathSync(out.statePath));
+    const archived = path.join(sb.ddoHome, 'history', out.runId, '.state.json');
+    assert.ok(fs.existsSync(archived), '归档副本同样以绝对路径寻源');
+  } finally {
+    cleanup(sb);
+  }
+});

@@ -22,7 +22,18 @@ const NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 class UsageError extends Error {}
 
-const nowIso = () => new Date().toISOString();
+// 本地时间 ISO 8601 带时区偏移（02 §5.2.1：便于人工扫读，与 runId 的本地日期一致；
+// eval dogfooding 内审修复——原 toISOString() 输出 UTC，导致 runId「0924」与 startedAt「09-23T17:xxZ」日期对不上）
+const nowIso = () => {
+  const d = new Date();
+  const off = -d.getTimezoneOffset();
+  const sign = off >= 0 ? '+' : '-';
+  const pad = (n, l = 2) => String(Math.abs(n)).padStart(l, '0');
+  const [hh, mm] = [Math.floor(Math.abs(off) / 60), Math.abs(off) % 60];
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+    `T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(d.getMilliseconds(), 3)}` +
+    `${sign}${pad(hh)}:${pad(mm)}`;
+};
 const stageIdOf = (entry) => String(entry).split(':')[0];
 const phaseOf = (entry) => String(entry).split(':')[1] || '01';
 
@@ -141,7 +152,9 @@ function rollbackResetSet(stages, target, currentStage) {
 // ---------------------------------------------------------------- 命令实现
 
 function runFinish(f) {
-  const statePath = f.state;
+  // statePath 统一绝对化（eval dogfooding 内审修复 D-4）：history 的 statePath 是跨 cwd 的
+  // 追溯入口，命令行传相对路径时原样记录会导致归档指针不可解析、与 index 注册形态不一致
+  const statePath = path.resolve(f.state);
   const finalStatus = f.status;
   if (!['done', 'aborted', 'failed'].includes(finalStatus)) {
     throw new UsageError('--status 必须是 done | aborted | failed');

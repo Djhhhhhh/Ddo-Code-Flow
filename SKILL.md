@@ -78,6 +78,9 @@ node tools/cli.js run start --title "<一句话描述>"
 node tools/cli.js exec      --state <statePath> --task <stageId>   # 相位缺省=当前位置
 node tools/cli.js validate  --state <statePath> --task <stageId>
 node tools/cli.js next      --state <statePath>
+#    硬约束：每个相位的执行以【当次 exec 的组装结果】为准——不得跳过 exec、不得以
+#    「与之前相位/之前 run 相同」为由凭记忆替代（重放当前相位、中断重开后尤其如此）；
+#    exec 输出必须完整消费后再动手，不得只读前段忽略 Context 注入。
 
 # ③ 确认门（next 输出 openedGates，或 status 显示 waiting-human）
 #    用宿主提问工具把门的选项清单（name/desc/action）原样呈现给用户；用户选择后按 action 处理：

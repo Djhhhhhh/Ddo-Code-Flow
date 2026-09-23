@@ -1,0 +1,55 @@
+# verification.log — ddo-code-flow 可视化工具验收记录
+
+> 生效目录：eval/runs/20260924-visualizer-v2beta ｜ 执行时间：2026-09-24 ｜ 依据：test-plan.md G1–G4
+
+## G1. 发现与渲染（AC-1）
+
+### 执行结果
+
+- [PASS] cmd: node visualize.js --out ddo-visual.html && 产物含 `<svg`（exit=0）
+- [PASS] cmd: node visualize.js → stdout 摘要 runs≥1（实际 runs=1，本 run 在列）
+- [PASS] human: 浏览器目检——本 run 阶段链/状态色/当前位置可见且正确（用户确认：通过）
+
+### 组摘要
+
+GROUP G1 PASSED
+
+## G2. 连线不相交（AC-2）
+
+### 执行结果
+
+- [PASS] cmd: node visualize.js → crossings=0
+- [PASS] human: 浏览器目检——任意两条连线无交叉点（用户确认：通过）
+
+### 组摘要
+
+GROUP G2 PASSED
+
+## G3. 容错（VA-3：stale 索引跳过）
+
+### 执行结果
+
+- [PASS] cmd: 含失效指针的隔离 index → exit=0，stale=1，runs=0，产物仍生成
+
+### 组摘要
+
+GROUP G3 PASSED
+
+## G4. 空索引
+
+### 执行结果
+
+- [PASS] cmd: 无 index.json 的隔离 DDO_HOME → exit=0，stderr 人话提示，runs=0 stale=0
+
+### 组摘要
+
+GROUP G4 PASSED
+
+## 人工检查清单
+
+- G1 human（本 run 呈现与位置正确）：用户确认通过（2026-09-24）
+- G2 human（无相交连线目检）：用户确认通过（2026-09-24）
+
+## 最终结果
+
+ALL PASSED

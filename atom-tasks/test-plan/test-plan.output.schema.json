@@ -9,7 +9,7 @@
   },
   "sections": [
     {
-      "heading": "G1\\. {{ 分组名称 }}",
+      "heading": "G1. {{ 分组名称 }}",
       "level": 2,
       "required": true,
       "format": "group",

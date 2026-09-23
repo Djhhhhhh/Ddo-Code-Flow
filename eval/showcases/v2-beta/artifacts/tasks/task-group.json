@@ -1,0 +1,9 @@
+{
+  "version": "1.0.0",
+  "tasks": [
+    { "id": "task-01", "file": "task-01.md", "title": "layout.js——分层布局纯函数", "dependsOn": [] },
+    { "id": "task-02", "file": "task-02.md", "title": "visualize.js——主程序（解析 + 渲染 + 写盘）", "dependsOn": ["task-01"] },
+    { "id": "task-03", "file": "task-03.md", "title": "验收执行（test-plan G1–G4）", "dependsOn": ["task-02"] }
+  ],
+  "parallelGroups": [["task-01"], ["task-02"], ["task-03"]]
+}

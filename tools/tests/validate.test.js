@@ -213,3 +213,49 @@ test('validate spec :02（updates）：存在即过，缺失 exit 1；coding 无
     cleanup(sb);
   }
 });
+
+// 占位符 heading 通配（eval dogfooding 修复的回归）：review/test-plan/verification 的
+// 契约声明 `{{ 占位符 }}` heading，真实组名必须能命中；字面 heading 仍精确匹配。
+test('validate test-plan：占位符 heading（G1\\. {{ 分组名称 }}）匹配真实组名 → exit 0', () => {
+  const sb = sandbox();
+  try {
+    writeState(sb, { currentStage: ['test-plan:01'], stages: { 'test-plan': { status: 'running', dependOn: [], at: 'x' } } });
+    fs.writeFileSync(path.join(sb.runDir, 'test-plan.md'), [
+      '# X 测试计划',
+      '## G1. 发现与渲染',
+      '### Checklist',
+      '- [ ] cmd: node visualize.js --out out.html',
+      '### 通过标准',
+      '产物含 SVG。',
+      '## G2. 容错',
+      '### Checklist',
+      '- [ ] human: 浏览器目检',
+      '### 通过标准',
+      '不崩溃。',
+    ].join('\n'));
+    const r = cli(['validate', '--state', sb.statePath, '--task', 'test-plan'], sb);
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(JSON.parse(r.stdout).validated, true);
+  } finally {
+    cleanup(sb);
+  }
+});
+
+test('占位符通配不误伤：缺 G 分组仍 exit 1；字面 heading（spec 契约）仍精确匹配', () => {
+  const sb = sandbox();
+  try {
+    writeState(sb, { currentStage: ['test-plan:01'], stages: { 'test-plan': { status: 'running', dependOn: [], at: 'x' } } });
+    fs.writeFileSync(path.join(sb.runDir, 'test-plan.md'), '# X 测试计划\n');
+    const bad = cli(['validate', '--state', sb.statePath, '--task', 'test-plan'], sb);
+    assert.equal(bad.status, 1);
+    assert.match(bad.stderr, /缺少必需 section/);
+
+    // 字面 heading 精确性：把 spec 产物标题改错一字 → 仍必须拦下（通配只作用于 {{ }} 段）
+    writeState(sb, { currentStage: ['spec:01'], stages: { spec: { status: 'running', dependOn: [], at: 'x' } } });
+    fs.writeFileSync(path.join(sb.runDir, 'spec.md'), SPEC_OK.replace('## 对齐摘要', '## 对齐摘要X'));
+    const badSpec = cli(['validate', '--state', sb.statePath, '--task', 'spec'], sb);
+    assert.equal(badSpec.status, 1);
+  } finally {
+    cleanup(sb);
+  }
+});
