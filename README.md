@@ -140,6 +140,12 @@ flowchart TD
 | **代码工作目录** | 代码改动发生地 | git worktree 场景为 `git.worktreePath`，否则 projectRoot |
 | **runDir**（run 工作目录 = 流水线产物目录，二者同址） | `.state.json` 与流水线文档产物的唯一合法存放位置 | `<projectRoot>/.ddo/runs/<type>/<dirName>/`，state 的 `dirs` 字段显式携带 |
 
+**worktree 创建时机（WTT）**：worktree（如启用）在**冷启动阶段、`run start` 之前**创建——分支名
+从冷启动问得的需求一句话提取，场景旋钮（`mode` 缺省 none / `base_branch` / `worktree_dir`）在
+冷启动问答消费；随后 `run start --project <工作树绝对路径>` 落位，git-info 自动捕获
+`state.git.branch` / `worktreePath`（注册内置、CLI 零新参数），state 与产物全部落在 worktree
+分支。创建动作由 git-worktree 原子任务承载（启动前置动作，不入预设链）。
+
 ```text
 <projectRoot>/                        项目根（版本控制根）
 ├── .ddo/runs/<type>/<dirName>/      ← runDir
@@ -207,7 +213,7 @@ node --test tools/tests/*.test.js
 
 ## 设计文档与路线图
 
-v2 的需求与定版方案按工作项归档在 `.ddo/runs/feat/ddo-code-flow-v2/`：00 总览、01 预清理、02 索引结构、03 工具框架、04 命令集、05 原子任务改造、06 工作流预设、07 执行节律与确认门、08 断点重续、10 冷启动引导、11 产物生命周期、12 完整度审计收口（09-coding-worktree 为并行线）。路线图上的后续项（详见各工作项开放问题表）：
+v2 的需求与定版方案按工作项归档在 `.ddo/runs/feat/ddo-code-flow-v2/`：00 总览、01 预清理、02 索引结构、03 工具框架、04 命令集、05 原子任务改造、06 工作流预设、07 执行节律与确认门、08 断点重续、10 冷启动引导、11 产物生命周期、12 完整度审计收口（09-coding-worktree 为并行线，其遗留 O1/O3 已由 worktree 创建时机机制 run 解决）。路线图上的后续项（详见各工作项开放问题表）：
 
 - 并行多门决议粒度；严格用户亲跑通道（防 agent 伪造决议，现依赖呈现协议 + 决议留痕审计）
 - 用户级预设；预设自我进化（基于 `~/.ddo/history/<runId>/` 归档分析自定义链频次）

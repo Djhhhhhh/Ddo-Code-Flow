@@ -23,7 +23,8 @@ metadata:
 
 - `skillRoot`：本 SKILL.md 所在目录（atom-tasks / workflows / tools）。运行期只读，不得写入。
 - `projectRoot`（项目根）：用户调用时的项目根，版控根。
-- `代码工作目录`：代码改动发生地——`git.worktreePath` 非空 → worktree，否则 projectRoot。
+- `代码工作目录`：代码改动发生地——`git.worktreePath` 非空 → worktree，否则 projectRoot
+  （worktree 何时/如何创建见下节「worktree 创建时机」）。
 - `runDir`（run 工作目录 = 流水线产物目录，同址不分家）：`<projectRoot>/.ddo/runs/<type>/<dirName>/`。
   `.state.json` 与全部流水线文档产物（spec.md / plan.md…）的唯一合法居所，state 的 `dirs` 字段显式携带。
 - `DDO_HOME`：全局索引目录，缺省 `~/.ddo`（`index.json` 运行中指针、`history/runs.jsonl` 历史、
@@ -34,6 +35,41 @@ metadata:
 声明的产物**移动**到 `<runDir>/_del/rollback-<n>/`（原位消失，重做产新文件）；run finish 时
 state 副本归档到 `~/.ddo/history/<runId>/.state.json`（原文件不动，随项目版控走）。output 声明
 禁绝对路径与 `..`（防逃逸，CLI 两层校验）。
+
+## worktree 创建时机（WTT 机制）
+
+**时序定版**：worktree（如启用）在**冷启动阶段、`run start` 之前**创建——分支名从冷启动问得的
+需求一句话（title）提取；随后 `run start --project <工作树绝对路径>` 落位，state 与全部产物
+落在 worktree 分支内（runDir ⊂ projectRoot 不变量天然满足）。这消解「分支名须源自需求 ↔
+state 须落 worktree 分支」的时序矛盾：创建在前、物化在后，无中途迁移、无分裂拓扑。
+
+**职责分层（注册内置、创建留任）**：
+
+- **注册内置**：`run start` 时 git-info 推断链第三档自动探测——projectRoot 位于 worktree
+  （`--git-dir` 与 `--git-common-dir` 绝对化比较不等）即捕获 `state.git.branch` 与
+  `state.git.worktreePath`（= `dirs.projectRoot`，新拓扑单一性；主检出/非 git 不产出新字段）。
+  CLI 命令面零新增参数；`branch` 探测失败置空串，不阻断启动。
+- **创建留任**：创建动作（分支名提取 / git 建库 / 审计登记）由 git-worktree 原子任务承载，
+  重定位为**启动前置动作**——不入预设链（workflows/*.json 零改动），链内引用属误用
+  （其 prompt 首部已声明标准时机）。宿主无 worktree 切换工具时，绝对路径操作 + `--project`
+  即等效路径。
+
+**三场景（mode 旋钮，缺省 none）**：
+
+| 场景 | 分支基线 | 启动形态 |
+|---|---|---|
+| none（缺省） | — | 主检出/当前目录 `run start`（现状零变化） |
+| single（单分支） | 仓库主分支 | 前置创建 → `run start --project <worktree>` |
+| release-dev（发布+开发） | `base_branch` 旋钮 | 同上，基线换为发布分支 |
+
+**旋钮与消费时序**：`mode` / `base_branch` / `worktree_dir` 声明于 git-worktree 任务
+configurable。**消费时点在冷启动问答**——agent 读任务 config（`list tasks` 呈现或直读）呈现
+缺省并接受对话定制；`run start` 预填 `state.atomTasks` 仅为事后登记（创建先于 state 存在，
+预填值不参与创建）。持久定制走 `--tasks-dir` 覆盖任务目录。
+
+**收尾**：`run finish` 后由 cleanup-worktree 清理——先确认分支合并/去留（未合并分支不得删除），
+离开 worktree（新拓扑下切回**主检出**，而非 runDir 上溯的 projectRoot——它就是被清理目录），
+再 `git worktree remove`。worktree-info.json 为审计登记产物，state 不读取。
 
 ## 核心契约
 
@@ -59,14 +95,21 @@ state 副本归档到 `~/.ddo/history/<runId>/.state.json`（原文件不动，�
 触发后若用户没有给出可启动的参数（或 `run start` 报参数/预设不合法），**不要自由发挥**——
 按初始化引导协议走（工作流启动时明确目标是关键）：
 
-1. **跑 `node tools/cli.js guide`** 取引导 payload：问目标（freeText）/ 问模式 / 问类型
-   三问的选项数据由 CLI 统一产出，逐问原样呈现给用户（宿主提问工具），不自拼选项。
-2. 问模式选**自定义**时：`node tools/cli.js list tasks` → 呈现任务清单（desc / 相位与人审位 /
+1. **跑 `node tools/cli.js guide`** 取引导 payload：问目标（freeText，worktree 场景下同时是
+   分支名的语义来源）/ 问模式 / 问类型三问的选项数据由 CLI 统一产出，逐问原样呈现给用户
+   （宿主提问工具），不自拼选项。
+2. **问 worktree 场景**（WTT 旋钮，缺省 none）：none（不使用）/ single（单分支，基线=仓库
+   主分支）/ release-dev（发布+开发，基线=base_branch）——选项与缺省读 git-worktree 任务的
+   configurable（`list tasks` 呈现或直读 config），对话表达即定制。选 single / release-dev 时
+   按 git-worktree 前置动作执行：title 提取分支名 → 建分支与工作树 → `run start --project
+   <工作树绝对路径>`（机制详见「worktree 创建时机」节）。
+3. 问模式选**自定义**时：`node tools/cli.js list tasks` → 呈现任务清单（desc / 相位与人审位 /
    可配置项），与用户商定阶段链（顺序与依赖）→ 写临时预设 JSON（os.tmpdir，结构同
    workflows/*.json）→ `run start --workflows-dir <临时目录> --workflow <名>`
    （物化进 .state.json 后临时文件即弃）。
-3. 启动后把 `state.atomTasks` 中**预填的可配置项**告知用户（有 default 的已填入，如
-   test-plan 的 tdd；其余可配置项见 list tasks 输出的 configurable）——用户可改哪些旋钮一目了然。
+4. 启动后把 `state.atomTasks` 中**预填的可配置项**告知用户（有 default 的已填入，如
+   test-plan 的 tdd；其余可配置项见 list tasks 输出的 configurable）——用户可改哪些旋钮一目了然
+   （git-worktree 的 mode 预填值为登记留痕：创建已在启动前完成）。
 
 `run start` 的报错自带指路：未知预设会列出现有预设；未知任务指向 list tasks——按提示回到引导。
 
@@ -75,6 +118,8 @@ state 副本归档到 `~/.ddo/history/<runId>/.state.json`（原文件不动，�
 ```bash
 # ① 启动（返回 statePath 与起点；git 信息自动推断，非 git 环境置空）
 node tools/cli.js run start --title "<一句话描述>"
+#    worktree 形态（WTT）：冷启动问场景后先建分支与工作树，再 run start --project <工作树绝对路径>
+#    ——state.git 自动捕获 branch/worktreePath（注册内置），state 与产物全部落在 worktree 分支
 
 # ② 逐相位循环，直到 next 返回 completed:true
 读 state.currentStage → 得 <stageId>:<phase>
@@ -136,7 +181,9 @@ payload（静态 ∪ 动态选项，含 dispatch 指引）并转述——这是�
 （07：`stages[k].gate` + `--decision` + `status` + 位置拦截）、断点重续
 （08：`resume` 发现层）、冷启动引导（10：`list tasks` / `list workflows` +
 configurable 预填 + 错误指路）、产物生命周期（11：目录术语定版 + dirs 显式化 +
-state 结束归档 + rollback `_del` 移动归档 + output 防逃逸）、交互协议结构闭环
+state 结束归档 + rollback `_del` 移动归档 + output 防逃逸）、worktree 创建时机机制
+（WTT：git-info 三档推断**注册链路已实现** + git-worktree 重定位为启动前置动作 +
+mode/base_branch/worktree_dir 三旋钮 + cleanup-worktree 清理前提修正）、交互协议结构闭环
 （`gate present` / `gate interact` / `guide`：统一呈现 payload + 呈现与 in-phase 交互留痕 +
 决议前置校验「最后交互后须重新呈现」+ present 钩子动态选项）。
 
