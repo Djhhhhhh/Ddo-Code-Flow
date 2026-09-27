@@ -158,6 +158,12 @@ function runFinish(f) {
     const runDir = (state.dirs && state.dirs.runDir) || path.dirname(statePath);
     try {
       fs.rmSync(runDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+      // 空骨架修剪：runId 目录删除后向上 rmdir 空父目录直至 tmp 根（含 ~/.ddo/tmp 本身）——
+      // rmdir 仅删空叶，非空（他 run 在跑）即抛错止步；终态目录级零残留（AC-4）
+      const tmpRoot = registry.tmpRunsHome();
+      for (let dir = path.dirname(runDir); dir === tmpRoot || dir.startsWith(tmpRoot + path.sep); dir = path.dirname(dir)) {
+        try { fs.rmdirSync(dir); } catch { break; }
+      }
     } catch (e) {
       process.stderr.write(`[finish] 临时 run 材料删除失败: ${runDir}（可手动清理后重跑 run finish）\n${e.message}\n`);
       throw e;

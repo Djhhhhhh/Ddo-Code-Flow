@@ -398,8 +398,9 @@ test('run finish（临时模式）：蕴含免归档 + 删 runDir 整目录 + in
     assert.strictEqual(fout.ephemeral, true);
     assert.strictEqual(fout.deleted, true);
     assert.ok(!('archived' in fout), '临时模式不得归档');
-    // 零残留三断言：tmp 无目录、index 无条目、history 无 zip 无 jsonl
+    // 零残留四断言：tmp 无目录（含空骨架修剪）、index 无条目、history 无 zip 无 jsonl
     assert.ok(!fs.existsSync(runDir), 'runDir 必须已删除');
+    assert.ok(!fs.existsSync(path.join(sb.ddoHome, 'tmp')), '空类型骨架与 tmp 根必须一并修剪');
     const idx = JSON.parse(fs.readFileSync(path.join(sb.ddoHome, 'index.json'), 'utf8'));
     assert.ok(!idx[out.runId], 'index 不得残留条目');
     assert.ok(!fs.existsSync(path.join(sb.ddoHome, 'history', `${out.runId}.zip`)), '不得产生 zip');
