@@ -1,0 +1,52 @@
+{
+  "runId": "20260927-195942-489c",
+  "title": "交付 feat/delivery-closeout：交付链收口任务",
+  "startedAt": "2026-09-27T19:59:42.948+08:00",
+  "git": {
+    "mainBranch": "main",
+    "branch": "feat/delivery-closeout",
+    "worktreePath": "/Users/djhhh/work_area/Ddo-Code-Flow-feat-delivery-closeout"
+  },
+  "dirs": {
+    "projectRoot": "/Users/djhhh/work_area/Ddo-Code-Flow-feat-delivery-closeout",
+    "runDir": "/Users/djhhh/work_area/Ddo-Code-Flow-feat-delivery-closeout/.ddo/runs/feat/20260927-195942-489c",
+    "tasksDir": "/Users/djhhh/work_area/Ddo-Code-Flow-feat-delivery-closeout/atom-tasks"
+  },
+  "currentStage": [
+    "closeout-worktree:01"
+  ],
+  "stages": {
+    "deliver-pr": {
+      "status": "done",
+      "dependOn": [],
+      "at": "2026-09-27T20:03:04.986+08:00",
+      "gate": {
+        "phase": "02",
+        "openedAt": "2026-09-27T20:00:24.501+08:00",
+        "options": [
+          {
+            "name": "已合并",
+            "desc": "确认 PR 已合并，本相位完成并放行后续清理阶段",
+            "action": "next --decision 已合并"
+          },
+          {
+            "name": "未合并",
+            "desc": "PR 尚未合并——呈现当前状态后保持等待，稍后再次确认",
+            "action": "in-phase"
+          }
+        ],
+        "presentedAt": "2026-09-27T20:00:24.532+08:00",
+        "decision": "已合并",
+        "closedAt": "2026-09-27T20:03:04.986+08:00"
+      }
+    },
+    "closeout-worktree": {
+      "status": "running",
+      "dependOn": [
+        "deliver-pr"
+      ],
+      "at": "2026-09-27T20:03:04.986+08:00"
+    }
+  },
+  "atomTasks": {}
+}
