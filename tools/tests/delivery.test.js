@@ -138,6 +138,13 @@ test('deliver-pr 门：01 契约注入 → 产物校验 → 开门（已合并/�
     assert.equal(n2.status, 1);
     assert.match(`${n2.stderr}\n${n2.stdout}`, /已合并/);
 
+    // #53 交互协议：决议前必须正式呈现，否则被结构拦截
+    const nDec = cli(['next', '--state', sp, '--decision', '已合并'], sb);
+    assert.equal(nDec.status, 1);
+    assert.match(`${nDec.stderr}\n${nDec.stdout}`, /呈现未更新|gate present/);
+    const gp = cli(['gate', 'present', '--state', sp], sb);
+    assert.equal(gp.status, 0, gp.stderr);
+
     // 决议放行：deliver-pr 完成，DAG 点亮 link-issue
     const n3 = cli(['next', '--state', sp, '--decision', '已合并'], sb);
     assert.equal(n3.status, 0, n3.stderr);
@@ -159,6 +166,7 @@ test('link-issue：pr-info 在场注入 Context；缺失时 exec 硬失败（必
     // 缺失路径：纯状态推进到 link-issue（next 不校验产物），pr-info 未产出 → exec 拦截
     const bare = startRun(sb, 'pr-delivery-issue');
     cli(['next', '--state', bare.statePath], sb); // → deliver-pr:02 开门
+    cli(['gate', 'present', '--state', bare.statePath], sb); // #53：决议前正式呈现
     cli(['next', '--state', bare.statePath, '--decision', '已合并'], sb); // → link-issue:01
     const miss = cli(['exec', '--state', bare.statePath, '--task', 'link-issue'], sb);
     assert.equal(miss.status, 1);
@@ -169,6 +177,7 @@ test('link-issue：pr-info 在场注入 Context；缺失时 exec 硬失败（必
     const runDir = path.dirname(ok.statePath);
     fs.writeFileSync(path.join(runDir, 'pr-info.md'), PR_INFO);
     cli(['next', '--state', ok.statePath], sb);
+    cli(['gate', 'present', '--state', ok.statePath], sb); // #53：决议前正式呈现
     cli(['next', '--state', ok.statePath, '--decision', '已合并'], sb);
     const ex = cli(['exec', '--state', ok.statePath, '--task', 'link-issue'], sb);
     assert.equal(ex.status, 0, ex.stderr);

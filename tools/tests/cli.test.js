@@ -127,6 +127,37 @@ test('--flag=value 等价形态可用', () => {
   }
 });
 
+test('布尔旗标：bare 置 true 不吞后续 token；=true/false 取字面布尔；非法取值 exit 2；集合外 bare 仍报缺少取值', () => {
+  const sb = sandbox();
+  try {
+    writeState(sb, sampleState());
+    // bare 形式：--no-archive 不吞 --status，免归档收口成功
+    const r1 = cli(['run', 'finish', '--state', sb.statePath, '--no-archive', '--status', 'done'], sb);
+    assert.equal(r1.status, 0, r1.stderr);
+    assert.equal(JSON.parse(r1.stdout).archived, false);
+    assert.ok(!fs.existsSync(path.join(sb.ddoHome, 'history', 'runs.jsonl')), '免归档不应产生 runs.jsonl');
+
+    // =false：字面布尔 → 照常归档
+    writeState(sb, sampleState());
+    const r2 = cli(['run', 'finish', '--state', sb.statePath, '--no-archive=false', '--status', 'done'], sb);
+    assert.equal(r2.status, 0, r2.stderr);
+    assert.equal(JSON.parse(r2.stdout).archived, true);
+    assert.ok(fs.existsSync(path.join(sb.ddoHome, 'history', '20260922-100000-ab01', '.state.json')));
+
+    // 非法布尔取值 → exit 2
+    const r3 = cli(['run', 'finish', '--state', sb.statePath, '--no-archive=banana', '--status', 'done'], sb);
+    assert.equal(r3.status, 2);
+    assert.match(r3.stderr, /true\|false/);
+
+    // 集合外 bare token 处于末尾 → 维持「缺少取值」
+    const r4 = cli(['run', 'finish', '--state', sb.statePath, '--status', 'done', '--reason'], sb);
+    assert.equal(r4.status, 2);
+    assert.match(r4.stderr, /缺少取值/);
+  } finally {
+    cleanup(sb);
+  }
+});
+
 // ---------------------------------------------------------------- rollback
 
 test('rollback：DAG 路径重置——目标+路径节点（含当前执行位置终点），路径外并行分支不动', () => {
@@ -188,7 +219,7 @@ test('run finish：清 currentStage → history 追加 → index 移除', () => 
     writeState(sb, sampleState());
     const r = cli(['run', 'finish', '--state', sb.statePath, '--status', 'aborted'], sb);
     assert.equal(r.status, 0);
-    assert.deepEqual(JSON.parse(r.stdout), { finished: '20260922-100000-ab01', finalStatus: 'aborted' });
+    assert.deepEqual(JSON.parse(r.stdout), { finished: '20260922-100000-ab01', finalStatus: 'aborted', archived: true });
 
     assert.deepEqual(readJson(sb.statePath).currentStage, []);
     const hist = readJson(path.join(sb.ddoHome, 'history', 'runs.jsonl'));
