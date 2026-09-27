@@ -1,0 +1,10 @@
+{
+  "name": "pr-delivery-issue",
+  "version": "1.0.0",
+  "description": "交付收尾链（issue 变体）：deliver-pr → link-issue（评论关联 issue）→ cleanup-worktree（移除 worktree，保留本地/远程分支）",
+  "stages": [
+    { "task": "deliver-pr", "dependOn": [] },
+    { "task": "link-issue", "dependOn": ["deliver-pr"] },
+    { "task": "cleanup-worktree", "dependOn": ["link-issue"] }
+  ]
+}
