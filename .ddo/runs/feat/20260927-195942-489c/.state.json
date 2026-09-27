@@ -12,9 +12,7 @@
     "runDir": "/Users/djhhh/work_area/Ddo-Code-Flow-feat-delivery-closeout/.ddo/runs/feat/20260927-195942-489c",
     "tasksDir": "/Users/djhhh/work_area/Ddo-Code-Flow-feat-delivery-closeout/atom-tasks"
   },
-  "currentStage": [
-    "closeout-worktree:01"
-  ],
+  "currentStage": [],
   "stages": {
     "deliver-pr": {
       "status": "done",
@@ -41,11 +39,11 @@
       }
     },
     "closeout-worktree": {
-      "status": "running",
+      "status": "done",
       "dependOn": [
         "deliver-pr"
       ],
-      "at": "2026-09-27T20:03:04.986+08:00"
+      "at": "2026-09-27T20:03:21.836+08:00"
     }
   },
   "atomTasks": {}
