@@ -1,0 +1,52 @@
+{
+  "runId": "20260927-202530-0016",
+  "title": "交付：去掉 worktree-info 审计产物（fix/drop-worktree-info）",
+  "startedAt": "2026-09-27T20:25:30.441+08:00",
+  "git": {
+    "mainBranch": "main",
+    "branch": "fix/drop-worktree-info",
+    "worktreePath": "/Users/djhhh/work_area/Ddo-Code-Flow-fix-drop-worktree-info"
+  },
+  "dirs": {
+    "projectRoot": "/Users/djhhh/work_area/Ddo-Code-Flow-fix-drop-worktree-info",
+    "runDir": "/Users/djhhh/work_area/Ddo-Code-Flow-fix-drop-worktree-info/.ddo/runs/fix/20260927-202530-0016",
+    "tasksDir": "/Users/djhhh/work_area/Ddo-Code-Flow/atom-tasks"
+  },
+  "currentStage": [
+    "closeout-worktree:01"
+  ],
+  "stages": {
+    "deliver-pr": {
+      "status": "done",
+      "dependOn": [],
+      "at": "2026-09-27T20:27:55.631+08:00",
+      "gate": {
+        "phase": "02",
+        "openedAt": "2026-09-27T20:27:13.249+08:00",
+        "options": [
+          {
+            "name": "已合并",
+            "desc": "确认 PR 已合并，本相位完成并放行后续清理阶段",
+            "action": "next --decision 已合并"
+          },
+          {
+            "name": "未合并",
+            "desc": "PR 尚未合并——呈现当前状态后保持等待，稍后再次确认",
+            "action": "in-phase"
+          }
+        ],
+        "presentedAt": "2026-09-27T20:27:17.801+08:00",
+        "decision": "已合并",
+        "closedAt": "2026-09-27T20:27:55.631+08:00"
+      }
+    },
+    "closeout-worktree": {
+      "status": "running",
+      "dependOn": [
+        "deliver-pr"
+      ],
+      "at": "2026-09-27T20:27:55.631+08:00"
+    }
+  },
+  "atomTasks": {}
+}
