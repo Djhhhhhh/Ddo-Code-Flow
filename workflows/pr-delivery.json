@@ -1,0 +1,9 @@
+{
+  "name": "pr-delivery",
+  "version": "1.0.0",
+  "description": "交付收尾链（无 issue）：deliver-pr（推送 + 正式 PR + 合并确认门）→ cleanup-worktree（移除 worktree，保留本地/远程分支）",
+  "stages": [
+    { "task": "deliver-pr", "dependOn": [] },
+    { "task": "cleanup-worktree", "dependOn": ["deliver-pr"] }
+  ]
+}

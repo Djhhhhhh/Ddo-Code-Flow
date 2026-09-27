@@ -1,0 +1,25 @@
+{
+  "description": "issue-link.md 输出规范（link-issue）",
+  "outputFormat": "markdown",
+  "document": {
+    "title": "Issue 关联",
+    "titleFormat": "固定文本",
+    "description": "PR 与 issue 的评论关联结果。",
+    "separators": true
+  },
+  "sections": [
+    {
+      "heading": "关联信息",
+      "level": 2,
+      "required": true,
+      "format": "list",
+      "description": "issue 号、PR 编号与 URL、issue 评论链接"
+    }
+  ],
+  "rules": [
+    "必须包含 issue 号与 PR 编号",
+    "必须包含 issue 评论链接（以 gh 命令输出为准）",
+    "issue 号须为显式提供值，不得来自分支名推断"
+  ],
+  "example": "# Issue 关联\n\n## 关联信息\n\n- issue：#12\n- PR：#57（https://github.com/owner/repo/pull/57）\n- 评论：https://github.com/owner/repo/issues/12#issuecomment-1\n"
+}

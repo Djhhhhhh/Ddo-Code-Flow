@@ -5,9 +5,9 @@
 **ddo-code-flow** 是一个面向 AI coding agent 的工程化流水线 skill。它不替 agent 写代码，而是把一个开发任务从需求到交付的全过程装配成一条可控流水线：阶段链按需装配——选用内置预设，或在启动引导时按任务性质动态商定。
 
 ```text
-原子任务 ×17（需求 / 规格 / 方案 / 测试计划 / 任务拆分 / 编码 / 验收 / 复审 / 报告 / 复盘 / worktree / PR …）
+原子任务 ×19（需求 / 规格 / 方案 / 测试计划 / 任务拆分 / 编码 / 验收 / 复审 / 报告 / 复盘 / worktree / PR …）
         │
-        ├── 选用内置预设（workflows/*.json：basic 轻量链 / standard 全链）
+        ├── 选用内置预设（workflows/*.json：basic 轻量链 / standard 全链 / pr-delivery(+issue) 交付收尾链）
         └── 启动引导时动态商定阶段链与依赖（DAG），以临时预设启动、物化后状态自包含
         ▼
 装配出的流水线 —— 零依赖 Node 内核驱动：状态推进 / 产物校验 / 门拦截
@@ -193,6 +193,8 @@ flowchart TD
 SKILL.md                 # agent 侧使用说明（skill 入口；本 README 面向使用者）
 workflows/basic.json     # 轻量预设：requirement → spec → plan → coding → reporting
 workflows/standard.json  # 标准预设（全链）：+ test-plan / tasking / verification / review / reflection
+workflows/pr-delivery.json       # 交付收尾链：deliver-pr（推送+正式 PR+合并确认门）→ cleanup-worktree
+workflows/pr-delivery-issue.json # 交付收尾链（issue 变体）：+ link-issue 评论关联
 atom-tasks/<name>/       # 17 个原子任务 + _schema/（config 与输出契约的 meta-schema）
 tools/cli.js             # 确定性执行内核（命令注册表即文档源）
 tools/lib/               # state / index-registry / history / assemble / output-schema …

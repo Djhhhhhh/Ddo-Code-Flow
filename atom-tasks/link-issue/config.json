@@ -1,0 +1,21 @@
+{
+  "name": "link-issue",
+  "version": "2.0.0",
+  "desc": "将已合并 PR 与显式指定的 issue 建立评论关联（产出 issue-link）",
+  "output": "issue-link.md",
+  "configurable": [
+    {
+      "key": "issueNumber",
+      "desc": "关联 issue 号（必填，显式提供——不从分支名解析）"
+    }
+  ],
+  "defaults": {
+    "extra_ctx": "",
+    "rules": [
+      "issue 号必须显式提供（旋钮或用户口述），禁止从分支名推断",
+      "仅评论关联：不自动关闭 issue、不修改 issue label",
+      "任何 gh 失败立即暂停报告，不得产出 issue-link.md",
+      "TTY 认证类命令（如 gh auth login）不得代跑，交用户以宿主 shell 前缀执行"
+    ]
+  }
+}

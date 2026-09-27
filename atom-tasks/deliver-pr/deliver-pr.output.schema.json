@@ -1,0 +1,27 @@
+{
+  "description": "pr-info.md 输出规范（deliver-pr）",
+  "outputFormat": "markdown",
+  "document": {
+    "title": "PR 信息",
+    "titleFormat": "固定文本",
+    "description": "推送与正式 PR 创建的结果信息。",
+    "separators": true
+  },
+  "sections": [
+    {
+      "heading": "PR 信息",
+      "level": 2,
+      "required": true,
+      "format": "list",
+      "description": "PR 编号、URL、源分支、base 分支、状态（ready）、创建时间"
+    }
+  ],
+  "rules": [
+    "必须包含 PR 编号和 URL",
+    "必须包含源分支与 base 分支（实际生效值）",
+    "状态必须为 ready（非 draft）",
+    "git push 必须在 PR 创建前完成（先 push，再 create PR）",
+    "worktree 清理不在本任务中执行，由后续 cleanup-worktree 阶段负责"
+  ],
+  "example": "# PR 信息\n\n## PR 信息\n\n- PR 编号：#57\n- URL：https://github.com/owner/repo/pull/57\n- 源分支：feat/pr-delivery-workflow\n- base 分支：main\n- 状态：ready（非 draft）\n- 创建时间：2026-09-27 19:30\n"
+}
