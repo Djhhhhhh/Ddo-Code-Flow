@@ -49,7 +49,7 @@ state 须落 worktree 分支」的时序矛盾：创建在前、物化在后，�
   （`--git-dir` 与 `--git-common-dir` 绝对化比较不等）即捕获 `state.git.branch` 与
   `state.git.worktreePath`（= `dirs.projectRoot`，新拓扑单一性；主检出/非 git 不产出新字段）。
   CLI 命令面零新增参数；`branch` 探测失败置空串，不阻断启动。
-- **创建留任**：创建动作（分支名提取 / git 建库 / 审计登记）由 git-worktree 原子任务承载，
+- **创建留任**：创建动作（分支名提取 / git 建库）由 git-worktree 原子任务承载，
   重定位为**启动前置动作**——不入预设链（workflows/*.json 零改动），链内引用属误用
   （其 prompt 首部已声明标准时机）。宿主无 worktree 切换工具时，绝对路径操作 + `--project`
   即等效路径。
@@ -69,7 +69,7 @@ configurable。**消费时点在冷启动问答**——agent 读任务 config（
 
 **收尾**：`run finish` 后由 cleanup-worktree 清理——先确认分支合并/去留（未合并分支不得删除），
 离开 worktree（新拓扑下切回**主检出**，而非 runDir 上溯的 projectRoot——它就是被清理目录），
-再 `git worktree remove`。worktree-info.json 为审计登记产物，state 不读取。
+再 `git worktree remove`。
 
 ## 核心契约
 
