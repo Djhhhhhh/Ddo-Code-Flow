@@ -175,3 +175,49 @@ test('resume 空 index：runs 空 + 引导提示，exit 0', () => {
     cleanup(sb);
   }
 });
+
+// ---------------------------------------------------------------- 临时模式 run 的发现与归属（--ephemeral）
+
+test('resume：临时模式 run（statePath 在项目外）经 state.dirs 归属项目；全局清单含 projectRoot/type 元数据', () => {
+  const sb = sandbox();
+  try {
+    const runId = '20260927-000000-aa01';
+    const projA = path.join(sb.dir, 'projA');
+    const runDir = path.join(sb.dir, 'home', 'tmp', 'ddo', 'feat', runId);
+    fs.mkdirSync(runDir, { recursive: true });
+    const statePath = path.join(runDir, '.state.json');
+    fs.writeFileSync(statePath, JSON.stringify({
+      runId,
+      title: '临时 run',
+      startedAt: '2026-09-27T00:00:00+08:00',
+      ephemeral: true,
+      git: { mainBranch: 'main' },
+      dirs: { projectRoot: projA, runDir, tasksDir: path.join(__dirname, '..', '..', 'atom-tasks') },
+      currentStage: ['requirement:01'],
+      stages: {
+        requirement: { status: 'running', dependOn: [], at: 't' },
+        spec: { status: 'pending', dependOn: ['requirement'], at: 't' },
+      },
+      atomTasks: {},
+    }));
+    register(sb, runId, statePath);
+
+    // 全局清单：列得出，元数据来自 state.dirs（statePath 结构推导对 tmp 布局失效）
+    const all = cli(['resume'], sb);
+    assert.equal(all.status, 0, all.stderr);
+    const row = JSON.parse(all.stdout).runs.find((r) => r.runId === runId);
+    assert.ok(row, '全局清单应含临时 run');
+    assert.equal(row.projectRoot, projA);
+    assert.equal(row.type, 'feat');
+
+    // --project 归属：projA 命中（statePath 前缀在外，经 dirs.projectRoot 判定）；projB 不命中
+    const inA = cli(['resume', '--project', projA], sb);
+    assert.equal(inA.status, 0, inA.stderr);
+    assert.ok(JSON.parse(inA.stdout).runs.some((r) => r.runId === runId), 'projA 应命中临时 run');
+    const inB = cli(['resume', '--project', path.join(sb.dir, 'projB')], sb);
+    assert.equal(inB.status, 0, inB.stderr);
+    assert.ok(!JSON.parse(inB.stdout).runs.some((r) => r.runId === runId), 'projB 不得命中');
+  } finally {
+    cleanup(sb);
+  }
+});

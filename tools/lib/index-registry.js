@@ -13,6 +13,12 @@ function ddoHome() {
   return process.env.DDO_HOME || path.join(os.homedir(), '.ddo');
 }
 
+/** 临时模式运行材料根（runId 目录创建可配 DEC-2）：<home>/tmp/ddo——用户主目录下 tmp 区域，
+ *  与项目内 .ddo/runs 布局同构（<type>/<runId>）；run finish 后整目录删除（ephemeral 契约）。 */
+function tmpRunsHome() {
+  return path.join(os.homedir(), 'tmp', 'ddo');
+}
+
 function indexPath(home = ddoHome()) {
   return path.join(home, 'index.json');
 }
@@ -66,4 +72,4 @@ function freshRunId(home = ddoHome()) {
   throw new Error('runId 生成重试超限（index 同秒碰撞未消解）');
 }
 
-module.exports = { ddoHome, readAll, register, unregister, genRunId, freshRunId };
+module.exports = { ddoHome, tmpRunsHome, readAll, register, unregister, genRunId, freshRunId };

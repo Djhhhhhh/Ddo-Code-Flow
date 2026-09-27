@@ -404,13 +404,13 @@ test('next 无 --decision：stderr 指引先跑 gate present（同源清单重�
 
 // ---------------------------------------------------------------- guide
 
-test('guide：冷启动三问 payload（问目标 freeText / 问模式含真实预设 / 问类型枚举）', () => {
+test('guide：冷启动四问 payload（问目标 freeText / 问模式含真实预设 / 问类型枚举 / 问居所）', () => {
   const sb = sandbox();
   try {
     const r = cli(['guide'], sb);
     assert.equal(r.status, 0, r.stderr);
     const out = JSON.parse(r.stdout);
-    assert.deepEqual(out.questions.map((q) => q.id), ['goal', 'mode', 'type']);
+    assert.deepEqual(out.questions.map((q) => q.id), ['goal', 'mode', 'type', 'home']);
     assert.equal(out.questions[0].freeText, true);
     const modeNames = out.questions[1].options.map((o) => o.name);
     assert.ok(modeNames.includes('basic') && modeNames.includes('standard'), `预设缺失: ${modeNames}`);
@@ -418,6 +418,11 @@ test('guide：冷启动三问 payload（问目标 freeText / 问模式含真实�
     const basic = out.questions[1].options.find((o) => o.name === 'basic');
     assert.match(basic.desc, /requirement/); // desc 含阶段链
     assert.ok(out.questions[2].options.some((o) => o.name === 'fix'));
+    // 居所问（临时模式可发现性）：正常缺省 + 临时指向 --ephemeral
+    const homeNames = out.questions[3].options.map((o) => o.name);
+    assert.ok(homeNames.includes('正常') && homeNames.includes('临时'), `居所选项缺失: ${homeNames}`);
+    assert.match(out.questions[3].options.find((o) => o.name === '临时').desc, /--ephemeral/);
+    assert.match(out.hint, /--ephemeral/);
   } finally {
     cleanup(sb);
   }

@@ -20,7 +20,7 @@ const { validateTaskConfig } = require(path.join(__dirname, '..', 'lib', 'workfl
 
 function sandbox() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ddo-life-test-'));
-  return { dir, ddoHome: path.join(dir, 'ddo-home') };
+  return { dir, ddoHome: path.join(dir, 'ddo-home'), home: path.join(dir, 'home') };
 }
 
 function cleanup(sb) {
@@ -30,7 +30,7 @@ function cleanup(sb) {
 function cli(args, sb) {
   return spawnSync(process.execPath, [CLI, ...args], {
     cwd: sb.dir,
-    env: { ...process.env, DDO_HOME: sb.ddoHome },
+    env: { ...process.env, DDO_HOME: sb.ddoHome, HOME: sb.home }, // HOME 指沙箱：--ephemeral 的 <home>/tmp/ddo 不触真实主目录
     encoding: 'utf8',
   });
 }
@@ -375,6 +375,39 @@ test('history 的 statePath 为绝对路径，与 index 注册一致（D-4）', 
     assert.equal(fs.realpathSync(line.statePath), fs.realpathSync(out.statePath));
     const archived = path.join(sb.ddoHome, 'history', `${out.runId}.zip`);
     assert.ok(fs.existsSync(archived), 'zip 归档同样以绝对路径寻源');
+  } finally {
+    cleanup(sb);
+  }
+});
+
+// ---------------------------------------------------------------- 临时模式 finish（--ephemeral）
+
+test('run finish（临时模式）：蕴含免归档 + 删 runDir 整目录 + index 移除；成功后重跑不可入（VA-4）', () => {
+  const sb = sandbox();
+  try {
+    const project = path.join(sb.dir, 'proj');
+    const start = cli(['run', 'start', '--title', '临时收口', '--project', project, '--ephemeral'], sb);
+    assert.equal(start.status, 0, start.stderr);
+    const out = JSON.parse(start.stdout);
+    const runDir = path.join(sb.home, 'tmp', 'ddo', 'feat', out.runId);
+    fs.writeFileSync(path.join(runDir, 'spec.md'), '# spec\n'); // 模拟 run 期间产物
+
+    const fin = cli(['run', 'finish', '--state', out.statePath, '--status', 'aborted'], sb);
+    assert.equal(fin.status, 0, fin.stderr);
+    const fout = JSON.parse(fin.stdout);
+    assert.strictEqual(fout.ephemeral, true);
+    assert.strictEqual(fout.deleted, true);
+    assert.ok(!('archived' in fout), '临时模式不得归档');
+    // 零残留三断言：tmp 无目录、index 无条目、history 无 zip 无 jsonl
+    assert.ok(!fs.existsSync(runDir), 'runDir 必须已删除');
+    const idx = JSON.parse(fs.readFileSync(path.join(sb.ddoHome, 'index.json'), 'utf8'));
+    assert.ok(!idx[out.runId], 'index 不得残留条目');
+    assert.ok(!fs.existsSync(path.join(sb.ddoHome, 'history', `${out.runId}.zip`)), '不得产生 zip');
+    assert.ok(!fs.existsSync(path.join(sb.ddoHome, 'history', 'runs.jsonl')), '不得追加 runs.jsonl');
+    // 成功收口后 state 已随 runDir 消亡——重跑 finish 因 state 不可读而 exit 1（真实边界，
+    // 非缺陷：零残留契约下不存在「可重入的已终结 run」；rmSync force 的幂等仅服务半失败流）
+    const again = cli(['run', 'finish', '--state', out.statePath, '--status', 'aborted'], sb);
+    assert.equal(again.status, 1);
   } finally {
     cleanup(sb);
   }

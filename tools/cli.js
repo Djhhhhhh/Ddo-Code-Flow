@@ -151,6 +151,20 @@ function runFinish(f) {
   // 免归档开关（--no-archive）：流程型 run（如交付链）不入用户级 history——跳过下方 ①②；
   // ③ index 移除与 ④ currentStage 清空照旧，state 原文件仍随项目版控走（追溯适用，不落 state）
   const noArchive = f['no-archive'] === true;
+  // 临时模式分支（runId 目录创建可配，DEC-3/4）：蕴含免归档（zip 与 runs.jsonl 均不落）→ 删 runDir → index 移除。
+  // 顺序不变量：删除成功前不动 index——失败时 state 与指针双完好，重跑 finish 即恢复收口；
+  // rmSync force 幂等（目录已删的重跑直接走完剩余步）；不写回 state（材料即将/已经消亡，清空无意义）
+  if (state.ephemeral === true) {
+    const runDir = (state.dirs && state.dirs.runDir) || path.dirname(statePath);
+    try {
+      fs.rmSync(runDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+    } catch (e) {
+      process.stderr.write(`[finish] 临时 run 材料删除失败: ${runDir}（可手动清理后重跑 run finish）\n${e.message}\n`);
+      throw e;
+    }
+    registry.unregister(state.runId);
+    return { finished: state.runId, finalStatus, ephemeral: true, deleted: true };
+  }
   // 迁移顺序（11 §2，02 §7 修订；#51 起 ① 为整目录 zip）：① runDir zip 归档（含 .state.json，
   // 保留收束前最后位置，幂等覆盖）② history 追加 ③ index 移除 ④ currentStage 清空——
   // ①② 幂等，崩溃残留被惰性校验兜住
@@ -362,6 +376,12 @@ function runStart(f) {
   if (f['dir-name'] !== undefined && !NAME_RE.test(f['dir-name'])) {
     throw new UsageError(`--dir-name 非法: ${f['dir-name']}（仅限单段安全字符）`);
   }
+  // 临时模式（DEC-1）：运行材料整体移居 <home>/tmp/ddo（项目内零创建），finish 后直接删除。
+  // --dir-name 互斥——语义目录名对即删材料无意义，fail fast 防歧义
+  const ephemeral = f.ephemeral === true;
+  if (ephemeral && f['dir-name'] !== undefined) {
+    throw new UsageError('--dir-name 与 --ephemeral 互斥：临时模式运行材料即删，语义目录名无意义');
+  }
 
   const preset = loadWorkflow(workflowsDir, workflowName); // fail fast（06 §2.2），不产生半截 run
   const startedAt = nowIso();
@@ -383,8 +403,12 @@ function runStart(f) {
       return `${id}:01`;
     });
 
+  // 居所分叉（DEC-2）：ephemeral → <home>/tmp/ddo/<type>/<runId>（与项目内布局同构）；正常 → 现状不动。
+  // 两分支共用下方「statePath 已存在则抛错」防重检查（runId 唯一性由 freshRunId 保证）
   const dirName = f['dir-name'] || runId;
-  const runDir = path.join(project, '.ddo', 'runs', type, dirName);
+  const runDir = ephemeral
+    ? path.join(registry.tmpRunsHome(), type, runId)
+    : path.join(project, '.ddo', 'runs', type, dirName);
   const statePath = path.join(runDir, '.state.json');
   if (fs.existsSync(statePath)) throw new Error(`运行目录已存在: ${runDir}`);
   fs.mkdirSync(runDir, { recursive: true });
@@ -409,6 +433,7 @@ function runStart(f) {
     runId,
     title: f.title,
     startedAt,
+    ...(ephemeral ? { ephemeral: true } : {}), // 临时模式标记（DEC-5）：finish 据此走删除分支
     git: gitInfo(project), // D5 推断链：仓库推断或置空；worktree 场景归 git-worktree 任务
     dirs: { projectRoot: project, runDir, tasksDir }, // 目录定版（11 §1.2 + 12 D1）：产物居所 + 任务目录，run 自包含
     currentStage,
@@ -674,16 +699,28 @@ function runGuide(f) {
         ],
         freeText: '其他单段安全字符亦可（字母/数字/._-，如 refactor）',
       },
+      {
+        id: 'home',
+        question: '运行材料居所？',
+        options: [
+          { name: '正常', desc: '缺省：项目内 .ddo/runs/<type>/<runId>/ 创建 runId 目录，产物与 state 同址随项目版控' },
+          { name: '临时', desc: '项目内不创建 runId 目录，运行材料落 <home>/tmp/ddo/<type>/<runId>/，run finish 后直接删除（--ephemeral；适合过程信息无需保留的流程型 run，如 PR 交付链；与 worktree 组合时产物不入分支）' },
+        ],
+      },
     ],
-    hint: '逐问呈现给用户（宿主提问工具），答案依次对应 run start 的 --title / --workflow（或自定义流程）/ --type',
+    hint: '逐问呈现给用户（宿主提问工具），答案依次对应 run start 的 --title / --workflow（或自定义流程）/ --type；居所选「临时」时附加 --ephemeral',
   };
 }
 
 
 // ---------------------------------------------------------------- resume（08：断点重续发现层）
 
-/** 从 statePath 推导项目根与 run 类型：<projectRoot>/.ddo/runs/<type>/<dirName>/.state.json */
-function runMetaFromPath(statePath) {
+/** run 元数据（列清单用）：优先 state.dirs（11 显式化——临时模式 runDir 在项目外，statePath 结构推导失效；
+ *  type 取 runDir 倒数第二段，项目内/临时两种布局同构）。statePath 结构推导仅作 dirs 缺失的历史回落。 */
+function runMeta(state, statePath) {
+  if (state.dirs && state.dirs.projectRoot && state.dirs.runDir) {
+    return { projectRoot: state.dirs.projectRoot, type: path.basename(path.dirname(state.dirs.runDir)) };
+  }
   const parts = statePath.split(path.sep);
   if (parts.length < 5 || parts[parts.length - 5] !== '.ddo' || parts[parts.length - 4] !== 'runs') return {};
   return { projectRoot: parts.slice(0, parts.length - 5).join(path.sep), type: parts[parts.length - 3] };
@@ -727,7 +764,7 @@ function runResume(f) {
     }
     const state = tryLoadState(entry.statePath);
     if (!state) throw new Error(`run ${f['run-id']} 的 statePath 已失效: ${entry.statePath}`);
-    const meta = runMetaFromPath(entry.statePath);
+    const meta = runMeta(state, entry.statePath);
     return {
       ...statusView(state, entry.statePath, tasksDirFor(f, state)),
       ...(meta.projectRoot ? { projectRoot: meta.projectRoot, type: meta.type } : {}),
@@ -737,24 +774,25 @@ function runResume(f) {
   }
 
   // 发现（D2 全局清单，D3 一律先列）：惰性校验 → 概要清单；currentStage 空 = 待收束仍展示（D4）
+  // --project 过滤：statePath 前缀之外，临时模式 run（statePath 在 <home>/tmp 下）经 state.dirs.projectRoot
+  // 判定归属——失效条目（state 不可读）无法归属，静默跳过不计 stale
   const runs = [];
   let staleCount = 0;
   for (const [runId, entry] of Object.entries(index)) {
-    if (proj && !entry.statePath.startsWith(proj + path.sep)) continue;
+    if (proj && !entry.statePath.startsWith(proj + path.sep)) {
+      const st = tryLoadState(entry.statePath);
+      if (!st) continue;
+      const root = st.dirs && st.dirs.projectRoot;
+      if (!root || path.resolve(root) !== proj) continue;
+      runs.push(resumeRow(f, runId, entry, st));
+      continue;
+    }
     const state = tryLoadState(entry.statePath);
     if (!state) {
       staleCount++;
       continue;
     }
-    const meta = runMetaFromPath(entry.statePath);
-    runs.push({
-      runId,
-      title: state.title,
-      ...(meta.projectRoot ? { projectRoot: meta.projectRoot, type: meta.type } : {}),
-      startedAt: state.startedAt,
-      currentStage: state.currentStage.map((e) => summaryPosition(state, tasksDirFor(f, state), e)),
-      ...(state.currentStage.length ? {} : { completable: true, note: '全部相位完成，待收束（run finish --status done）' }),
-    });
+    runs.push(resumeRow(f, runId, entry, state));
   }
   return {
     runs,
@@ -762,6 +800,19 @@ function runResume(f) {
     hint: runs.length
       ? '用 resume --run-id <runId> 加载选定 run 的完整状态（含门选项与可执行命令）'
       : '无运行中的 run：新起用 run start；历史见 ~/.ddo/history/runs.jsonl',
+  };
+}
+
+/** 概要行（列清单用）：元数据 + 标题 + 位置概要 + 待收束提示，全局清单与 --project 过滤共用。 */
+function resumeRow(f, runId, entry, state) {
+  const meta = runMeta(state, entry.statePath);
+  return {
+    runId,
+    title: state.title,
+    ...(meta.projectRoot ? { projectRoot: meta.projectRoot, type: meta.type } : {}),
+    startedAt: state.startedAt,
+    currentStage: state.currentStage.map((e) => summaryPosition(state, tasksDirFor(f, state), e)),
+    ...(state.currentStage.length ? {} : { completable: true, note: '全部相位完成，待收束（run finish --status done）' }),
   };
 }
 
@@ -834,13 +885,14 @@ const REGISTRY = [
   },
   {
     name: 'run start',
-    summary: '按预设装配启动 run：物化 .state.json + 注册 index（06）',
-    usage: 'run start --title <text> [--workflow basic] [--type feat] [--dir-name <name>] [--project <path>] [--workflows-dir <path>] [--tasks-dir <path>]',
+    summary: '按预设装配启动 run：物化 .state.json + 注册 index（06）；--ephemeral 临时模式材料落 <home>/tmp/ddo',
+    usage: 'run start --title <text> [--workflow basic] [--type feat] [--dir-name <name>] [--ephemeral] [--project <path>] [--workflows-dir <path>] [--tasks-dir <path>]',
     options: [
       { flag: '--title', desc: 'run 标题（一句话描述，进 state 与 history）', required: true },
       { flag: '--workflow', desc: 'workflow 预设名（workflows/<name>.json，缺省 basic）' },
       { flag: '--type', desc: 'run 类型（目录第一段，缺省 feat）' },
-      { flag: '--dir-name', desc: '运行目录名（目录第二段，缺省 runId）' },
+      { flag: '--dir-name', desc: '运行目录名（目录第二段，缺省 runId；与 --ephemeral 互斥）' },
+      { flag: '--ephemeral', desc: '布尔旗标：临时模式——项目内不创建 runId 目录，运行材料（含 .state.json）落 <home>/tmp/ddo/<type>/<runId>/，run finish 后直接删除（蕴含免归档；适合过程信息无需保留的流程型 run）' },
       { flag: '--project', desc: '项目根（缺省 cwd）' },
       { flag: '--workflows-dir', desc: '预设根目录（缺省仓库 workflows/；测试用）' },
       { flag: '--tasks-dir', desc: '原子任务根目录（缺省仓库 atom-tasks/；测试用）' },
@@ -849,12 +901,12 @@ const REGISTRY = [
   },
   {
     name: 'run finish',
-    summary: '结束迁移：runDir 整目录 zip 归档 → history 追加 → index 移除（--no-archive 免归档）',
+    summary: '结束迁移：runDir 整目录 zip 归档 → history 追加 → index 移除（--no-archive 免归档；临时模式 run 改走删除分支）',
     usage: 'run finish --state <path> --status <done|aborted|failed> [--no-archive]',
     options: [
       { flag: '--state', desc: '.state.json 绝对路径', required: true },
       { flag: '--status', desc: '终态：done（完成）| aborted（用户中止）| failed（失败终止）', required: true },
-      { flag: '--no-archive', desc: '布尔旗标：跳过用户级 history 归档（runId 目录 zip 与 runs.jsonl 追加）；index 移除与 currentStage 清空照旧' },
+      { flag: '--no-archive', desc: '布尔旗标：跳过用户级 history 归档（runId 目录 zip 与 runs.jsonl 追加）；index 移除与 currentStage 清空照旧；临时模式（state.ephemeral）蕴含本语义且额外删除 runDir' },
     ],
     run: runFinish,
   },
@@ -912,7 +964,7 @@ const REGISTRY = [
     usage: 'resume [--run-id <id>] [--project <path>] [--tasks-dir <path>]',
     options: [
       { flag: '--run-id', desc: '选定 runId，输出其完整状态视图（与 status 同构，另含 projectRoot/type/startedAt）' },
-      { flag: '--project', desc: '项目根过滤（statePath 前缀匹配；缺省不过滤，全局清单）' },
+      { flag: '--project', desc: '项目根过滤（statePath 前缀匹配 + state.dirs.projectRoot 归属——临时模式 run 的 statePath 在项目外；缺省不过滤，全局清单）' },
       { flag: '--tasks-dir', desc: '原子任务根目录（缺省仓库 atom-tasks/；测试用）' },
     ],
     run: runResume,
@@ -952,7 +1004,7 @@ const REGISTRY = [
   },
   {
     name: 'guide',
-    summary: '冷启动引导唯一数据源：问目标/问模式/问类型的统一 payload（无 state、无副作用）',
+    summary: '冷启动引导唯一数据源：问目标/问模式/问类型/问居所的统一 payload（无 state、无副作用）',
     usage: 'guide [--workflows-dir <path>] [--tasks-dir <path>]',
     options: [
       { flag: '--workflows-dir', desc: '预设根目录（缺省仓库 workflows/；测试用）' },
@@ -968,7 +1020,7 @@ const domains = () => [...new Set(REGISTRY.filter((c) => c.name.includes(' ')).m
 // ---------------------------------------------------------------- 参数解析
 
 // 布尔旗标集：bare 形式合法（置 true、不吞下一个 token）；= 形式仅接受 true|false
-const BOOLEAN_FLAGS = new Set(['no-archive']);
+const BOOLEAN_FLAGS = new Set(['no-archive', 'ephemeral']);
 
 function parseArgv(argv) {
   const positional = [];

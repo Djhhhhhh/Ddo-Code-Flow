@@ -16,7 +16,7 @@ const CLI = path.join(__dirname, '..', 'cli.js');
 
 function sandbox() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ddo-start-test-'));
-  return { dir, ddoHome: path.join(dir, 'ddo-home'), project: path.join(dir, 'project'), wf: path.join(dir, 'wf') };
+  return { dir, ddoHome: path.join(dir, 'ddo-home'), home: path.join(dir, 'home'), project: path.join(dir, 'project'), wf: path.join(dir, 'wf') };
 }
 
 function cleanup(sb) {
@@ -26,7 +26,7 @@ function cleanup(sb) {
 function cli(args, sb) {
   return spawnSync(process.execPath, [CLI, ...args], {
     cwd: sb.dir,
-    env: { ...process.env, DDO_HOME: sb.ddoHome },
+    env: { ...process.env, DDO_HOME: sb.ddoHome, HOME: sb.home }, // HOME 指沙箱：--ephemeral 的 <home>/tmp/ddo 不触真实主目录
     encoding: 'utf8',
   });
 }
@@ -218,6 +218,55 @@ test('run start：运行目录已存在（同 --dir-name 二次启动）→ exit
     // index 中只有第一次的注册
     const idx = JSON.parse(fs.readFileSync(path.join(sb.ddoHome, 'index.json'), 'utf8'));
     assert.equal(Object.keys(idx).length, 1);
+  } finally {
+    cleanup(sb);
+  }
+});
+
+// ---------------------------------------------------------------- 临时模式（--ephemeral）
+
+test('run start --ephemeral：材料落 <home>/tmp/ddo/<type>/<runId>/，项目内零创建，state 含标记（VA-2）', () => {
+  const sb = sandbox();
+  try {
+    const r = cli(['run', 'start', '--title', '临时链', '--project', sb.project, '--ephemeral'], sb);
+    assert.equal(r.status, 0, r.stderr);
+    const out = JSON.parse(r.stdout);
+    const runDir = path.join(sb.home, 'tmp', 'ddo', 'feat', out.runId);
+    assert.equal(out.statePath, path.join(runDir, '.state.json'));
+    assert.ok(!fs.existsSync(path.join(sb.project, '.ddo')), '项目内不得创建 .ddo');
+    const state = JSON.parse(fs.readFileSync(out.statePath, 'utf8'));
+    assert.strictEqual(state.ephemeral, true);
+    assert.equal(state.dirs.projectRoot, sb.project); // projectRoot 仍指真实项目（workdir/resume 归属依据）
+    assert.equal(state.dirs.runDir, runDir);
+    // index 注册照常——中断恢复寻址不变
+    const idx = JSON.parse(fs.readFileSync(path.join(sb.ddoHome, 'index.json'), 'utf8'));
+    assert.equal(idx[out.runId].statePath, out.statePath);
+  } finally {
+    cleanup(sb);
+  }
+});
+
+test('run start --ephemeral 与 --dir-name 并传 → exit 2（互斥 fail fast）', () => {
+  const sb = sandbox();
+  try {
+    const r = cli(['run', 'start', '--title', 't', '--project', sb.project, '--ephemeral', '--dir-name', 'named'], sb);
+    assert.equal(r.status, 2);
+    assert.match(r.stderr, /互斥/);
+    assert.ok(!fs.existsSync(path.join(sb.home, 'tmp')), '不得产生半截材料');
+  } finally {
+    cleanup(sb);
+  }
+});
+
+test('run start 缺省（无 --ephemeral）：现状回归——项目内 runId 目录、state 无 ephemeral 字段（VA-1）', () => {
+  const sb = sandbox();
+  try {
+    const r = cli(['run', 'start', '--title', 't', '--project', sb.project], sb);
+    assert.equal(r.status, 0, r.stderr);
+    const out = JSON.parse(r.stdout);
+    assert.equal(out.statePath, path.join(sb.project, '.ddo', 'runs', 'feat', out.runId, '.state.json'));
+    const state = JSON.parse(fs.readFileSync(out.statePath, 'utf8'));
+    assert.ok(!('ephemeral' in state), '缺省不得写入 ephemeral 字段');
   } finally {
     cleanup(sb);
   }
