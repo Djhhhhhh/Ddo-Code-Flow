@@ -1,0 +1,50 @@
+{
+  "runId": "20260927-194351-bab5",
+  "title": "交付 feat/finish-no-archive：run finish 免归档开关",
+  "startedAt": "2026-09-27T19:43:51.625+08:00",
+  "git": {
+    "mainBranch": "main",
+    "branch": "feat/finish-no-archive",
+    "worktreePath": "/Users/djhhh/work_area/Ddo-Code-Flow-feat-finish-no-archive"
+  },
+  "dirs": {
+    "projectRoot": "/Users/djhhh/work_area/Ddo-Code-Flow-feat-finish-no-archive",
+    "runDir": "/Users/djhhh/work_area/Ddo-Code-Flow-feat-finish-no-archive/.ddo/runs/feat/20260927-194351-bab5",
+    "tasksDir": "/Users/djhhh/work_area/Ddo-Code-Flow-feat-finish-no-archive/atom-tasks"
+  },
+  "currentStage": [],
+  "stages": {
+    "deliver-pr": {
+      "status": "done",
+      "dependOn": [],
+      "at": "2026-09-27T19:46:09.781+08:00",
+      "gate": {
+        "phase": "02",
+        "openedAt": "2026-09-27T19:45:44.444+08:00",
+        "options": [
+          {
+            "name": "已合并",
+            "desc": "确认 PR 已合并，本相位完成并放行后续清理阶段",
+            "action": "next --decision 已合并"
+          },
+          {
+            "name": "未合并",
+            "desc": "PR 尚未合并——呈现当前状态后保持等待，稍后再次确认",
+            "action": "in-phase"
+          }
+        ],
+        "presentedAt": "2026-09-27T19:45:44.477+08:00",
+        "decision": "已合并",
+        "closedAt": "2026-09-27T19:46:09.781+08:00"
+      }
+    },
+    "cleanup-worktree": {
+      "status": "running",
+      "dependOn": [
+        "deliver-pr"
+      ],
+      "at": "2026-09-27T19:46:09.781+08:00"
+    }
+  },
+  "atomTasks": {}
+}
