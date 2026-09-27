@@ -28,12 +28,12 @@ metadata:
 - `runDir`（run 工作目录 = 流水线产物目录，同址不分家）：`<projectRoot>/.ddo/runs/<type>/<dirName>/`。
   `.state.json` 与全部流水线文档产物（spec.md / plan.md…）的唯一合法居所，state 的 `dirs` 字段显式携带。
 - `DDO_HOME`：全局索引目录，缺省 `~/.ddo`（`index.json` 运行中指针、`history/runs.jsonl` 历史、
-  `history/<runId>/.state.json` 结束归档副本）。
+  `history/<runId>.zip` 结束归档（runDir 整目录 zip，#51）。
 - CLI 入口：`node <skillRoot>/tools/cli.js <命令>`。
 
 **产物生命周期（11）**：中间产物默认随项目版控走（留在 runDir，不搬不移）；rollback 时重置阶段
 声明的产物**移动**到 `<runDir>/_del/rollback-<n>/`（原位消失，重做产新文件）；run finish 时
-state 副本归档到 `~/.ddo/history/<runId>/.state.json`（原文件不动，随项目版控走）。output 声明
+runId 目录整目录 zip 归档到 `~/.ddo/history/<runId>.zip`（取代旧 state 目录副本；原目录不动，随项目版控走）。output 声明
 禁绝对路径与 `..`（防逃逸，CLI 两层校验）。
 
 ## worktree 创建时机（WTT 机制）
@@ -146,7 +146,7 @@ node tools/cli.js resume                        # 全局列运行中的 run（�
 node tools/cli.js resume --run-id <runId>       # 加载选定 run 的完整状态（含 statePath 与双清单）
 #    已知 statePath 时可直接 status；之后按 availableCommands 继续
 
-# ⑤ 结束（唯一收口入口；state 副本自动归档到 ~/.ddo/history/<runId>/，原文件随项目版控走）
+# ⑤ 结束（唯一收口入口；runId 目录自动 zip 归档到 ~/.ddo/history/<runId>.zip，原目录随项目版控走）
 node tools/cli.js run finish --state <statePath> --status done   # 或 aborted / failed
 ```
 
@@ -175,7 +175,7 @@ payload（静态 ∪ 动态选项，含 dispatch 指引）并转述——这是�
 
 ## 当前状态与边界（v2）
 
-已定版并实现：索引结构（02 v1.5：dirs 字段 + history/<runId>/ 归档布局）、CLI 框架与命令集
+已定版并实现：索引结构（02 v1.5：dirs 字段 + history/<runId>.zip 整目录 zip 归档，#51）、CLI 框架与命令集
 （03/04：run start / run finish / rollback / exec / validate / next）、原子任务 v2 全量改造
 （05，17 个任务）、workflow 预设与启动装配（06，`workflows/basic.json`）、执行节律与确认门状态化
 （07：`stages[k].gate` + `--decision` + `status` + 位置拦截）、断点重续

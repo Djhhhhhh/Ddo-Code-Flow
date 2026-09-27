@@ -137,12 +137,12 @@ test('布尔旗标：bare 置 true 不吞后续 token；=true/false 取字面布
     assert.equal(JSON.parse(r1.stdout).archived, false);
     assert.ok(!fs.existsSync(path.join(sb.ddoHome, 'history', 'runs.jsonl')), '免归档不应产生 runs.jsonl');
 
-    // =false：字面布尔 → 照常归档
+    // =false：字面布尔 → 照常归档（#51 起 zip 形态；sampleState 无 dirs → dirname 回落路径）
     writeState(sb, sampleState());
     const r2 = cli(['run', 'finish', '--state', sb.statePath, '--no-archive=false', '--status', 'done'], sb);
     assert.equal(r2.status, 0, r2.stderr);
     assert.equal(JSON.parse(r2.stdout).archived, true);
-    assert.ok(fs.existsSync(path.join(sb.ddoHome, 'history', '20260922-100000-ab01', '.state.json')));
+    assert.ok(fs.existsSync(path.join(sb.ddoHome, 'history', '20260922-100000-ab01.zip')));
 
     // 非法布尔取值 → exit 2
     const r3 = cli(['run', 'finish', '--state', sb.statePath, '--no-archive=banana', '--status', 'done'], sb);
