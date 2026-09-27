@@ -1,8 +1,8 @@
 'use strict';
 // tools/tests/lifecycle.test.js — 产物生命周期测试（11 plan §6）。
 //
-// 覆盖：dirs 字段（run start 物化 + 历史 state 缺失容错）/ state 结束归档
-// （~/.ddo/history/<runId>/，幂等覆盖，原文件不动）/ _del 回滚归档（移动语义、
+// 覆盖：dirs 字段（run start 物化 + 历史 state 缺失容错）/ run 结束归档
+// （#51 起 runDir 整目录 zip → ~/.ddo/history/<runId>.zip，幂等覆盖，源目录不动）/ _del 回滚归档（移动语义、
 // 重置集合汇总同一 rollback-n、缺失跳过、重做产新文件）/ output 声明防逃逸
 // （validateTaskConfig 语义层 + runValidate 运行时双保险）。
 // 隔离约定同前：mkdtemp 沙箱 + DDO_HOME 指内 + finally 递归删除；
@@ -111,7 +111,7 @@ test('run start 物化 dirs：两绝对路径且 runDir ⊂ projectRoot；历史
 
 // ---------------------------------------------------------------- state 结束归档
 
-test('run finish 归档 state 副本到 ~/.ddo/history/<runId>/：收束前位置保留、原文件不动、重复 finish 幂等', () => {
+test('run finish 将 runId 目录 zip 归档到 ~/.ddo/history/<runId>.zip：内容一致、收束前位置保留、原目录不动、无目录副本、重复 finish 幂等', () => {
   const sb = sandbox();
   try {
     const proj = path.join(sb.dir, 'proj');
@@ -123,9 +123,14 @@ test('run finish 归档 state 副本到 ~/.ddo/history/<runId>/：收束前位�
     const f1 = cli(['run', 'finish', '--state', statePath, '--status', 'aborted'], sb);
     assert.equal(f1.status, 0, f1.stderr);
 
-    const archive = path.join(sb.ddoHome, 'history', out.runId, '.state.json');
-    assert.ok(fs.existsSync(archive), '归档副本应存在');
-    const archived = JSON.parse(fs.readFileSync(archive, 'utf8'));
+    const zipPath = path.join(sb.ddoHome, 'history', `${out.runId}.zip`);
+    assert.ok(fs.existsSync(zipPath), 'zip 归档应存在');
+    assert.ok(!fs.existsSync(path.join(sb.ddoHome, 'history', out.runId)), '不应再落目录副本（#51 BQ-1-A）');
+
+    // zip 内 .state.json 保留收束前最后位置（先归档后清空），与源文件逐字节一致
+    const p = spawnSync('unzip', ['-p', zipPath, '.state.json'], { maxBuffer: 10 * 1024 * 1024 });
+    assert.equal(p.status, 0, p.stderr);
+    const archived = JSON.parse(p.stdout.toString('utf8'));
     assert.equal(archived.runId, out.runId);
     assert.deepEqual(archived.currentStage, out.currentStage, '归档保留收束前最后位置（先归档后清空）');
 
@@ -137,13 +142,16 @@ test('run finish 归档 state 副本到 ~/.ddo/history/<runId>/：收束前位�
 
     const f2 = cli(['run', 'finish', '--state', statePath, '--status', 'aborted'], sb);
     assert.equal(f2.status, 0, f2.stderr); // 幂等覆盖，不报错
-    assert.ok(fs.existsSync(archive));
+    assert.ok(fs.existsSync(zipPath));
+    const p2 = spawnSync('unzip', ['-p', zipPath, '.state.json'], { maxBuffer: 10 * 1024 * 1024 });
+    assert.equal(p2.status, 0, p2.stderr);
+    assert.deepEqual(JSON.parse(p2.stdout.toString('utf8')).currentStage, [], '重打包以当下目录为准（state 已清空）');
   } finally {
     cleanup(sb);
   }
 });
 
-test('run finish --no-archive：跳过 history 副本与 runs.jsonl；index 移除与 currentStage 清空照旧；输出 archived:false', () => {
+test('run finish --no-archive：跳过 zip 归档与 runs.jsonl；index 移除与 currentStage 清空照旧；输出 archived:false', () => {
   const sb = sandbox();
   try {
     const proj = path.join(sb.dir, 'proj');
@@ -157,6 +165,7 @@ test('run finish --no-archive：跳过 history 副本与 runs.jsonl；index 移�
     const fj = JSON.parse(f.stdout);
     assert.equal(fj.archived, false);
 
+    assert.ok(!fs.existsSync(path.join(sb.ddoHome, 'history', `${out.runId}.zip`)), 'history 下不应有该 run 的 zip');
     assert.ok(!fs.existsSync(path.join(sb.ddoHome, 'history', out.runId)), 'history 下不应有该 runId 目录');
     const jsonlPath = path.join(sb.ddoHome, 'history', 'runs.jsonl');
     if (fs.existsSync(jsonlPath)) {
@@ -364,8 +373,8 @@ test('history 的 statePath 为绝对路径，与 index 注册一致（D-4）', 
     assert.ok(path.isAbsolute(line.statePath), `history statePath 须绝对: ${line.statePath}`);
     // macOS /var ↔ /private/var 符号链接：run start 记词法路径、finish 经 cwd 得物理路径——realpath 等价即可
     assert.equal(fs.realpathSync(line.statePath), fs.realpathSync(out.statePath));
-    const archived = path.join(sb.ddoHome, 'history', out.runId, '.state.json');
-    assert.ok(fs.existsSync(archived), '归档副本同样以绝对路径寻源');
+    const archived = path.join(sb.ddoHome, 'history', `${out.runId}.zip`);
+    assert.ok(fs.existsSync(archived), 'zip 归档同样以绝对路径寻源');
   } finally {
     cleanup(sb);
   }

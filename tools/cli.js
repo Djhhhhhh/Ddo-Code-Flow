@@ -151,10 +151,12 @@ function runFinish(f) {
   // 免归档开关（--no-archive）：流程型 run（如交付链）不入用户级 history——跳过下方 ①②；
   // ③ index 移除与 ④ currentStage 清空照旧，state 原文件仍随项目版控走（追溯适用，不落 state）
   const noArchive = f['no-archive'] === true;
-  // 迁移顺序（11 §2，02 §7 修订）：① state 归档副本（保留收束前最后位置，幂等覆盖）
-  // ② history 追加 ③ index 移除 ④ currentStage 清空——①② 幂等，崩溃残留被惰性校验兜住
+  // 迁移顺序（11 §2，02 §7 修订；#51 起 ① 为整目录 zip）：① runDir zip 归档（含 .state.json，
+  // 保留收束前最后位置，幂等覆盖）② history 追加 ③ index 移除 ④ currentStage 清空——
+  // ①② 幂等，崩溃残留被惰性校验兜住
   if (!noArchive) {
-    history.archiveState(state.runId, statePath);
+    const runDir = (state.dirs && state.dirs.runDir) || path.dirname(statePath); // 历史 state 缺 dirs 回落
+    history.archiveRunZip(state.runId, runDir);
     history.append({
       runId: state.runId,
       title: state.title,
@@ -847,12 +849,12 @@ const REGISTRY = [
   },
   {
     name: 'run finish',
-    summary: '结束迁移：清 currentStage → history 追加 → index 移除（--no-archive 免归档）',
+    summary: '结束迁移：runDir 整目录 zip 归档 → history 追加 → index 移除（--no-archive 免归档）',
     usage: 'run finish --state <path> --status <done|aborted|failed> [--no-archive]',
     options: [
       { flag: '--state', desc: '.state.json 绝对路径', required: true },
       { flag: '--status', desc: '终态：done（完成）| aborted（用户中止）| failed（失败终止）', required: true },
-      { flag: '--no-archive', desc: '布尔旗标：跳过用户级 history 归档（state 副本与 runs.jsonl 追加）；index 移除与 currentStage 清空照旧' },
+      { flag: '--no-archive', desc: '布尔旗标：跳过用户级 history 归档（runId 目录 zip 与 runs.jsonl 追加）；index 移除与 currentStage 清空照旧' },
     ],
     run: runFinish,
   },

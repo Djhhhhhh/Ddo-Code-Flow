@@ -122,7 +122,7 @@ flowchart TD
 | `gate interact` | 相位内交互留痕：记录 in-phase 选项交互（提问/修改/回答BQ-N，`--note` 可带摘要），使既有呈现过期——此后决议被拦，须重新 `gate present` 送审（re-ask 由结构强制） |
 | `guide` | 冷启动引导唯一数据源：问目标（freeText）/ 问模式（内嵌预设 + 自定义）/ 问类型的统一 payload，无 state、无副作用 |
 | `rollback` | 回滚一个阶段（每次一个）：目标及其 DAG 路径上的节点重置为 pending、清除未关闭的门（含呈现/交互留痕）；重置集合内已声明的产物**移动**归档到 `<runDir>/_del/rollback-<n>/`（输出 `archivedTo`/`archived`）；作为门决议载体（驳回）时同样要求先呈现 |
-| `run finish` | 生命周期收口：state 副本归档 `~/.ddo/history/<runId>/` → history 追加一行 → index 移除 → 清 currentStage（原 state 文件保留在项目中，随版本控制管理）；幂等可重入 |
+| `run finish` | 生命周期收口：runId 目录整目录 zip 归档 `~/.ddo/history/<runId>.zip`（含 .state.json 与全部产物，纯 Node 零依赖写入器）→ history 追加一行 → index 移除 → 清 currentStage（原目录保留在项目中，随版本控制管理）；幂等可重入 |
 | `status` | 已知 statePath 时的定位：当前位置 + 未关闭的门选项（gateOptions，与 `gate present` payload 同源，含 in-phase 与动态选项）+ 派生的可执行命令（availableCommands） |
 | `resume` | 断点重续入口（发现层，读全局 index）：无参列运行中 run 概要（多项目可见），`--run-id` 加载完整状态视图（gateOptions 同源含动态） |
 | `list tasks` | 原子任务注册表（冷启动引导与自定义链的数据面） |
@@ -158,14 +158,14 @@ flowchart TD
 ├── index.json                       运行中 run 指针
 └── history/
     ├── runs.jsonl                   结束摘要（追加式）
-    └── <runId>/.state.json          run 结束时的 state 归档副本
+    └── <runId>.zip                  run 结束时的 runDir 整目录 zip 归档（含 .state.json）
 ```
 
 产物生命周期：
 
 - **执行中**：state 是活文件，现读现写；文档产物只允许写入 runDir（output 声明禁止绝对路径与 `..` 逃逸，validate/归档直接拒绝）。
 - **回滚**：重置集合内各阶段声明的产物**移动**到 `_del/rollback-<n>/`（一次 rollback 汇总同一编号目录），重做时重新生成，失效产物与新产物相互隔离。
-- **结束**：`run finish` 把 state **复制**一份到 `~/.ddo/history/<runId>/.state.json`（原文件保留在项目中，随版本控制管理），供跨项目追溯与后续「预设自我进化」分析。
+- **结束**：`run finish` 把整个 runId 目录**压缩**为 `~/.ddo/history/<runId>.zip`（含 .state.json 与全部产物，原目录保留在项目中，随版本控制管理），供跨项目追溯与后续「预设自我进化」分析。
 
 ## 配置分层
 
@@ -218,7 +218,7 @@ node --test tools/tests/*.test.js
 v2 的需求与定版方案按工作项归档在 `.ddo/runs/feat/ddo-code-flow-v2/`：00 总览、01 预清理、02 索引结构、03 工具框架、04 命令集、05 原子任务改造、06 工作流预设、07 执行节律与确认门、08 断点重续、10 冷启动引导、11 产物生命周期、12 完整度审计收口（09-coding-worktree 为并行线，其遗留 O1/O3 已由 worktree 创建时机机制 run 解决）。路线图上的后续项（详见各工作项开放问题表）：
 
 - 并行多门决议粒度；严格用户亲跑通道（防 agent 伪造决议，现依赖呈现协议 + 决议留痕审计）
-- 用户级预设；预设自我进化（基于 `~/.ddo/history/<runId>/` 归档分析自定义链频次）
+- 用户级预设；预设自我进化（基于 `~/.ddo/history/<runId>.zip` 归档分析自定义链频次）
 - 产物快照归档；非回滚的显式失效标记命令
 
 ## 参与贡献

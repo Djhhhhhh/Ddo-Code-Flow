@@ -6,6 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const { ddoHome } = require('./index-registry');
 const { atomicWrite } = require('./fsutil');
+const { zipDir } = require('./zip');
 
 function historyPath(home = ddoHome()) {
   return path.join(home, 'history', 'runs.jsonl');
@@ -24,13 +25,14 @@ function append(record, home = ddoHome()) {
   atomicWrite(file, `${prev}${JSON.stringify(record)}\n`);
 }
 
-/** 归档 state 副本（11 D1）：copy 到 ~/.ddo/history/<runId>/.state.json（幂等覆盖，原文件不动）。 */
-function archiveState(runId, statePath, home = ddoHome()) {
-  const dir = path.join(home, 'history', runId);
-  fs.mkdirSync(dir, { recursive: true });
-  const dest = path.join(dir, '.state.json');
-  fs.copyFileSync(statePath, dest);
+/**
+ * runDir 整目录 zip 归档（#51 BQ-1-A）：落 ~/.ddo/history/<runId>.zip，取代旧 state 目录副本
+ * （.state.json 以 zip 内条目形式保留）。幂等覆盖（atomicWrite 原子落盘），源目录零改动。
+ */
+function archiveRunZip(runId, runDir, home = ddoHome()) {
+  const dest = path.join(home, 'history', `${runId}.zip`);
+  atomicWrite(dest, zipDir(runDir));
   return dest;
 }
 
-module.exports = { append, archiveState };
+module.exports = { append, archiveRunZip };
