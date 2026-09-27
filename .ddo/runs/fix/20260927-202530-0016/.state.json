@@ -12,9 +12,7 @@
     "runDir": "/Users/djhhh/work_area/Ddo-Code-Flow-fix-drop-worktree-info/.ddo/runs/fix/20260927-202530-0016",
     "tasksDir": "/Users/djhhh/work_area/Ddo-Code-Flow/atom-tasks"
   },
-  "currentStage": [
-    "closeout-worktree:01"
-  ],
+  "currentStage": [],
   "stages": {
     "deliver-pr": {
       "status": "done",
@@ -41,11 +39,11 @@
       }
     },
     "closeout-worktree": {
-      "status": "running",
+      "status": "done",
       "dependOn": [
         "deliver-pr"
       ],
-      "at": "2026-09-27T20:27:55.631+08:00"
+      "at": "2026-09-27T20:28:28.871+08:00"
     }
   },
   "atomTasks": {}
