@@ -285,9 +285,9 @@ function runExec(f) {
     if (phase !== cur) throw new Error(`执行位置不符：当前位置 ${taskName}:${cur}，不能 exec ${taskName}:${phase}`);
   }
 
-  const taskDir = require('path').join(f['tasks-dir'] ? require('path').resolve(f['tasks-dir']) : ATOM_TASKS_DIR, taskName);
-  const promptFile = require('path').join(taskDir, 'prompt.md');
-  if (!require('fs').existsSync(promptFile) || !require('fs').existsSync(require('path').join(taskDir, 'config.json'))) {
+  const taskDir = path.join(tasksDirFor(f, state), taskName);
+  const promptFile = path.join(taskDir, 'prompt.md');
+  if (!fs.existsSync(promptFile) || !fs.existsSync(path.join(taskDir, 'config.json'))) {
     throw new Error(`原子任务不存在或结构不完整: ${taskDir}（需含 prompt.md + config.json；可用任务见 list tasks）`);
   }
   const { cfg } = mergeConfig(taskDir, state, registry.ddoHome());

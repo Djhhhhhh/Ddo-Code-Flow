@@ -55,7 +55,7 @@
 ```text
 你      /ddo-code-flow 给导出函数补充边界处理
 agent   目标收到。流水线用内置 basic 预设（requirement → spec → plan → coding → reporting），
-         还是从 17 个原子任务中自定义阶段链？类型采用 feat，可以吗？
+         还是从 20 个原子任务中自定义阶段链？类型采用 feat，可以吗？
 你      用 basic
 agent   （启动 run；澄清几轮后固化 requirement.md，推进到 spec，
          产出 spec.md 后停在评审门）
@@ -81,7 +81,7 @@ agent   （门关闭、决议留痕，进入 plan；按同一节律完成 coding
 
 | 概念 | 是什么 |
 |---|---|
-| **原子任务**（`atom-tasks/<name>/`） | 最小构建单元，当前 17 个。每个任务包含指令（`prompt.md`）、相位与产物声明（`config.json`）、可选的动态上下文钩子（`<name>.js`）与输出契约（`<name>.output.schema.json`） |
+| **原子任务**（`atom-tasks/<name>/`） | 最小构建单元，当前 20 个。每个任务包含指令（`prompt.md`）、相位与产物声明（`config.json`）、可选的动态上下文钩子（`<name>.js`）与输出契约（`<name>.output.schema.json`） |
 | **workflow 预设**（`workflows/*.json`） | 把原子任务装配成流水线的预设（阶段顺序 + DAG 依赖）。启动时物化进 state，此后状态自包含，不再回指预设 |
 | **`.state.json`** | 唯一事实源：当前执行位置（精确到相位）、阶段状态、run 级配置、目录声明全部在此。命令现读现写，不手工编辑 |
 | **确认门** | 任务里 `type: human` 的相位就是门。推进到该相位时门注册进 state，CLI 拦截「未决议就推进」**与「未呈现就决议」**——呈现经 `gate present`（`presentedAt` 留痕）、in-phase 交互经 `gate interact`（留痕并使呈现过期，处理完必须重新呈现）。agent 只负责跑呈现命令、转述 payload 与代跑决议命令，**决策权保留在用户** |
@@ -198,10 +198,10 @@ workflows/basic.json     # 轻量预设：requirement → spec → plan → codi
 workflows/standard.json  # 标准预设（全链）：+ test-plan / tasking / verification / review / reflection
 workflows/pr-delivery.json       # 交付收尾链：deliver-pr（推送+正式 PR+合并确认门）→ closeout-worktree（产物入库+免归档收口+清 worktree）
 workflows/pr-delivery-issue.json # 交付收尾链（issue 变体）：+ link-issue 评论关联
-atom-tasks/<name>/       # 17 个原子任务 + _schema/（config 与输出契约的 meta-schema）
+atom-tasks/<name>/       # 20 个原子任务 + _schema/（config 与输出契约的 meta-schema）
 tools/cli.js             # 确定性执行内核（命令注册表即文档源）
 tools/lib/               # state / index-registry / history / assemble / output-schema …
-tools/tests/             # node:test 沙箱隔离测试（10 个文件，78 用例）
+tools/tests/             # node:test 沙箱隔离测试（12 个文件，118 用例）
 .ddo/runs/               # 本项目自身的 run 归档——v2 即由本流水线开发（dogfooding）
 ```
 

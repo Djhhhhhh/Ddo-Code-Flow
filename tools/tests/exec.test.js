@@ -156,6 +156,40 @@ test('配置三层合并：标量覆盖、rules 拼接（任务默认 → 用户
   }
 });
 
+// ---------------------------------------------------------------- 任务目录三级取值（12 D1）
+
+test('exec 任务目录取值：--tasks-dir flag > state.dirs.tasksDir（无 flag 不得回落仓库缺省）', () => {
+  const sb = sandbox();
+  try {
+    const mk = (root, marker) => {
+      const dir = path.join(sb.dir, root, 'spec');
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, 'prompt.md'), `# spec 指令\n${marker}\n`);
+      fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
+        name: 'spec', version: '1.0.0', desc: '取值测试任务',
+        phases: [{ id: '01', type: 'action', summary: '单相位' }],
+      }));
+      return path.join(sb.dir, root);
+    };
+    const fromState = mk('tasks-state', 'MARKER-FROM-STATE-TASKS-DIR');
+    const fromFlag = mk('tasks-flag', 'MARKER-FROM-FLAG-TASKS-DIR');
+    writeState(sb, { dirs: { projectRoot: sb.dir, runDir: sb.runDir, tasksDir: fromState } });
+
+    const noFlag = cli(['exec', '--state', sb.statePath, '--task', 'spec'], sb);
+    assert.equal(noFlag.status, 0);
+    assert.match(noFlag.stdout, /MARKER-FROM-STATE-TASKS-DIR/);  // state 登记目录生效
+    assert.doesNotMatch(noFlag.stdout, /MARKER-FROM-FLAG-TASKS-DIR/);
+    assert.doesNotMatch(noFlag.stdout, /生成 Alignment Spec/);    // 不回落仓库缺省 atom-tasks/
+
+    const withFlag = cli(['exec', '--state', sb.statePath, '--task', 'spec', '--tasks-dir', fromFlag], sb);
+    assert.equal(withFlag.status, 0);
+    assert.match(withFlag.stdout, /MARKER-FROM-FLAG-TASKS-DIR/);  // flag 优先于 state
+    assert.doesNotMatch(withFlag.stdout, /MARKER-FROM-STATE-TASKS-DIR/);
+  } finally {
+    cleanup(sb);
+  }
+});
+
 // ---------------------------------------------------------------- coding / git-worktree 样例
 
 test('exec coding：单相位全文件指令 + 存在性容错 ctx（缺 test-plan 不失败）', () => {
