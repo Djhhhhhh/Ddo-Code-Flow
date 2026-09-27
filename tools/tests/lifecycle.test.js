@@ -143,6 +143,38 @@ test('run finish 归档 state 副本到 ~/.ddo/history/<runId>/：收束前位�
   }
 });
 
+test('run finish --no-archive：跳过 history 副本与 runs.jsonl；index 移除与 currentStage 清空照旧；输出 archived:false', () => {
+  const sb = sandbox();
+  try {
+    const proj = path.join(sb.dir, 'proj');
+    const r = cli(['run', 'start', '--project', proj, '--title', '免归档验证', '--dir-name', 'd3'], sb);
+    assert.equal(r.status, 0, r.stderr);
+    const out = JSON.parse(r.stdout);
+    const statePath = out.statePath;
+
+    const f = cli(['run', 'finish', '--state', statePath, '--status', 'done', '--no-archive'], sb);
+    assert.equal(f.status, 0, f.stderr);
+    const fj = JSON.parse(f.stdout);
+    assert.equal(fj.archived, false);
+
+    assert.ok(!fs.existsSync(path.join(sb.ddoHome, 'history', out.runId)), 'history 下不应有该 runId 目录');
+    const jsonlPath = path.join(sb.ddoHome, 'history', 'runs.jsonl');
+    if (fs.existsSync(jsonlPath)) {
+      assert.ok(!fs.readFileSync(jsonlPath, 'utf8').includes(`"runId":"${out.runId}"`), 'runs.jsonl 不应有该行');
+    }
+
+    // 收口其余语义照旧：currentStage 清空、原 state 文件保留、index 移除（resume 不可见）
+    const original = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+    assert.deepEqual(original.currentStage, []);
+    assert.ok(fs.existsSync(path.join(proj, '.ddo', 'runs', 'feat', 'd3', '.state.json')), '项目内产物随版控走');
+    const resume = cli(['resume'], sb);
+    assert.equal(resume.status, 0, resume.stderr);
+    assert.ok(!JSON.parse(resume.stdout).runs.some((x) => x.runId === out.runId), 'index 已移除');
+  } finally {
+    cleanup(sb);
+  }
+});
+
 // ---------------------------------------------------------------- _del 回滚归档
 
 test('rollback 激活 _del 归档：重置集合汇总同一 rollback-n、移动语义、编号递增、重做产新文件', () => {

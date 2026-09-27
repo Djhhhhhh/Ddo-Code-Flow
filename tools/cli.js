@@ -148,24 +148,29 @@ function runFinish(f) {
   }
   const state = readState(statePath);
   assertState(state);
+  // 免归档开关（--no-archive）：流程型 run（如交付链）不入用户级 history——跳过下方 ①②；
+  // ③ index 移除与 ④ currentStage 清空照旧，state 原文件仍随项目版控走（追溯适用，不落 state）
+  const noArchive = f['no-archive'] === true;
   // 迁移顺序（11 §2，02 §7 修订）：① state 归档副本（保留收束前最后位置，幂等覆盖）
   // ② history 追加 ③ index 移除 ④ currentStage 清空——①② 幂等，崩溃残留被惰性校验兜住
-  history.archiveState(state.runId, statePath);
-  history.append({
-    runId: state.runId,
-    title: state.title,
-    git: state.git,
-    startedAt: state.startedAt,
-    endedAt: nowIso(),
-    finalStatus,
-    statePath,
-  });
+  if (!noArchive) {
+    history.archiveState(state.runId, statePath);
+    history.append({
+      runId: state.runId,
+      title: state.title,
+      git: state.git,
+      startedAt: state.startedAt,
+      endedAt: nowIso(),
+      finalStatus,
+      statePath,
+    });
+  }
   registry.unregister(state.runId);
   if (state.currentStage.length > 0) {
     state.currentStage = [];
     writeState(statePath, state);
   }
-  return { finished: state.runId, finalStatus };
+  return { finished: state.runId, finalStatus, archived: !noArchive };
 }
 
 function runRollback(f) {
@@ -842,11 +847,12 @@ const REGISTRY = [
   },
   {
     name: 'run finish',
-    summary: '结束迁移：清 currentStage → history 追加 → index 移除',
-    usage: 'run finish --state <path> --status <done|aborted|failed>',
+    summary: '结束迁移：清 currentStage → history 追加 → index 移除（--no-archive 免归档）',
+    usage: 'run finish --state <path> --status <done|aborted|failed> [--no-archive]',
     options: [
       { flag: '--state', desc: '.state.json 绝对路径', required: true },
       { flag: '--status', desc: '终态：done（完成）| aborted（用户中止）| failed（失败终止）', required: true },
+      { flag: '--no-archive', desc: '布尔旗标：跳过用户级 history 归档（state 副本与 runs.jsonl 追加）；index 移除与 currentStage 清空照旧' },
     ],
     run: runFinish,
   },
@@ -959,6 +965,9 @@ const domains = () => [...new Set(REGISTRY.filter((c) => c.name.includes(' ')).m
 
 // ---------------------------------------------------------------- 参数解析
 
+// 布尔旗标集：bare 形式合法（置 true、不吞下一个 token）；= 形式仅接受 true|false
+const BOOLEAN_FLAGS = new Set(['no-archive']);
+
 function parseArgv(argv) {
   const positional = [];
   const flags = {};
@@ -968,7 +977,16 @@ function parseArgv(argv) {
     if (tok.startsWith('--')) {
       const eq = tok.indexOf('=');
       if (eq > 0) {
-        flags[tok.slice(2, eq)] = tok.slice(eq + 1);
+        const key = tok.slice(2, eq);
+        const val = tok.slice(eq + 1);
+        if (BOOLEAN_FLAGS.has(key)) {
+          if (val !== 'true' && val !== 'false') throw new UsageError(`布尔旗标 ${tok} 取值须为 true|false`);
+          flags[key] = val === 'true';
+        } else {
+          flags[key] = val;
+        }
+      } else if (BOOLEAN_FLAGS.has(tok.slice(2))) {
+        flags[tok.slice(2)] = true;
       } else if (i + 1 < argv.length) {
         flags[tok.slice(2)] = argv[++i];
       } else {
