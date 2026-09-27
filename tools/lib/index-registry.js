@@ -13,10 +13,10 @@ function ddoHome() {
   return process.env.DDO_HOME || path.join(os.homedir(), '.ddo');
 }
 
-/** 临时模式运行材料根（runId 目录创建可配 DEC-2）：<home>/tmp/ddo——用户主目录下 tmp 区域，
- *  与项目内 .ddo/runs 布局同构（<type>/<runId>）；run finish 后整目录删除（ephemeral 契约）。 */
+/** 临时模式运行材料根（runId 目录创建可配 DEC-2 修订）：~/.ddo/tmp——复用 ddoHome（尊重 DDO_HOME），
+ *  不在用户主目录另开新顶层目录；布局与项目内 .ddo/runs 同构（<type>/<runId>），finish 后整目录删除。 */
 function tmpRunsHome() {
-  return path.join(os.homedir(), 'tmp', 'ddo');
+  return path.join(ddoHome(), 'tmp');
 }
 
 function indexPath(home = ddoHome()) {

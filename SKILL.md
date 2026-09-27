@@ -27,7 +27,7 @@ metadata:
   （worktree 何时/如何创建见下节「worktree 创建时机」）。
 - `runDir`（run 工作目录 = 流水线产物目录，同址不分家）：`<projectRoot>/.ddo/runs/<type>/<dirName>/`。
   `.state.json` 与全部流水线文档产物（spec.md / plan.md…）的唯一合法居所，state 的 `dirs` 字段显式携带。
-  **临时模式例外**（`run start --ephemeral`）：runDir 改为 `<home>/tmp/ddo/<type>/<runId>/`（项目内零创建，
+  **临时模式例外**（`run start --ephemeral`）：runDir 改为 `~/.ddo/tmp/<type>/<runId>/`（项目内零创建，
   居所不变量的显式例外）——适合过程信息无需保留的流程型 run（如 PR 交付链）；与 worktree 组合时产物不入分支。
 - `DDO_HOME`：全局索引目录，缺省 `~/.ddo`（`index.json` 运行中指针、`history/runs.jsonl` 历史、
   `history/<runId>.zip` 结束归档（runDir 整目录 zip，#51）。
@@ -101,7 +101,7 @@ configurable。**消费时点在冷启动问答**——agent 读任务 config（
 1. **跑 `node tools/cli.js guide`** 取引导 payload：问目标（freeText，worktree 场景下同时是
    分支名的语义来源）/ 问模式 / 问类型 / 问居所四问的选项数据由 CLI 统一产出，逐问原样呈现给用户
    （宿主提问工具），不自拼选项。居所选「临时」→ 启动附加 `--ephemeral`（运行材料落
-   `<home>/tmp/ddo`，项目内不建 runId 目录，finish 后即删——适合流程型 run）。
+   `~/.ddo/tmp`，项目内不建 runId 目录，finish 后即删——适合流程型 run）。
 2. **问 worktree 场景**（WTT 旋钮，缺省 none）：none（不使用）/ single（单分支，基线=仓库
    主分支）/ release-dev（发布+开发，基线=base_branch）——选项与缺省读 git-worktree 任务的
    configurable（`list tasks` 呈现或直读 config），对话表达即定制。选 single / release-dev 时
@@ -124,7 +124,7 @@ configurable。**消费时点在冷启动问答**——agent 读任务 config（
 node tools/cli.js run start --title "<一句话描述>"
 #    worktree 形态（WTT）：冷启动问场景后先建分支与工作树，再 run start --project <工作树绝对路径>
 #    ——state.git 自动捕获 branch/worktreePath（注册内置），state 与产物全部落在 worktree 分支
-#    临时模式（可选 --ephemeral）：运行材料落 <home>/tmp/ddo/<type>/<runId>/，项目内不建
+#    临时模式（可选 --ephemeral）：运行材料落 ~/.ddo/tmp/<type>/<runId>/，项目内不建
 #    runId 目录；run 期间全部命令照常（state 唯一事实源），finish 后材料直接删除
 
 # ② 逐相位循环，直到 next 返回 completed:true
@@ -154,7 +154,7 @@ node tools/cli.js resume --run-id <runId>       # 加载选定 run 的完整状�
 
 # ⑤ 结束（唯一收口入口；runId 目录自动 zip 归档到 ~/.ddo/history/<runId>.zip，原目录随项目版控走）
 node tools/cli.js run finish --state <statePath> --status done   # 或 aborted / failed
-#    临时模式 run（state.ephemeral）：finish 蕴含免归档并直接删除 <home>/tmp/ddo 下的运行材料
+#    临时模式 run（state.ephemeral）：finish 蕴含免归档并直接删除 ~/.ddo/tmp 下的运行材料
 ```
 
 **确认门协议（gate present 呈现、用户选择、agent 代跑）**：开门后先 `gate present` 取
@@ -193,7 +193,7 @@ state 结束归档 + rollback `_del` 移动归档 + output 防逃逸）、worktr
 mode/base_branch/worktree_dir 三旋钮 + cleanup-worktree 清理前提修正）、交互协议结构闭环
 （`gate present` / `gate interact` / `guide`：统一呈现 payload + 呈现与 in-phase 交互留痕 +
 决议前置校验「最后交互后须重新呈现」+ present 钩子动态选项）、运行材料居所可配
-（`run start --ephemeral` 临时模式：runDir 移居 `<home>/tmp/ddo/<type>/<runId>/` 项目外 +
+（`run start --ephemeral` 临时模式：runDir 移居 `~/.ddo/tmp/<type>/<runId>/` 项目外 +
 state.ephemeral 标记 + finish 蕴含免归档并删除材料 + assertDirs 居所例外 +
 resolveWorkdir/resume 改优先 state.dirs + closeout-worktree 产物入库条件化 + guide 第四问）。
 

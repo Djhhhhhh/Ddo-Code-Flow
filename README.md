@@ -114,7 +114,7 @@ flowchart TD
 
 | 命令 | 作用 |
 |---|---|
-| `run start` | 按预设装配启动 run：物化 `.state.json`（含 `dirs` 目录声明）+ 注册全局索引；runId 形如 `YYYYMMDD-HHMMSS-xxxx`；`--ephemeral` 临时模式：项目内不建 runId 目录，运行材料落 `<home>/tmp/ddo/<type>/<runId>/`（与 `--dir-name` 互斥） |
+| `run start` | 按预设装配启动 run：物化 `.state.json`（含 `dirs` 目录声明）+ 注册全局索引；runId 形如 `YYYYMMDD-HHMMSS-xxxx`；`--ephemeral` 临时模式：项目内不建 runId 目录，运行材料落 `~/.ddo/tmp/<type>/<runId>/`（与 `--dir-name` 互斥） |
 | `exec` | 组装原子任务当前相位的 prompt（裸文本输出，渐进式加载；含输出契约与交互硬约束注入）；**位置锁**：只服务当前执行位置 |
 | `validate` | 按任务 output 声明硬校验产物（存在性 / 必填 section / 列 / idPattern / 占位符 / jsonFields）；相位缺省 = 当前位置 |
 | `next` | 纯状态推进：相位内前进（human 相位写门置 `waiting-human`）→ 阶段 done → DAG 就绪点亮；**门未关闭必须 `--decision <用户词汇>`**（如 同意；决议留痕），且**决议前须存在有效呈现**（见 `gate present`）——未呈现或 in-phase 交互后未重新呈现会被结构性拒绝 |
@@ -138,7 +138,7 @@ flowchart TD
 |---|---|---|
 | **projectRoot**（项目根） | 版本控制根目录，代码与 `.ddo/` 均位于此 | `run start --project`（缺省 cwd） |
 | **代码工作目录** | 代码改动发生地 | git worktree 场景为 `git.worktreePath`，否则 projectRoot |
-| **runDir**（run 工作目录 = 流水线产物目录，二者同址） | `.state.json` 与流水线文档产物的唯一合法存放位置 | `<projectRoot>/.ddo/runs/<type>/<dirName>/`，state 的 `dirs` 字段显式携带；临时模式（`--ephemeral`）例外：`<home>/tmp/ddo/<type>/<runId>/`（项目内零创建，finish 后即删——runDir ⊂ projectRoot 不变量的显式例外，适合过程信息无需保留的流程型 run；与 worktree 组合时产物不入分支） |
+| **runDir**（run 工作目录 = 流水线产物目录，二者同址） | `.state.json` 与流水线文档产物的唯一合法存放位置 | `<projectRoot>/.ddo/runs/<type>/<dirName>/`，state 的 `dirs` 字段显式携带；临时模式（`--ephemeral`）例外：`~/.ddo/tmp/<type>/<runId>/`（项目内零创建，finish 后即删——runDir ⊂ projectRoot 不变量的显式例外，适合过程信息无需保留的流程型 run；与 worktree 组合时产物不入分支） |
 
 **worktree 创建时机（WTT）**：worktree（如启用）在**冷启动阶段、`run start` 之前**创建——分支名
 从冷启动问得的需求一句话提取，场景旋钮（`mode` 缺省 none / `base_branch` / `worktree_dir`）在

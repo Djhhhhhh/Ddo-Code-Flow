@@ -16,7 +16,7 @@ const CLI = path.join(__dirname, '..', 'cli.js');
 
 function sandbox() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ddo-start-test-'));
-  return { dir, ddoHome: path.join(dir, 'ddo-home'), home: path.join(dir, 'home'), project: path.join(dir, 'project'), wf: path.join(dir, 'wf') };
+  return { dir, ddoHome: path.join(dir, 'ddo-home'), project: path.join(dir, 'project'), wf: path.join(dir, 'wf') };
 }
 
 function cleanup(sb) {
@@ -26,7 +26,7 @@ function cleanup(sb) {
 function cli(args, sb) {
   return spawnSync(process.execPath, [CLI, ...args], {
     cwd: sb.dir,
-    env: { ...process.env, DDO_HOME: sb.ddoHome, HOME: sb.home }, // HOME 指沙箱：--ephemeral 的 <home>/tmp/ddo 不触真实主目录
+    env: { ...process.env, DDO_HOME: sb.ddoHome }, // 临时模式材料居 DDO_HOME/tmp，沙箱天然隔离
     encoding: 'utf8',
   });
 }
@@ -225,13 +225,13 @@ test('run start：运行目录已存在（同 --dir-name 二次启动）→ exit
 
 // ---------------------------------------------------------------- 临时模式（--ephemeral）
 
-test('run start --ephemeral：材料落 <home>/tmp/ddo/<type>/<runId>/，项目内零创建，state 含标记（VA-2）', () => {
+test('run start --ephemeral：材料落 ~/.ddo/tmp/<type>/<runId>/，项目内零创建，state 含标记（VA-2）', () => {
   const sb = sandbox();
   try {
     const r = cli(['run', 'start', '--title', '临时链', '--project', sb.project, '--ephemeral'], sb);
     assert.equal(r.status, 0, r.stderr);
     const out = JSON.parse(r.stdout);
-    const runDir = path.join(sb.home, 'tmp', 'ddo', 'feat', out.runId);
+    const runDir = path.join(sb.ddoHome, 'tmp', 'feat', out.runId);
     assert.equal(out.statePath, path.join(runDir, '.state.json'));
     assert.ok(!fs.existsSync(path.join(sb.project, '.ddo')), '项目内不得创建 .ddo');
     const state = JSON.parse(fs.readFileSync(out.statePath, 'utf8'));
@@ -252,7 +252,7 @@ test('run start --ephemeral 与 --dir-name 并传 → exit 2（互斥 fail fast�
     const r = cli(['run', 'start', '--title', 't', '--project', sb.project, '--ephemeral', '--dir-name', 'named'], sb);
     assert.equal(r.status, 2);
     assert.match(r.stderr, /互斥/);
-    assert.ok(!fs.existsSync(path.join(sb.home, 'tmp')), '不得产生半截材料');
+    assert.ok(!fs.existsSync(path.join(sb.ddoHome, 'tmp')), '不得产生半截材料');
   } finally {
     cleanup(sb);
   }

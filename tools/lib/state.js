@@ -40,7 +40,7 @@ function assertState(state) {
 }
 
 /** 目录声明校验（11 §1.2，可选字段）：两绝对路径，runDir 须位于 projectRoot 之内——
- *  临时模式例外（spec I3 收窄）：ephemeral 时运行材料居 <home>/tmp/ddo 下，contain 检查放行，
+ *  临时模式例外（spec I3 收窄）：ephemeral 时运行材料居 ~/.ddo/tmp 下，contain 检查放行，
  *  绝对路径校验保留。缺失容错（历史 state）。 */
 function assertDirs(dirs, ephemeral = false) {
   if (!dirs || typeof dirs !== 'object') throw new Error('state.dirs must be an object');
