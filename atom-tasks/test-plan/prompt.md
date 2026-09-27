@@ -22,10 +22,9 @@
 
 展示 test-plan 摘要与分组统计。
 
-**门选项从确认门数据呈现**：读 state 的 `stages.test-plan.gate.options`（可经 `status` 获取），把每个选项的 name/desc 原样呈现给用户。用户选择后按 action 处理：
-- 命令型（`next --decision <name>` / `rollback --stage …` / `run finish …`）→ agent 代跑该命令；
-- 相位内交互（`in-phase`）→ 按下方行为定义处理，不触任何推进命令。
-不得在门数据之外自造推进/回滚选项。
+**门选项从统一呈现入口获取**：跑 `node tools/cli.js gate present --state <statePath>` 取交互 payload（本门全部选项的 name/desc/dispatch），把各选项原样呈现给用户（宿主提问工具），不得在 payload 之外自造选项。用户选择后按 dispatch 处理：
+- 命令型（`next --decision <name>` / `rollback --stage …` / `run finish …`）→ agent 代跑 dispatch 命令；
+- 相位内交互（`in-phase`）→ 先 `gate interact --state <statePath> --option <name> [--note <摘要>]` 记录交互，再按下方行为定义处理；处理完成后**重新 `gate present` 送审**——未重新呈现前的决议会被结构拦截（重新询问由结构强制，不靠自觉）。
 
 相位内交互行为定义：
 

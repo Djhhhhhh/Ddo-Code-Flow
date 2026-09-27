@@ -84,7 +84,7 @@ agent   （门关闭、决议留痕，进入 plan；按同一节律完成 coding
 | **原子任务**（`atom-tasks/<name>/`） | 最小构建单元，当前 17 个。每个任务包含指令（`prompt.md`）、相位与产物声明（`config.json`）、可选的动态上下文钩子（`<name>.js`）与输出契约（`<name>.output.schema.json`） |
 | **workflow 预设**（`workflows/*.json`） | 把原子任务装配成流水线的预设（阶段顺序 + DAG 依赖）。启动时物化进 state，此后状态自包含，不再回指预设 |
 | **`.state.json`** | 唯一事实源：当前执行位置（精确到相位）、阶段状态、run 级配置、目录声明全部在此。命令现读现写，不手工编辑 |
-| **确认门** | 任务里 `type: human` 的相位就是门。推进到该相位时门注册进 state，CLI 拦截「未决议就推进」，agent 只负责呈现选项与代跑决议命令，**决策权保留在用户** |
+| **确认门** | 任务里 `type: human` 的相位就是门。推进到该相位时门注册进 state，CLI 拦截「未决议就推进」**与「未呈现就决议」**——呈现经 `gate present`（`presentedAt` 留痕）、in-phase 交互经 `gate interact`（留痕并使呈现过期，处理完必须重新呈现）。agent 只负责跑呈现命令、转述 payload 与代跑决议命令，**决策权保留在用户** |
 
 一个 run 的内部驱动循环（由 agent 自动执行）：
 
@@ -117,11 +117,14 @@ flowchart TD
 | `run start` | 按预设装配启动 run：物化 `.state.json`（含 `dirs` 目录声明）+ 注册全局索引；runId 形如 `YYYYMMDD-HHMMSS-xxxx` |
 | `exec` | 组装原子任务当前相位的 prompt（裸文本输出，渐进式加载；含输出契约与交互硬约束注入）；**位置锁**：只服务当前执行位置 |
 | `validate` | 按任务 output 声明硬校验产物（存在性 / 必填 section / 列 / idPattern / 占位符 / jsonFields）；相位缺省 = 当前位置 |
-| `next` | 纯状态推进：相位内前进（human 相位写门置 `waiting-human`）→ 阶段 done → DAG 就绪点亮；**门未关闭必须 `--decision <用户词汇>`**（如 同意；决议留痕） |
-| `rollback` | 回滚一个阶段（每次一个）：目标及其 DAG 路径上的节点重置为 pending、清除未关闭的门；重置集合内已声明的产物**移动**归档到 `<runDir>/_del/rollback-<n>/`（输出 `archivedTo`/`archived`） |
+| `next` | 纯状态推进：相位内前进（human 相位写门置 `waiting-human`）→ 阶段 done → DAG 就绪点亮；**门未关闭必须 `--decision <用户词汇>`**（如 同意；决议留痕），且**决议前须存在有效呈现**（见 `gate present`）——未呈现或 in-phase 交互后未重新呈现会被结构性拒绝 |
+| `gate present` | **统一交互呈现入口**：对开着的门输出 payload（静态声明 ∪ per-task `present` 钩子动态选项，如 spec 门的 `回答BQ-N`，各选项含 name/desc/dispatch 执行指引）并盖 `presentedAt` 留痕；隐式门（无实例手写 state）在此物化 |
+| `gate interact` | 相位内交互留痕：记录 in-phase 选项交互（提问/修改/回答BQ-N，`--note` 可带摘要），使既有呈现过期——此后决议被拦，须重新 `gate present` 送审（re-ask 由结构强制） |
+| `guide` | 冷启动引导唯一数据源：问目标（freeText）/ 问模式（内嵌预设 + 自定义）/ 问类型的统一 payload，无 state、无副作用 |
+| `rollback` | 回滚一个阶段（每次一个）：目标及其 DAG 路径上的节点重置为 pending、清除未关闭的门（含呈现/交互留痕）；重置集合内已声明的产物**移动**归档到 `<runDir>/_del/rollback-<n>/`（输出 `archivedTo`/`archived`）；作为门决议载体（驳回）时同样要求先呈现 |
 | `run finish` | 生命周期收口：state 副本归档 `~/.ddo/history/<runId>/` → history 追加一行 → index 移除 → 清 currentStage（原 state 文件保留在项目中，随版本控制管理）；幂等可重入 |
-| `status` | 已知 statePath 时的定位：当前位置 + 未关闭的门选项（gateOptions，含 in-phase）+ 派生的可执行命令（availableCommands） |
-| `resume` | 断点重续入口（发现层，读全局 index）：无参列运行中 run 概要（多项目可见），`--run-id` 加载完整状态视图 |
+| `status` | 已知 statePath 时的定位：当前位置 + 未关闭的门选项（gateOptions，与 `gate present` payload 同源，含 in-phase 与动态选项）+ 派生的可执行命令（availableCommands） |
+| `resume` | 断点重续入口（发现层，读全局 index）：无参列运行中 run 概要（多项目可见），`--run-id` 加载完整状态视图（gateOptions 同源含动态） |
 | `list tasks` | 原子任务注册表（冷启动引导与自定义链的数据面） |
 | `list workflows` | 预设清单：描述 + 阶段链 |
 

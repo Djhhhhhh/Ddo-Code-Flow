@@ -134,6 +134,8 @@ test('决议推进：--decision 同意 → 相位耗尽收尾 + decision/closedA
   try {
     writeGateDemo(sb, DEMO_OPTIONS);
     writeState(sb, ['gate-demo:02'], withGate());
+    const p = cli(['gate', 'present', '--state', sb.statePath, '--tasks-dir', sb.tasksDir], sb); // 呈现留痕（结构闭环）
+    assert.equal(p.status, 0, p.stderr);
     const r = cli(['next', '--state', sb.statePath, '--decision', '同意', '--tasks-dir', sb.tasksDir], sb);
     assert.equal(r.status, 0, r.stderr);
     const out = JSON.parse(r.stdout);
@@ -143,6 +145,7 @@ test('决议推进：--decision 同意 → 相位耗尽收尾 + decision/closedA
     const gate = readBack(sb).stages['gate-demo'].gate;
     assert.equal(gate.decision, '同意');
     assert.ok(gate.closedAt);
+    assert.ok(gate.presentedAt); // 呈现留痕与决议留痕并存（审计链完整）
   } finally {
     cleanup(sb);
   }
@@ -153,6 +156,8 @@ test('定制决议名（带修改通过）合法放行——用户词汇即 --de
   try {
     writeGateDemo(sb, DEMO_OPTIONS);
     writeState(sb, ['gate-demo:02'], withGate());
+    const p = cli(['gate', 'present', '--state', sb.statePath, '--tasks-dir', sb.tasksDir], sb);
+    assert.equal(p.status, 0, p.stderr);
     const r = cli(['next', '--state', sb.statePath, '--decision', '带修改通过', '--tasks-dir', sb.tasksDir], sb);
     assert.equal(r.status, 0, r.stderr);
     assert.equal(JSON.parse(r.stdout).closedGates[0].decision, '带修改通过');
@@ -283,6 +288,8 @@ test('rollback：阶段重置显式清门（clearedGates 输出），重做再�
   try {
     writeGateDemo(sb, DEMO_OPTIONS);
     writeState(sb, ['gate-demo:02'], withGate());
+    const p = cli(['gate', 'present', '--state', sb.statePath, '--tasks-dir', sb.tasksDir], sb); // 驳回是门决议载体，须先呈现
+    assert.equal(p.status, 0, p.stderr);
     const r = cli(['rollback', '--state', sb.statePath, '--stage', 'gate-demo', '--tasks-dir', sb.tasksDir], sb);
     assert.equal(r.status, 0, r.stderr);
     assert.deepEqual(JSON.parse(r.stdout).clearedGates, ['gate-demo']);
@@ -396,30 +403,44 @@ test('真实任务声明注册：spec:01 → next 开门，用户词汇选项来
   }
 });
 
-test('兜底 desc 现算真实下一步：中段人审位（test-plan:02 无门手写 state）→「进入 test-plan:03」', () => {
+/** 无门声明任务（隐式门走 standardOptions 兜底）。phases 形如 [{id,type}]。 */
+function writeBareTask(sb, name, phases) {
+  const dir = path.join(sb.tasksDir, name);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'prompt.md'), `# ${name}\n`);
+  fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
+    name,
+    version: '2.0.0',
+    phases: phases.map((p) => ({ id: p.id, type: p.type })),
+  }));
+}
+
+test('兜底 desc 现算真实下一步：中段人审位（无声明门）→「进入下一相位」', () => {
   const sb = sandbox();
   try {
-    writeState(sb, ['test-plan:02'], {
-      'test-plan': { status: 'waiting-human', dependOn: [], at: 't' },
-      coding: { status: 'pending', dependOn: ['test-plan'], at: 't' },
+    writeBareTask(sb, 'demo3', [{ id: '01', type: 'action' }, { id: '02', type: 'human' }, { id: '03', type: 'action' }]);
+    writeState(sb, ['demo3:02'], {
+      demo3: { status: 'waiting-human', dependOn: [], at: 't' },
+      downstream: { status: 'pending', dependOn: ['demo3'], at: 't' },
     });
-    const r = cli(['next', '--state', sb.statePath], sb);
+    const r = cli(['next', '--state', sb.statePath, '--tasks-dir', sb.tasksDir], sb);
     assert.equal(r.status, 1);
     const out = JSON.parse(r.stdout);
-    assert.match(out.gates[0].options[0].desc, /进入 test-plan:03（TDD/); // 同阶段下一相位，不再误说「收尾并点亮」
+    assert.match(out.gates[0].options[0].desc, /进入 demo3:03/); // 同阶段下一相位，不再误说「收尾并点亮」
   } finally {
     cleanup(sb);
   }
 });
 
-test('兜底 desc 现算真实下一步：末段无后继（reflection:02 无门无后继阶段）→「run 将完成」', () => {
+test('兜底 desc 现算真实下一步：末段无后继（无声明门）→「run 将完成」', () => {
   const sb = sandbox();
   try {
-    writeState(sb, ['reflection:02'], { reflection: { status: 'waiting-human', dependOn: [], at: 't' } });
-    const r = cli(['next', '--state', sb.statePath], sb);
+    writeBareTask(sb, 'solo', [{ id: '01', type: 'action' }, { id: '02', type: 'human' }]);
+    writeState(sb, ['solo:02'], { solo: { status: 'waiting-human', dependOn: [], at: 't' } });
+    const r = cli(['next', '--state', sb.statePath, '--tasks-dir', sb.tasksDir], sb);
     assert.equal(r.status, 1);
     const out = JSON.parse(r.stdout);
-    assert.match(out.gates[0].options[0].desc, /reflection 收尾（run 将完成）/);
+    assert.match(out.gates[0].options[0].desc, /solo 收尾（run 将完成）/);
   } finally {
     cleanup(sb);
   }

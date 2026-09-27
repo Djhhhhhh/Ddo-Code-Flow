@@ -37,4 +37,32 @@ module.exports = {
     if (sections.rules.length) parts.push(`## Rules\n\n${sections.rules.map((r) => `- ${r}`).join('\n')}`);
     return parts.join('\n\n---\n\n');
   },
+
+  // present 钩子（交互协议结构闭环）：确认门（相位 02）动态选项现算——
+  // 解析 runDir/spec.md「## 需要用户确认」的未解决 BQ，产出 回答BQ-N 选项进 gate present payload。
+  // 降级语义：spec.md 缺失 / 无该 section / 无 BQ 条目 → 无动态选项（呈现不阻塞）。
+  present({ phase, statePath }) {
+    if (phase !== '02') return { options: [] };
+    const specFile = path.join(path.dirname(statePath), 'spec.md');
+    if (!fs.existsSync(specFile)) return { options: [] };
+    const lines = fs.readFileSync(specFile, 'utf8').split(/\r?\n/);
+    let inSection = false;
+    const bqs = [];
+    for (const line of lines) {
+      if (/^##\s/.test(line)) {
+        inSection = /^##\s*需要用户确认/.test(line);
+        continue;
+      }
+      if (!inSection) continue;
+      const m = line.match(/^\s*-\s+\*\*(BQ-\d+)\*\*\s*[：:]?\s*(.*)$/);
+      if (m) bqs.push({ id: m[1], text: m[2].trim() });
+    }
+    return {
+      options: bqs.map((b) => ({
+        name: `回答${b.id}`, // 决议名词汇无空格（DECISION_RE），desc 承载原文
+        desc: b.text ? `${b.id}：${b.text}` : `${b.id}（见 spec.md 需要用户确认）`,
+        action: 'in-phase',
+      })),
+    };
+  },
 };

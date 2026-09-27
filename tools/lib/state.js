@@ -53,7 +53,8 @@ function assertDirs(dirs) {
   }
 }
 
-/** 确认门形态校验（07 plan §3.2：可选字段，出现即须完整）。 */
+/** 确认门形态校验（07 plan §3.2：可选字段，出现即须完整；留痕字段为交互协议结构闭环增补）。 */
+const ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/;
 function assertGate(id, gate) {
   const where = `stages[${id}].gate`;
   if (!gate || typeof gate !== 'object') throw new Error(`${where} must be an object`);
@@ -64,6 +65,18 @@ function assertGate(id, gate) {
     if (!t || typeof t.name !== 'string' || !t.name) throw new Error(`${where}.options[] missing name`);
     if (typeof t.desc !== 'string' || !t.desc) throw new Error(`${where}.options[${t.name}] missing desc`);
     if (typeof t.action !== 'string' || !t.action) throw new Error(`${where}.options[${t.name}] missing action`);
+  }
+  if (gate.presentedAt !== undefined && (typeof gate.presentedAt !== 'string' || !ISO_RE.test(gate.presentedAt))) {
+    throw new Error(`${where}.presentedAt must be an ISO 8601 string`);
+  }
+  if (gate.interactions !== undefined) {
+    if (!Array.isArray(gate.interactions)) throw new Error(`${where}.interactions must be an array`);
+    for (const [i, it] of gate.interactions.entries()) {
+      if (!it || typeof it !== 'object') throw new Error(`${where}.interactions[${i}] must be an object`);
+      if (typeof it.option !== 'string' || !it.option) throw new Error(`${where}.interactions[${i}].option must be a non-empty string`);
+      if (typeof it.at !== 'string' || !ISO_RE.test(it.at)) throw new Error(`${where}.interactions[${i}].at must be an ISO 8601 string`);
+      if (it.note !== undefined && typeof it.note !== 'string') throw new Error(`${where}.interactions[${i}].note must be a string`);
+    }
   }
   if (gate.decision !== undefined && typeof gate.decision !== 'string') throw new Error(`${where}.decision must be a string`);
   if (gate.closedAt !== undefined && typeof gate.closedAt !== 'string') throw new Error(`${where}.closedAt must be an ISO 8601 string`);
