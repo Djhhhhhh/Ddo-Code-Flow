@@ -114,15 +114,15 @@ flowchart TD
 
 | 命令 | 作用 |
 |---|---|
-| `run start` | 按预设装配启动 run：物化 `.state.json`（含 `dirs` 目录声明）+ 注册全局索引；runId 形如 `YYYYMMDD-HHMMSS-xxxx` |
+| `run start` | 按预设装配启动 run：物化 `.state.json`（含 `dirs` 目录声明）+ 注册全局索引；runId 形如 `YYYYMMDD-HHMMSS-xxxx`；`--ephemeral` 临时模式：项目内不建 runId 目录，运行材料落 `<home>/tmp/ddo/<type>/<runId>/`（与 `--dir-name` 互斥） |
 | `exec` | 组装原子任务当前相位的 prompt（裸文本输出，渐进式加载；含输出契约与交互硬约束注入）；**位置锁**：只服务当前执行位置 |
 | `validate` | 按任务 output 声明硬校验产物（存在性 / 必填 section / 列 / idPattern / 占位符 / jsonFields）；相位缺省 = 当前位置 |
 | `next` | 纯状态推进：相位内前进（human 相位写门置 `waiting-human`）→ 阶段 done → DAG 就绪点亮；**门未关闭必须 `--decision <用户词汇>`**（如 同意；决议留痕），且**决议前须存在有效呈现**（见 `gate present`）——未呈现或 in-phase 交互后未重新呈现会被结构性拒绝 |
 | `gate present` | **统一交互呈现入口**：对开着的门输出 payload（静态声明 ∪ per-task `present` 钩子动态选项，如 spec 门的 `回答BQ-N`，各选项含 name/desc/dispatch 执行指引）并盖 `presentedAt` 留痕；隐式门（无实例手写 state）在此物化 |
 | `gate interact` | 相位内交互留痕：记录 in-phase 选项交互（提问/修改/回答BQ-N，`--note` 可带摘要），使既有呈现过期——此后决议被拦，须重新 `gate present` 送审（re-ask 由结构强制） |
-| `guide` | 冷启动引导唯一数据源：问目标（freeText）/ 问模式（内嵌预设 + 自定义）/ 问类型的统一 payload，无 state、无副作用 |
+| `guide` | 冷启动引导唯一数据源：问目标（freeText）/ 问模式（内嵌预设 + 自定义）/ 问类型 / 问居所（正常 / 临时 `--ephemeral`）的统一 payload，无 state、无副作用 |
 | `rollback` | 回滚一个阶段（每次一个）：目标及其 DAG 路径上的节点重置为 pending、清除未关闭的门（含呈现/交互留痕）；重置集合内已声明的产物**移动**归档到 `<runDir>/_del/rollback-<n>/`（输出 `archivedTo`/`archived`）；作为门决议载体（驳回）时同样要求先呈现 |
-| `run finish` | 生命周期收口：runId 目录整目录 zip 归档 `~/.ddo/history/<runId>.zip`（含 .state.json 与全部产物，纯 Node 零依赖写入器）→ history 追加一行 → index 移除 → 清 currentStage（原目录保留在项目中，随版本控制管理）；幂等可重入 |
+| `run finish` | 生命周期收口：runId 目录整目录 zip 归档 `~/.ddo/history/<runId>.zip`（含 .state.json 与全部产物，纯 Node 零依赖写入器）→ history 追加一行 → index 移除 → 清 currentStage（原目录保留在项目中，随版本控制管理）；幂等可重入。临时模式（`state.ephemeral`）改走删除分支：蕴含免归档（zip 与 runs.jsonl 均不落）→ 删除 runDir → index 移除，项目内外零残留 |
 | `status` | 已知 statePath 时的定位：当前位置 + 未关闭的门选项（gateOptions，与 `gate present` payload 同源，含 in-phase 与动态选项）+ 派生的可执行命令（availableCommands） |
 | `resume` | 断点重续入口（发现层，读全局 index）：无参列运行中 run 概要（多项目可见），`--run-id` 加载完整状态视图（gateOptions 同源含动态） |
 | `list tasks` | 原子任务注册表（冷启动引导与自定义链的数据面） |
@@ -138,7 +138,7 @@ flowchart TD
 |---|---|---|
 | **projectRoot**（项目根） | 版本控制根目录，代码与 `.ddo/` 均位于此 | `run start --project`（缺省 cwd） |
 | **代码工作目录** | 代码改动发生地 | git worktree 场景为 `git.worktreePath`，否则 projectRoot |
-| **runDir**（run 工作目录 = 流水线产物目录，二者同址） | `.state.json` 与流水线文档产物的唯一合法存放位置 | `<projectRoot>/.ddo/runs/<type>/<dirName>/`，state 的 `dirs` 字段显式携带 |
+| **runDir**（run 工作目录 = 流水线产物目录，二者同址） | `.state.json` 与流水线文档产物的唯一合法存放位置 | `<projectRoot>/.ddo/runs/<type>/<dirName>/`，state 的 `dirs` 字段显式携带；临时模式（`--ephemeral`）例外：`<home>/tmp/ddo/<type>/<runId>/`（项目内零创建，finish 后即删——runDir ⊂ projectRoot 不变量的显式例外，适合过程信息无需保留的流程型 run；与 worktree 组合时产物不入分支） |
 
 **worktree 创建时机（WTT）**：worktree（如启用）在**冷启动阶段、`run start` 之前**创建——分支名
 从冷启动问得的需求一句话提取，场景旋钮（`mode` 缺省 none / `base_branch` / `worktree_dir`）在

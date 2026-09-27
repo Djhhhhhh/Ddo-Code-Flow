@@ -25,18 +25,24 @@ function assertState(state) {
   if (typeof state.runId !== 'string' || !state.runId) throw new Error('state.runId must be a non-empty string');
   if (typeof state.title !== 'string' || !state.title) throw new Error('state.title must be a non-empty string');
   if (!Array.isArray(state.currentStage)) throw new Error('state.currentStage must be an array');
+  // 临时模式标记（runId 目录创建可配 DEC-5）：可选布尔，缺省 = 正常模式（存量 state 零迁移）
+  if (state.ephemeral !== undefined && typeof state.ephemeral !== 'boolean') {
+    throw new Error('state.ephemeral must be a boolean');
+  }
   for (const [id, st] of Object.entries(state.stages || {})) {
     if (!STATUS_ENUM.has(st.status)) throw new Error(`stages[${id}].status invalid: ${st.status}`);
     if (!Array.isArray(st.dependOn)) throw new Error(`stages[${id}].dependOn must be an array`);
     if (typeof st.at !== 'string') throw new Error(`stages[${id}].at must be an ISO 8601 string`);
     if (st.gate !== undefined) assertGate(id, st.gate);
   }
-  if (state.dirs !== undefined) assertDirs(state.dirs);
+  if (state.dirs !== undefined) assertDirs(state.dirs, state.ephemeral === true);
   return true;
 }
 
-/** 目录声明校验（11 §1.2，可选字段）：两绝对路径，runDir 须位于 projectRoot 之内。缺失容错（历史 state）。 */
-function assertDirs(dirs) {
+/** 目录声明校验（11 §1.2，可选字段）：两绝对路径，runDir 须位于 projectRoot 之内——
+ *  临时模式例外（spec I3 收窄）：ephemeral 时运行材料居 <home>/tmp/ddo 下，contain 检查放行，
+ *  绝对路径校验保留。缺失容错（历史 state）。 */
+function assertDirs(dirs, ephemeral = false) {
   if (!dirs || typeof dirs !== 'object') throw new Error('state.dirs must be an object');
   if (typeof dirs.projectRoot !== 'string' || !path.isAbsolute(dirs.projectRoot)) {
     throw new Error('state.dirs.projectRoot must be an absolute path');
@@ -44,9 +50,11 @@ function assertDirs(dirs) {
   if (typeof dirs.runDir !== 'string' || !path.isAbsolute(dirs.runDir)) {
     throw new Error('state.dirs.runDir must be an absolute path');
   }
-  const rel = path.relative(dirs.projectRoot, dirs.runDir);
-  if (rel.startsWith('..') || path.isAbsolute(rel)) {
-    throw new Error('state.dirs.runDir 必须位于 projectRoot 之内');
+  if (!ephemeral) {
+    const rel = path.relative(dirs.projectRoot, dirs.runDir);
+    if (rel.startsWith('..') || path.isAbsolute(rel)) {
+      throw new Error('state.dirs.runDir 必须位于 projectRoot 之内');
+    }
   }
   if (dirs.tasksDir !== undefined && (typeof dirs.tasksDir !== 'string' || !path.isAbsolute(dirs.tasksDir))) {
     throw new Error('state.dirs.tasksDir must be an absolute path'); // 12 D1：可选，出现即须绝对路径

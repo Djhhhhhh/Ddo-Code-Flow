@@ -6,7 +6,8 @@
 
 const path = require('path');
 
-/** projectRoot：<projectRoot>/.ddo/runs/<type>/<dirName>/.state.json 上溯四级（02 基线布局）。 */
+/** projectRoot（历史回落）：<projectRoot>/.ddo/runs/<type>/<dirName>/.state.json 上溯四级（02 基线布局）。
+ *  临时模式 runDir 在 <home>/tmp/ddo 下，上溯结果错误——projectRoot 一律优先 state.dirs 显式声明（11）。 */
 function projectRootOf(statePath) {
   let dir = path.dirname(path.resolve(statePath));
   for (let i = 0; i < 4; i++) dir = path.dirname(dir);
@@ -22,7 +23,7 @@ function resolveWorkdir(state, statePath) {
       ctx: `## Context: 工作目录\n\n- 生效工作目录：${wt}\n- 本次仅在上述工作树内创建/修改文件与执行命令，不得触碰主工作树或其他路径。`,
     };
   }
-  const projectRoot = projectRootOf(statePath);
+  const projectRoot = (state && state.dirs && state.dirs.projectRoot) || projectRootOf(statePath);
   return {
     branch: 'project-root',
     dir: projectRoot,
