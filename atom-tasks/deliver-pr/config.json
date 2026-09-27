@@ -1,0 +1,52 @@
+{
+  "name": "deliver-pr",
+  "version": "2.0.0",
+  "desc": "推送特性分支、创建正式 PR（base 可配）并经合并确认门放行（产出 pr-info）",
+  "phases": [
+    {
+      "id": "01",
+      "summary": "推送分支并创建正式 ready PR",
+      "type": "action",
+      "output": "pr-info.md"
+    },
+    {
+      "id": "02",
+      "summary": "合并确认门（已合并 / 未合并）",
+      "type": "human",
+      "output": {
+        "updates": [
+          "pr-info.md"
+        ]
+      },
+      "gate": {
+        "options": [
+          {
+            "name": "已合并",
+            "desc": "确认 PR 已合并，本相位完成并放行后续清理阶段",
+            "action": "next --decision 已合并"
+          },
+          {
+            "name": "未合并",
+            "desc": "PR 尚未合并——呈现当前状态后保持等待，稍后再次确认",
+            "action": "in-phase"
+          }
+        ]
+      }
+    }
+  ],
+  "configurable": [
+    {
+      "key": "baseBranch",
+      "desc": "PR 合并目标分支（缺省取 state.git.mainBranch）"
+    }
+  ],
+  "defaults": {
+    "extra_ctx": "",
+    "rules": [
+      "PR 一律以正式（ready）状态创建，禁止携带 draft 标志",
+      "push/gh 任何失败立即暂停报告，不得产出 pr-info.md、不得进入确认门",
+      "不得执行任何远程分支删除动作",
+      "TTY 认证类命令（如 gh auth login）不得代跑，交用户以宿主 shell 前缀执行"
+    ]
+  }
+}
