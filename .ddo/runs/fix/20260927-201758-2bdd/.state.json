@@ -1,0 +1,115 @@
+{
+  "runId": "20260927-201758-2bdd",
+  "title": "去掉 worktree-info.json 审计产物，注册信息全收敛进 state.git",
+  "startedAt": "2026-09-27T20:17:58.576+08:00",
+  "git": {
+    "mainBranch": "main",
+    "branch": "fix/drop-worktree-info",
+    "worktreePath": "/Users/djhhh/work_area/Ddo-Code-Flow-fix-drop-worktree-info"
+  },
+  "dirs": {
+    "projectRoot": "/Users/djhhh/work_area/Ddo-Code-Flow-fix-drop-worktree-info",
+    "runDir": "/Users/djhhh/work_area/Ddo-Code-Flow-fix-drop-worktree-info/.ddo/runs/fix/20260927-201758-2bdd",
+    "tasksDir": "/Users/djhhh/work_area/Ddo-Code-Flow/atom-tasks"
+  },
+  "currentStage": [],
+  "stages": {
+    "requirement": {
+      "status": "done",
+      "dependOn": [],
+      "at": "2026-09-27T20:19:01.429+08:00"
+    },
+    "spec": {
+      "status": "done",
+      "dependOn": [
+        "requirement"
+      ],
+      "at": "2026-09-27T20:20:43.343+08:00",
+      "gate": {
+        "phase": "02",
+        "openedAt": "2026-09-27T20:19:55.803+08:00",
+        "options": [
+          {
+            "name": "同意",
+            "desc": "批准当前 spec（仅当不存在未解决 BQ），本相位完成",
+            "action": "next --decision 同意"
+          },
+          {
+            "name": "驳回",
+            "desc": "回滚 spec 阶段，按意见回到相位 01 重新生成",
+            "action": "rollback --stage spec"
+          },
+          {
+            "name": "修改",
+            "desc": "把反馈作为新的需求证据更新受影响条目，展示变化摘要后重新送审",
+            "action": "in-phase"
+          },
+          {
+            "name": "提问",
+            "desc": "只读答疑，不修改 spec、不改变任何 ID 与确认状态",
+            "action": "in-phase"
+          }
+        ],
+        "presentedAt": "2026-09-27T20:19:59.569+08:00",
+        "decision": "同意",
+        "closedAt": "2026-09-27T20:20:43.343+08:00"
+      }
+    },
+    "plan": {
+      "status": "done",
+      "dependOn": [
+        "spec"
+      ],
+      "at": "2026-09-27T20:22:37.056+08:00",
+      "gate": {
+        "phase": "02",
+        "openedAt": "2026-09-27T20:22:08.974+08:00",
+        "options": [
+          {
+            "name": "同意",
+            "desc": "批准当前 revision，本相位完成",
+            "action": "next --decision 同意"
+          },
+          {
+            "name": "驳回",
+            "desc": "回滚 plan 阶段，按意见回到相位 01 重新生成",
+            "action": "rollback --stage plan"
+          },
+          {
+            "name": "修改",
+            "desc": "反馈应用到新 revision 并重评估，展示变化摘要后重新送审",
+            "action": "in-phase"
+          },
+          {
+            "name": "提问",
+            "desc": "只答疑，不改文档、revision 与确认状态",
+            "action": "in-phase"
+          },
+          {
+            "name": "归档",
+            "desc": "按相位 01 §5 归档当前 plan；不代表批准",
+            "action": "in-phase"
+          }
+        ],
+        "presentedAt": "2026-09-27T20:22:16.084+08:00",
+        "decision": "同意",
+        "closedAt": "2026-09-27T20:22:37.056+08:00"
+      }
+    },
+    "coding": {
+      "status": "done",
+      "dependOn": [
+        "plan"
+      ],
+      "at": "2026-09-27T20:23:43.114+08:00"
+    },
+    "reporting": {
+      "status": "done",
+      "dependOn": [
+        "coding"
+      ],
+      "at": "2026-09-27T20:24:45.583+08:00"
+    }
+  },
+  "atomTasks": {}
+}

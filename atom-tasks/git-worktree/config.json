@@ -1,8 +1,7 @@
 {
   "name": "git-worktree",
-  "version": "2.1.0",
-  "desc": "启动前置动作：冷启动问得 title 后、run start 之前创建 Git 分支与隔离工作树",
-  "output": "worktree-info.json",
+  "version": "2.2.0",
+  "desc": "启动前置动作：冷启动问得 title 后、run start 之前创建 Git 分支与隔离工作树（注册收敛进 state.git，本任务不产出文件）",
   "defaults": {
     "extra_ctx": "",
     "rules": [

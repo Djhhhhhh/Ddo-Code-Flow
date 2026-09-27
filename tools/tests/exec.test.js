@@ -281,7 +281,7 @@ test('exec verification：工作目录 ctx 与 coding 同源（共享判定，AC
   }
 });
 
-test('exec git-worktree：前置动作无 ctx 引擎——requirement 不注入，含标准时机声明与产出契约', () => {
+test('exec git-worktree：前置动作无 ctx 引擎——requirement 不注入，含标准时机声明，无产出契约', () => {
   const sb = sandbox();
   try {
     writeState(sb, { currentStage: ['git-worktree:01'], stages: { 'git-worktree': { status: 'running', dependOn: [], at: '...' } } });
@@ -292,7 +292,7 @@ test('exec git-worktree：前置动作无 ctx 引擎——requirement 不注入�
     assert.doesNotMatch(r.stdout, /## Context: Requirement/); // ctx 引擎已删
     assert.doesNotMatch(r.stdout, /添加导出功能/);
     assert.match(r.stdout, /任何 git 命令失败立即暂停报告/); // defaults.rules 注入
-    assert.match(r.stdout, /## Output Contract（产出契约：worktree-info\.json）/); // 登记产物契约
+    assert.doesNotMatch(r.stdout, /## Output Contract/); // 注册收敛进 state.git，任务不产出登记文件
   } finally {
     cleanup(sb);
   }
