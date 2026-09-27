@@ -69,16 +69,15 @@ Requirement 缺失时停止生成并指出缺失，不得依赖模型记忆重�
 
 向用户展示 spec 摘要与关键决策点。
 
-**门选项从确认门数据呈现**：读 state 的 `stages.spec.gate.options`（可经 `status` 获取），把每个选项的 name/desc 原样呈现给用户。用户选择后按 action 处理：
-- 命令型（`next --decision <name>` / `rollback --stage …` / `run finish …`）→ agent 代跑该命令；
-- 相位内交互（`in-phase`）→ 按下方行为定义处理，不触任何推进命令。
-不得在门数据之外自造推进/回滚选项。
+**门选项从统一呈现入口获取**：跑 `node tools/cli.js gate present --state <statePath>` 取交互 payload（本门全部选项的 name/desc/dispatch——静态声明 ∪ 动态选项），把各选项原样呈现给用户（宿主提问工具），不得在 payload 之外自造选项。用户选择后按 dispatch 处理：
+- 命令型（`next --decision <name>` / `rollback --stage …` / `run finish …`）→ agent 代跑 dispatch 命令；
+- 相位内交互（`in-phase`）→ 先 `gate interact --state <statePath> --option <name> [--note <摘要>]` 记录交互，再按下方行为定义处理；处理完成后**重新 `gate present` 送审**——未重新呈现前的决议会被结构拦截（重新询问由结构强制，不靠自觉）。
 
 相位内交互行为定义：
 
-- `回答 BQ-N：<答案>`：把答案作为最高优先级的最新显式用户决定写回 spec，更新所有受影响内容（目标、范围、FR、AC、约束、术语、解释/假设、BQ 状态），将对齐变化摘要展示给用户并重新请求确认；BQ 答案不得等价为批准；
+- `回答 BQ-N：<答案>`（payload 动态选项名为 `回答BQ-N`，无空格）：把答案作为最高优先级的最新显式用户决定写回 spec，更新所有受影响内容（目标、范围、FR、AC、约束、术语、解释/假设、BQ 状态），将对齐变化摘要展示给用户并重新请求确认；BQ 答案不得等价为批准；
 - `修改：<反馈>`：把反馈作为新的需求证据，仅更新受影响条目并保留其他稳定 ID，展示变化摘要后再次请求确认；
 - `提问：<问题>`：只读答疑，不修改 spec、不改变任何 ID 与确认状态；若答案暴露问题，仅解释影响并询问是否需要 `修改：...`。
 
-BQ 约束：存在未解决 BQ 时，不得向用户提供「同意」选项（回答 BQ 未列入静态门选项——它按 BQ 编号动态生成），先以 `回答 BQ-N` 清空未解决 BQ 后再送审。
+BQ 约束：存在未解决 BQ 时，不得向用户提供「同意」选项——动态选项 `回答BQ-N` 已由 gate present 的 present 钩子按 spec.md 现算进 payload，先经它清空未解决 BQ 后再送审。
 <!-- /phase:02 -->

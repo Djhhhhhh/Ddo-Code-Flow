@@ -223,5 +223,5 @@ function buildGate(stages, stageId, phase, tasksDir, at) {
 
 module.exports = {
   loadWorkflow, expandStages, validateTaskConfig, phaseType, nextPhase, readyStages, statusForPhase,
-  standardOptions, buildGate, isAdvancing,
+  standardOptions, buildGate, isAdvancing, DECISION_RE,
 };

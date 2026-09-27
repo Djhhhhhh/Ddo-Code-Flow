@@ -1,0 +1,16 @@
+{
+  "version": "1.0.0",
+  "tasks": [
+    { "id": "task-01", "file": "task-01.md", "title": "交互留痕数据层与门派生 lib（gate.js + assertGate 扩展）", "dependsOn": [] },
+    { "id": "task-02", "file": "task-02.md", "title": "CLI 命令面与决议前置校验（gate present/interact + guide + next/rollback/status/resume 接线）", "dependsOn": ["task-01"] },
+    { "id": "task-03", "file": "task-03.md", "title": "spec 任务 present 钩子（动态 BQ 选项）", "dependsOn": ["task-02"] },
+    { "id": "task-04", "file": "task-04.md", "title": "协议文档同步（SKILL.md + 四个门任务 prompt）", "dependsOn": ["task-02"] },
+    { "id": "task-05", "file": "task-05.md", "title": "测试：新契约全量 + 既有用例更新", "dependsOn": ["task-02", "task-03"] }
+  ],
+  "parallelGroups": [
+    ["task-01"],
+    ["task-02"],
+    ["task-03", "task-04"],
+    ["task-05"]
+  ]
+}

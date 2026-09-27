@@ -1,0 +1,232 @@
+{
+  "runId": "20260927-183803-fe21",
+  "title": "交互协议结构闭环：统一呈现 payload + 呈现与 in-phase 交互留痕 + next 决议前置校验（最后交互后须重新呈现）",
+  "startedAt": "2026-09-27T18:38:03.253+08:00",
+  "git": {
+    "mainBranch": "main"
+  },
+  "dirs": {
+    "projectRoot": "/Users/djhhh/work_area/Ddo-Code-Flow-fix-interaction-loop",
+    "runDir": "/Users/djhhh/work_area/Ddo-Code-Flow-fix-interaction-loop/.ddo/runs/fix/20260927-183803-fe21",
+    "tasksDir": "/Users/djhhh/work_area/Ddo-Code-Flow-fix-interaction-loop/atom-tasks"
+  },
+  "currentStage": [],
+  "stages": {
+    "requirement": {
+      "status": "done",
+      "dependOn": [],
+      "at": "2026-09-27T18:38:22.315+08:00"
+    },
+    "spec": {
+      "status": "done",
+      "dependOn": [
+        "requirement"
+      ],
+      "at": "2026-09-27T18:43:25.462+08:00",
+      "gate": {
+        "phase": "02",
+        "openedAt": "2026-09-27T18:39:47.675+08:00",
+        "options": [
+          {
+            "name": "同意",
+            "desc": "批准当前 spec（仅当不存在未解决 BQ），本相位完成",
+            "action": "next --decision 同意"
+          },
+          {
+            "name": "驳回",
+            "desc": "回滚 spec 阶段，按意见回到相位 01 重新生成",
+            "action": "rollback --stage spec"
+          },
+          {
+            "name": "修改",
+            "desc": "把反馈作为新的需求证据更新受影响条目，展示变化摘要后重新送审",
+            "action": "in-phase"
+          },
+          {
+            "name": "提问",
+            "desc": "只读答疑，不修改 spec、不改变任何 ID 与确认状态",
+            "action": "in-phase"
+          }
+        ],
+        "decision": "同意",
+        "closedAt": "2026-09-27T18:43:25.462+08:00"
+      }
+    },
+    "plan": {
+      "status": "done",
+      "dependOn": [
+        "spec"
+      ],
+      "at": "2026-09-27T18:47:17.082+08:00",
+      "gate": {
+        "phase": "02",
+        "openedAt": "2026-09-27T18:46:35.264+08:00",
+        "options": [
+          {
+            "name": "同意",
+            "desc": "批准当前 revision，本相位完成",
+            "action": "next --decision 同意"
+          },
+          {
+            "name": "驳回",
+            "desc": "回滚 plan 阶段，按意见回到相位 01 重新生成",
+            "action": "rollback --stage plan"
+          },
+          {
+            "name": "修改",
+            "desc": "反馈应用到新 revision 并重评估，展示变化摘要后重新送审",
+            "action": "in-phase"
+          },
+          {
+            "name": "提问",
+            "desc": "只答疑，不改文档、revision 与确认状态",
+            "action": "in-phase"
+          },
+          {
+            "name": "归档",
+            "desc": "按相位 01 §5 归档当前 plan；不代表批准",
+            "action": "in-phase"
+          }
+        ],
+        "decision": "同意",
+        "closedAt": "2026-09-27T18:47:17.082+08:00"
+      }
+    },
+    "test-plan": {
+      "status": "done",
+      "dependOn": [
+        "plan"
+      ],
+      "at": "2026-09-27T18:48:34.408+08:00",
+      "gate": {
+        "phase": "02",
+        "openedAt": "2026-09-27T18:48:04.546+08:00",
+        "options": [
+          {
+            "name": "同意",
+            "desc": "批准 test-plan，进入相位 03（TDD Red 骨架）",
+            "action": "next --decision 同意"
+          },
+          {
+            "name": "驳回",
+            "desc": "回滚 test-plan 阶段，按意见重新生成",
+            "action": "rollback --stage test-plan"
+          },
+          {
+            "name": "修改",
+            "desc": "回到生成并按反馈更新，重新送审",
+            "action": "in-phase"
+          },
+          {
+            "name": "提问",
+            "desc": "只答疑",
+            "action": "in-phase"
+          }
+        ],
+        "decision": "同意",
+        "closedAt": "2026-09-27T18:48:29.772+08:00"
+      }
+    },
+    "tasking": {
+      "status": "done",
+      "dependOn": [
+        "test-plan"
+      ],
+      "at": "2026-09-27T18:49:41.697+08:00"
+    },
+    "coding": {
+      "status": "done",
+      "dependOn": [
+        "tasking"
+      ],
+      "at": "2026-09-27T18:59:52.553+08:00"
+    },
+    "verification": {
+      "status": "done",
+      "dependOn": [
+        "coding"
+      ],
+      "at": "2026-09-27T19:01:28.369+08:00"
+    },
+    "review": {
+      "status": "done",
+      "dependOn": [
+        "verification"
+      ],
+      "at": "2026-09-27T19:03:05.596+08:00"
+    },
+    "reporting": {
+      "status": "done",
+      "dependOn": [
+        "review"
+      ],
+      "at": "2026-09-27T19:03:43.206+08:00"
+    },
+    "reflection": {
+      "status": "done",
+      "dependOn": [
+        "reporting"
+      ],
+      "at": "2026-09-27T19:06:06.645+08:00",
+      "gate": {
+        "phase": "02",
+        "openedAt": "2026-09-27T19:05:15.068+08:00",
+        "options": [
+          {
+            "name": "同意",
+            "desc": "确认收尾，随后执行 run finish --status done",
+            "action": "next --decision 同意"
+          },
+          {
+            "name": "修改",
+            "desc": "回到相位 01 更新报告，重新送审",
+            "action": "in-phase"
+          },
+          {
+            "name": "提问",
+            "desc": "只答疑",
+            "action": "in-phase"
+          }
+        ],
+        "presentedAt": "2026-09-27T19:05:21.272+08:00",
+        "decision": "同意",
+        "closedAt": "2026-09-27T19:06:06.645+08:00"
+      }
+    }
+  },
+  "atomTasks": {
+    "test-plan": {
+      "tdd": false
+    },
+    "coding": {
+      "done": [
+        "task-01",
+        "task-02",
+        "task-03",
+        "task-04",
+        "task-05"
+      ],
+      "batches": [
+        [
+          "task-01"
+        ],
+        [
+          "task-02"
+        ],
+        [
+          "task-03",
+          "task-04"
+        ],
+        [
+          "task-05"
+        ]
+      ],
+      "rounds": [
+        {
+          "round": 1,
+          "tests": "node --test tools/tests/*.test.js → 98 pass / 0 fail"
+        }
+      ]
+    }
+  }
+}

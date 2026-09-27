@@ -1,0 +1,65 @@
+# 验证日志
+
+> test-plan.md 中所有验收条目的执行结果记录。
+
+## G1. 统一呈现 payload（静态+动态+同源）
+
+### 执行结果
+
+- [PASS] node --test tools/tests/present.test.js — 16 tests / 16 pass / 0 fail（payload 形态、隐式门物化、动态选项两用例覆盖 AC-1）
+
+### 组摘要
+
+GROUP G1 PASSED
+
+## G2. 呈现留痕与决议前置校验
+
+### 执行结果
+
+- [PASS] node --test tools/tests/present.test.js — 16 pass（未呈现拦截/补呈现成功/re-ask 闭环/rollback 载体用例覆盖 AC-2/3/4）
+- [PASS] node --test tools/tests/gate.test.js — 19 tests / 19 pass / 0 fail
+
+### 组摘要
+
+GROUP G2 PASSED
+
+## G3. 冷启动与 resume 形态统一
+
+### 执行结果
+
+- [PASS] node --test tools/tests/present.test.js — guide 三问 payload 与 resume 同源（含动态选项）用例覆盖 AC-6/7
+- [PASS] node --test tools/tests/resume.test.js — 4 tests / 4 pass / 0 fail
+
+### 组摘要
+
+GROUP G3 PASSED
+
+## G4. 全量回归
+
+### 执行结果
+
+- [PASS] node --test tools/tests/*.test.js — 98 tests / 98 pass / 0 fail（glob 形式）。注：checklist 原文为目录形式 `node --test tools/tests/`，该形式在本机 Node 22.23.1 下不发现用例（存量怪癖，非本轮回归），按仓库既有约定改用 glob 形式执行——test-plan 模板措辞建议后续轮次统一为 glob 形式
+
+### 组摘要
+
+GROUP G4 PASSED
+
+## G5. 协议机械性人工抽查
+
+### 执行结果
+
+- [PASS] human: 阅读 SKILL.md 与四个门任务 prompt 确认门相位——用户确认通过。证据：`grep "读 state 的 stages."` 四 prompt + SKILL 全部 0 命中；gate present / gate interact 各覆盖 5 个文件；guide 已进 SKILL 冷启动协议（AC-5）
+- [PENDING-OBSERVE] human: 下一次 dogfooding run 开门时观察 agent 呈现与 payload 一致、in-phase 后结构强制 re-present——用户确认留待观察（不阻塞本轮；结构性已由 re-ask 闭环用例覆盖，行为性观察留给下一次实战 run）
+
+### 组摘要
+
+GROUP G5 PASSED（1 通过 + 1 用户确认的待观察项，无失败）
+
+## 人工检查清单
+
+- G5-1 文档机械性：用户确认**通过**（宿主提问工具，2026-09-27）
+- G5-2 后续 dogfooding 观察：用户选择**留待观察**（宿主提问工具，2026-09-27）——已列入 reflection 待办
+
+## 最终结果
+
+ALL PASSED

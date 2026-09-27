@@ -4,7 +4,8 @@
 // 契约：命令注册表即文档源（--help 纯渲染）；四通道输出
 // （stdout=JSON / stderr=人话 / exit 0·1·2 / 状态文件现读不缓存）。
 // 命令在归属的设计轮次登记（03 plan §3.4 命名空间政策）；
-// 当前登记：run start（06）、run finish、rollback（04）、exec、validate（05）、next（06）、status（07）、resume（08）、list tasks / list workflows（10）。
+// 当前登记：run start（06）、run finish、rollback（04）、exec、validate（05）、next（06）、status（07）、resume（08）、list tasks / list workflows（10）、
+// gate present / gate interact、guide（交互协议结构闭环）。
 
 const path = require('path');
 const fs = require('fs');
@@ -14,6 +15,7 @@ const history = require('./lib/history');
 const { assemble, mergeConfig } = require('./lib/assemble');
 const { loadTaskSchema, validateArtifact } = require('./lib/output-schema');
 const { loadWorkflow, expandStages, phaseType, nextPhase, readyStages, statusForPhase, standardOptions, buildGate, isAdvancing } = require('./lib/workflow');
+const { openGates, presentPayload, renderGateOptions, fillState, isPresentationValid } = require('./lib/gate');
 const { gitInfo } = require('./lib/git-info');
 
 const ATOM_TASKS_DIR = path.join(__dirname, '..', 'atom-tasks');
@@ -46,21 +48,6 @@ function currentPosition(state, taskName) {
     if (stageIdOf(entry) === taskName) return phaseOf(entry);
   }
   return null;
-}
-
-/** 门选项（options 三元组）的人话渲染（stderr 提示用——错误信息本身就是提示）。 */
-function renderOptions(gates) {
-  return gates
-    .map((g) => `  ${g.stage}:${g.phase}\n${g.options.map((t) => `    - ${t.name}：${t.desc}（${t.action === 'in-phase' ? '相位内交互' : t.action}）`).join('\n')}`)
-    .join('\n');
-}
-
-/** 门声明的 action 命令补全 --state（status 的 availableCommands 用，agent 可直接执行）。 */
-function fillState(action, statePath) {
-  return action
-    .replace(/^next\b/, `next --state ${statePath}`)
-    .replace(/^rollback\b/, `rollback --state ${statePath}`)
-    .replace(/^run finish\b/, `run finish --state ${statePath}`);
 }
 
 /** 产物路径防逃逸（11 §4）：file 须为 runDir 内相对路径，返回拼接后的绝对路径。 */
@@ -194,6 +181,19 @@ function runRollback(f) {
   }
   const tasksDir = tasksDirFor(f, state);
   const reset = rollbackResetSet(state.stages, target, state.currentStage);
+
+  // 呈现前置校验（交互协议结构闭环）：rollback 是门声明的转移型决议载体（如 驳回）——
+  // 目标 stage 自身开门且呈现无效（从未呈现/交互后未重新呈现）时拦截；
+  // 非门用途的回滚（上游重置、门关闭后的常规回滚）不受此约束
+  const targetGate = openGates(state, statePath, tasksDir).find((g) => g.stage === target);
+  if (targetGate && !isPresentationValid(state.stages[target].gate).valid) {
+    process.stderr.write(
+      `[呈现未更新] ${target}:${targetGate.phase} 的门选项未向用户呈现，或在上次相位内交互后未重新呈现\n` +
+      `驳回类回滚同样需要用户先看到选项：跑 gate present --state ${statePath} 呈现后由用户选择\n${renderGateOptions([targetGate])}\n`
+    );
+    process.exitCode = 1;
+    return { blocked: 'gate-unpresented', stage: target };
+  }
 
   // 失效产物归档（11 §3，激活 04 §2.2 契约）：重置集合各阶段声明的 output 文件，
   // 存在则移动到 <runDir>/_del/rollback-<n>/（移动语义，重做产新文件；缺失跳过）
@@ -418,39 +418,30 @@ function runNext(f) {
   const state = readState(f.state);
   assertState(state);
   if (!state.currentStage.length) throw new Error('无待推进阶段（run 已结束或未启动）');
+  const statePath = f.state;
   const tasksDir = tasksDirFor(f, state);
   const now = nowIso();
 
-  // 门检查（07 §4.2）：human 相位必须经用户决议才能推进——
+  // 门检查（07 §4.2 + 交互协议结构闭环）：human 相位必须经用户决议才能推进——
+  // 开门集自 lib/gate 同源派生（静态声明 ∪ present 钩子动态选项）；
   // 无 gate 视同开门（严格语义：手工/legacy state 不放行，提示用标准兜底操作）
-  const openGates = [];
-  for (const entry of state.currentStage) {
-    const stageId = stageIdOf(entry);
-    const phase = phaseOf(entry);
-    if (phaseType(tasksDir, stageId, phase) !== 'human') continue;
-    const gate = state.stages[stageId].gate;
-    if (!(gate && gate.decision)) openGates.push({ stageId, phase, gate: gate || null });
-  }
+  const gates = openGates(state, statePath, tasksDir);
+  const gateJson = () => gates.map(({ stage, phase, options }) => ({ stage, phase, options }));
   const decision = f.decision;
-  if (openGates.length) {
+  if (gates.length) {
     if (decision === undefined) {
       // 错误信息本身就是提示：stderr 人话 + stdout JSON 含门全量（07 D3）
-      const gates = openGates.map((g) => ({
-        stage: g.stageId, phase: g.phase,
-        options: (g.gate && g.gate.options) || standardOptions(state.stages, g.stageId, g.phase, tasksDir),
-      }));
       process.stderr.write(
         `[确认门未关闭] ${gates.map((g) => `${g.stage}:${g.phase} 需用户决议`).join('；')}\n` +
-        `请向用户呈现以下选项并由其选择——命令型由 agent 代跑，相位内交互按该相位 prompt 处理：\n${renderOptions(gates)}\n`
+        `先跑 gate present --state ${statePath} 取统一交互 payload 并呈现给用户，用户选择后按 dispatch 处理：\n${renderGateOptions(gates)}\n`
       );
       process.exitCode = 1;
-      return { blocked: 'gate-open', gates };
+      return { blocked: 'gate-open', gates: gateJson() };
     }
-    for (const g of openGates) {
-      const options = (g.gate && g.gate.options) || standardOptions(state.stages, g.stageId, g.phase, tasksDir);
-      const hit = options.find((t) => t.name === decision);
+    for (const g of gates) {
+      const hit = g.options.find((t) => t.name === decision);
       if (!hit) {
-        throw new UsageError(`未知决议: ${decision}（${g.stageId}:${g.phase} 声明: ${options.map((t) => t.name).join(', ')}）`);
+        throw new UsageError(`未知决议: ${decision}（${g.stage}:${g.phase} 声明: ${g.options.map((t) => t.name).join(', ')}）`);
       }
       if (hit.action === 'in-phase') {
         throw new Error(`决议 ${decision} 是相位内交互（${hit.desc}）——按该相位 prompt 的行为定义处理，不走 next`);
@@ -458,6 +449,17 @@ function runNext(f) {
       if (!isAdvancing(hit.action)) {
         throw new Error(`决议 ${decision} 的动作不是推进（${hit.action}）——请执行该声明的命令`);
       }
+    }
+    // 呈现前置校验（交互协议结构闭环）：决议合法后、推进前——
+    // 必须存在晚于「门开启时间与最后一条交互记录较晚者」的呈现记录（gate present 留痕）
+    const invalid = gates.filter((g) => !isPresentationValid(state.stages[g.stage].gate).valid);
+    if (invalid.length) {
+      process.stderr.write(
+        `[呈现未更新] ${invalid.map((g) => `${g.stage}:${g.phase}`).join('；')} 的门选项未向用户呈现，或在上次相位内交互后未重新呈现\n` +
+        `先跑 gate present --state ${statePath} 把选项呈现给用户，获得用户明确选择后再决议：\n${renderGateOptions(gates)}\n`
+      );
+      process.exitCode = 1;
+      return { blocked: 'gate-unpresented', gates: gateJson() };
     }
   } else if (decision !== undefined) {
     throw new UsageError('--decision 仅在存在未关闭确认门时使用');
@@ -541,7 +543,8 @@ function statusView(state, statePath, tasksDir) {
   });
 
   // gateOptions（呈现集）/ availableCommands（可执行集）派生（不存储，单一事实源）：
-  // human 开门位 → gateOptions = 门全部选项（含 in-phase 相位内交互，供向用户呈现），
+  // human 开门位 → gateOptions = openGates 同源派生（静态 ∪ present 钩子动态选项，
+  //                含 in-phase 相位内交互，与 gate present payload 一致——交互形态不分叉），
   //                availableCommands 仅命令型选项（--state 补全）；
   // action 位 → exec/validate/next；全局 → rollback/finish
   const gateOptions = [];
@@ -549,11 +552,11 @@ function statusView(state, statePath, tasksDir) {
   if (!state.currentStage.length) {
     availableCommands.push({ cmd: `run finish --state ${statePath} --status done`, desc: '全部阶段完成，收束本次 run' });
   } else {
+    const openList = openGates(state, statePath, tasksDir); // 同源派生（含动态选项）
     for (const p of positions) {
-      const openGate = p.phaseType === 'human' && (!p.gate || !p.gate.decision);
+      const openGate = openList.find((g) => g.stage === p.stage && g.phase === p.phase);
       if (openGate) {
-        const options = (p.gate && p.gate.options) || standardOptions(state.stages, p.stage, p.phase, tasksDir);
-        for (const t of options) {
+        for (const t of openGate.options) {
           gateOptions.push({ name: t.name, desc: t.desc, action: t.action });
           if (t.action !== 'in-phase') {
             availableCommands.push({ name: t.name, cmd: fillState(t.action, statePath), desc: t.desc });
@@ -573,6 +576,100 @@ function statusView(state, statePath, tasksDir) {
     availableCommands.push({ cmd: `run finish --state ${statePath} --status aborted`, desc: '中止本次 run' });
   }
   return { runId: state.runId, title: state.title, currentStage: positions, gateOptions, availableCommands };
+}
+
+
+// ---------------------------------------------------------------- gate 域 / guide（交互协议结构闭环）
+
+/**
+ * gate present：统一交互呈现入口。物化隐式门 → 组装静态∪动态选项 → 盖 presentedAt（同一时刻）
+ * → 输出 payload。payload 是 agent 向用户呈现的唯一数据源（dispatch 含执行指引）。
+ */
+function gatePresent(f) {
+  const state = readState(f.state);
+  assertState(state);
+  if (!state.currentStage.length) throw new Error('无待呈现的确认门（run 已结束或未启动）');
+  const statePath = f.state;
+  const tasksDir = tasksDirFor(f, state);
+  const gates = openGates(state, statePath, tasksDir);
+  if (!gates.length) {
+    process.stderr.write('[无开门] 当前位置没有等待决议的确认门（用 status 查看位置）\n');
+    process.exitCode = 1;
+    return { presented: 0 };
+  }
+  const now = nowIso();
+  const presented = [];
+  for (const g of gates) {
+    // 隐式门物化（注册源仍是相位声明，present 是实例的补全时机——不伪造）
+    const gate = state.stages[g.stage].gate || buildGate(state.stages, g.stage, g.phase, tasksDir, now);
+    state.stages[g.stage] = { ...state.stages[g.stage], gate: { ...gate, presentedAt: now } };
+    presented.push(g.stage);
+  }
+  writeState(statePath, state);
+  return { ...presentPayload(gates, statePath), presentedAt: now, presented };
+}
+
+/** gate interact：in-phase 交互留痕（使既有呈现过期）。选项合法性按同源开门集校验（静态∪动态）。 */
+function gateInteract(f) {
+  const state = readState(f.state);
+  assertState(state);
+  if (!f.option) throw new UsageError('gate interact: 缺少必填参数 --option（in-phase 选项名，用 --help 查看用法）');
+  const statePath = f.state;
+  const tasksDir = tasksDirFor(f, state);
+  const gates = openGates(state, statePath, tasksDir);
+  if (!gates.length) throw new Error('无开着的确认门可记录交互（用 status 查看位置）');
+  const targets = f.stage ? gates.filter((g) => g.stage === f.stage) : gates;
+  if (f.stage && !targets.length) {
+    throw new UsageError(`--stage ${f.stage} 没有开着的确认门（开门: ${gates.map((g) => g.stage).join(', ')}）`);
+  }
+  if (targets.length > 1) {
+    throw new UsageError(`存在多个开着的门（${targets.map((g) => g.stage).join(', ')}）——须 --stage 指定`);
+  }
+  const g = targets[0];
+  const hit = g.options.find((t) => t.name === f.option);
+  if (!hit) {
+    const inPhase = g.options.filter((t) => t.action === 'in-phase').map((t) => t.name);
+    throw new Error(`未知交互选项: ${f.option}（${g.stage}:${g.phase} 的 in-phase 选项: ${inPhase.join(', ') || '无'}；命令型决议走其声明命令，不记录交互）`);
+  }
+  if (hit.action !== 'in-phase') {
+    throw new Error(`选项 ${f.option} 是命令型决议（${hit.action}）——agent 代跑该命令，不走 gate interact`);
+  }
+  const now = nowIso();
+  const gate = state.stages[g.stage].gate || buildGate(state.stages, g.stage, g.phase, tasksDir, now);
+  const interactions = [...((gate.interactions) || []), { option: f.option, ...(f.note ? { note: f.note } : {}), at: now }];
+  state.stages[g.stage] = { ...state.stages[g.stage], gate: { ...gate, interactions } };
+  writeState(statePath, state);
+  return { recorded: { stage: g.stage, phase: g.phase, option: f.option, at: now } };
+}
+
+/** guide：冷启动引导唯一数据源（无 state、无副作用）——问目标/问模式/问类型，选项数据同 payload 形态。 */
+function runGuide(f) {
+  const wf = listWorkflows(f);
+  return {
+    questions: [
+      { id: 'goal', question: '本次要做什么？一句话即为 --title', freeText: true },
+      {
+        id: 'mode',
+        question: '用哪个工作流模式？',
+        options: [
+          ...wf.workflows.map((w) => ({ name: w.name, desc: `${w.description}（阶段链: ${w.stages.join(' → ')}）` })),
+          { name: '自定义', desc: '与用户商定阶段链：先跑 list tasks 看任务清单，写临时预设 JSON 后 run start --workflows-dir <临时目录> --workflow <名>' },
+        ],
+      },
+      {
+        id: 'type',
+        question: 'run 类型？（runDir 第一段）',
+        options: [
+          { name: 'feat', desc: '新能力（缺省）' },
+          { name: 'fix', desc: '缺陷修复' },
+          { name: 'docs', desc: '文档' },
+          { name: 'chore', desc: '杂务' },
+        ],
+        freeText: '其他单段安全字符亦可（字母/数字/._-，如 refactor）',
+      },
+    ],
+    hint: '逐问呈现给用户（宿主提问工具），答案依次对应 run start 的 --title / --workflow（或自定义流程）/ --type',
+  };
 }
 
 
@@ -821,6 +918,39 @@ const REGISTRY = [
       { flag: '--tasks-dir', desc: '原子任务根目录（缺省仓库 atom-tasks/；测试用）' },
     ],
     run: runStatus,
+  },
+  {
+    name: 'gate present',
+    summary: '统一交互呈现入口：开门集 payload（静态∪动态选项 + dispatch）+ 盖 presentedAt 留痕（交互协议结构闭环）',
+    usage: 'gate present --state <path> [--tasks-dir <path>]',
+    options: [
+      { flag: '--state', desc: '.state.json 绝对路径', required: true },
+      { flag: '--tasks-dir', desc: '原子任务根目录（缺省仓库 atom-tasks/；测试用）' },
+    ],
+    run: gatePresent,
+  },
+  {
+    name: 'gate interact',
+    summary: '相位内交互留痕：记录 in-phase 选项交互（提问/修改/回答BQ），使既有呈现过期——决议前须重新呈现',
+    usage: 'gate interact --state <path> --option <name> [--note <text>] [--stage <stageId>] [--tasks-dir <path>]',
+    options: [
+      { flag: '--state', desc: '.state.json 绝对路径', required: true },
+      { flag: '--option', desc: 'in-phase 选项名（payload 中的 name；命令型决议不走本命令）', required: true },
+      { flag: '--note', desc: '交互摘要（可选，如提问内容——进 state 供审计）' },
+      { flag: '--stage', desc: '目标 stageId（多门并发时必填，缺省要求唯一开门）' },
+      { flag: '--tasks-dir', desc: '原子任务根目录（缺省仓库 atom-tasks/；测试用）' },
+    ],
+    run: gateInteract,
+  },
+  {
+    name: 'guide',
+    summary: '冷启动引导唯一数据源：问目标/问模式/问类型的统一 payload（无 state、无副作用）',
+    usage: 'guide [--workflows-dir <path>] [--tasks-dir <path>]',
+    options: [
+      { flag: '--workflows-dir', desc: '预设根目录（缺省仓库 workflows/；测试用）' },
+      { flag: '--tasks-dir', desc: '原子任务根目录（缺省仓库 atom-tasks/；自定义模式时配套 list tasks）' },
+    ],
+    run: runGuide,
   },
 ];
 

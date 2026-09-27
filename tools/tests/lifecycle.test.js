@@ -248,6 +248,8 @@ test('run start 记录 dirs.tasksDir：自定义链后续命令免 flag 读 stat
     assert.equal(blocked.status, 1);
     assert.match(blocked.stderr, /同意/);
 
+    const present = cli(['gate', 'present', '--state', out.statePath], sb); // 呈现留痕（免 flag 读 state 内 tasksDir）
+    assert.equal(present.status, 0, present.stderr);
     const n2 = cli(['next', '--state', out.statePath, '--decision', '同意'], sb);
     assert.equal(n2.status, 0, n2.stderr);
     assert.equal(JSON.parse(n2.stdout).completed, true);
