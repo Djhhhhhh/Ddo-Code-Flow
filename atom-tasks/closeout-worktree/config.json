@@ -1,0 +1,15 @@
+{
+  "name": "closeout-worktree",
+  "version": "2.0.0",
+  "desc": "交付链收尾：run 产物入库 → 推进完成 → 免归档收口 → 移除 worktree（保留本地/远程分支）",
+  "defaults": {
+    "extra_ctx": "",
+    "rules": [
+      "顺序不变量：next（completed）先于 run finish，run finish 先于 git worktree remove——不得调换、不得跳步",
+      "收口一律 --no-archive（交付链固定免归档，不写用户级 history）",
+      "产物提交点名路径，仅含本 run 目录（runDir）内产物",
+      "本地分支默认保留（未合并分支不得删除）；远程分支永不删除",
+      "任一 git/CLI 失败立即暂停报告"
+    ]
+  }
+}

@@ -50,12 +50,12 @@ test('list workflows：两条交付预设入清单且阶段链正确，basic/sta
   try {
     const out = JSON.parse(cli(['list', 'workflows'], sb).stdout);
     const pd = out.workflows.find((w) => w.name === 'pr-delivery');
-    assert.equal(pd.version, '1.0.0');
+    assert.equal(pd.version, '1.1.0');
     assert.match(pd.description, /交付收尾链/);
-    assert.deepEqual(pd.stages, ['deliver-pr', 'cleanup-worktree']);
+    assert.deepEqual(pd.stages, ['deliver-pr', 'closeout-worktree']);
 
     const pdi = out.workflows.find((w) => w.name === 'pr-delivery-issue');
-    assert.deepEqual(pdi.stages, ['deliver-pr', 'link-issue', 'cleanup-worktree']);
+    assert.deepEqual(pdi.stages, ['deliver-pr', 'link-issue', 'closeout-worktree']);
 
     assert.ok(out.workflows.some((w) => w.name === 'basic')); // 存量预设不受影响
     assert.ok(out.workflows.some((w) => w.name === 'standard'));
@@ -91,8 +91,8 @@ test('run start --workflow pr-delivery：物化两阶段 DAG，起点 deliver-pr
     assert.deepEqual(out.currentStage, ['deliver-pr:01']);
     assert.deepEqual(out.openedGates, []);
     const state = JSON.parse(fs.readFileSync(out.statePath, 'utf8'));
-    assert.deepEqual(Object.keys(state.stages), ['deliver-pr', 'cleanup-worktree']);
-    assert.equal(state.stages['cleanup-worktree'].status, 'pending');
+    assert.deepEqual(Object.keys(state.stages), ['deliver-pr', 'closeout-worktree']);
+    assert.equal(state.stages['closeout-worktree'].status, 'pending');
     assert.deepEqual(state.atomTasks, {}); // baseBranch 无 default → 不预填
   } finally {
     cleanup(sb);
@@ -190,7 +190,52 @@ test('link-issue：pr-info 在场注入 Context；缺失时 exec 硬失败（必
 
     const n = cli(['next', '--state', ok.statePath], sb);
     const jn = JSON.parse(n.stdout);
-    assert.deepEqual(jn.currentStage, ['cleanup-worktree:01']); // 变体链终点阶段点亮
+    assert.deepEqual(jn.currentStage, ['closeout-worktree:01']); // 变体链终点阶段点亮
+  } finally {
+    cleanup(sb);
+  }
+});
+
+// ---------------------------------------------------------------- closeout-worktree 顺序契约
+
+test('closeout-worktree：单相位注册；exec 步骤顺序=产物入库 → next 完成 → finish --no-archive → 终态入库 → 移除 worktree', () => {
+  const sb = sandbox();
+  try {
+    const reg = JSON.parse(cli(['list', 'tasks'], sb).stdout);
+    const co = reg.tasks.find((t) => t.name === 'closeout-worktree');
+    assert.match(co.desc, /免归档收口/);
+    assert.deepEqual(co.phases.map((p) => `${p.id}:${p.type}`), ['01:action']);
+    assert.equal(co.configurable, undefined); // 免归档为链内固定语义，不做旋钮
+
+    // 变体链驱动至终段（pr-info/issue-link 满足前序校验）
+    const out = startRun(sb, 'pr-delivery-issue');
+    const runDir = path.dirname(out.statePath);
+    fs.writeFileSync(path.join(runDir, 'pr-info.md'), PR_INFO);
+    cli(['next', '--state', out.statePath], sb);
+    cli(['gate', 'present', '--state', out.statePath], sb);
+    cli(['next', '--state', out.statePath, '--decision', '已合并'], sb);
+    fs.writeFileSync(path.join(runDir, 'issue-link.md'),
+      '# Issue 关联\n\n## 关联信息\n\n- issue：#12\n- PR：#57（https://github.com/owner/repo/pull/57）\n- 评论：https://github.com/owner/repo/issues/12#issuecomment-1\n');
+    assert.equal(JSON.parse(cli(['validate', '--state', out.statePath, '--task', 'link-issue'], sb).stdout).validated, true);
+    cli(['next', '--state', out.statePath], sb);
+
+    const ex = cli(['exec', '--state', out.statePath, '--task', 'closeout-worktree'], sb);
+    assert.equal(ex.status, 0, ex.stderr);
+    const idx = (re, what) => {
+      const mm = ex.stdout.match(re);
+      assert.ok(mm, `closeout prompt 缺少「${what}」`);
+      return mm.index;
+    };
+    const iCommit1 = idx(/产物入库（保底）/, '产物保底入库');
+    const iNext = idx(/next --state <statePath>/, '推进完成');
+    const iFinish = idx(/run finish --state <statePath> --status done --no-archive/, '免归档收口');
+    const iCommit2 = idx(/终态入库/, '终态入库');
+    const iRemove = idx(/git worktree remove/, '移除 worktree');
+    assert.ok(iCommit1 < iNext, '先入库再推进');
+    assert.ok(iNext < iFinish, 'completed 先于收口（顺序不变量）');
+    assert.ok(iFinish < iCommit2, '收口先于终态入库');
+    assert.ok(iCommit2 < iRemove, '终态入库先于移除（账本消失在收口之后）');
+    assert.match(ex.stdout, /远程分支永不删除/);
   } finally {
     cleanup(sb);
   }
