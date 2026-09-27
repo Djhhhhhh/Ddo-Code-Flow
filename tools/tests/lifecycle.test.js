@@ -20,7 +20,7 @@ const { validateTaskConfig } = require(path.join(__dirname, '..', 'lib', 'workfl
 
 function sandbox() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ddo-life-test-'));
-  return { dir, ddoHome: path.join(dir, 'ddo-home'), home: path.join(dir, 'home') };
+  return { dir, ddoHome: path.join(dir, 'ddo-home') };
 }
 
 function cleanup(sb) {
@@ -30,7 +30,7 @@ function cleanup(sb) {
 function cli(args, sb) {
   return spawnSync(process.execPath, [CLI, ...args], {
     cwd: sb.dir,
-    env: { ...process.env, DDO_HOME: sb.ddoHome, HOME: sb.home }, // HOME 指沙箱：--ephemeral 的 <home>/tmp/ddo 不触真实主目录
+    env: { ...process.env, DDO_HOME: sb.ddoHome }, // 临时模式材料居 DDO_HOME/tmp，沙箱天然隔离
     encoding: 'utf8',
   });
 }
@@ -389,7 +389,7 @@ test('run finish（临时模式）：蕴含免归档 + 删 runDir 整目录 + in
     const start = cli(['run', 'start', '--title', '临时收口', '--project', project, '--ephemeral'], sb);
     assert.equal(start.status, 0, start.stderr);
     const out = JSON.parse(start.stdout);
-    const runDir = path.join(sb.home, 'tmp', 'ddo', 'feat', out.runId);
+    const runDir = path.join(sb.ddoHome, 'tmp', 'feat', out.runId);
     fs.writeFileSync(path.join(runDir, 'spec.md'), '# spec\n'); // 模拟 run 期间产物
 
     const fin = cli(['run', 'finish', '--state', out.statePath, '--status', 'aborted'], sb);

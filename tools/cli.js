@@ -376,7 +376,7 @@ function runStart(f) {
   if (f['dir-name'] !== undefined && !NAME_RE.test(f['dir-name'])) {
     throw new UsageError(`--dir-name 非法: ${f['dir-name']}（仅限单段安全字符）`);
   }
-  // 临时模式（DEC-1）：运行材料整体移居 <home>/tmp/ddo（项目内零创建），finish 后直接删除。
+  // 临时模式（DEC-1）：运行材料整体移居 ~/.ddo/tmp（项目内零创建），finish 后直接删除。
   // --dir-name 互斥——语义目录名对即删材料无意义，fail fast 防歧义
   const ephemeral = f.ephemeral === true;
   if (ephemeral && f['dir-name'] !== undefined) {
@@ -403,7 +403,7 @@ function runStart(f) {
       return `${id}:01`;
     });
 
-  // 居所分叉（DEC-2）：ephemeral → <home>/tmp/ddo/<type>/<runId>（与项目内布局同构）；正常 → 现状不动。
+  // 居所分叉（DEC-2）：ephemeral → ~/.ddo/tmp/<type>/<runId>（与项目内布局同构）；正常 → 现状不动。
   // 两分支共用下方「statePath 已存在则抛错」防重检查（runId 唯一性由 freshRunId 保证）
   const dirName = f['dir-name'] || runId;
   const runDir = ephemeral
@@ -704,7 +704,7 @@ function runGuide(f) {
         question: '运行材料居所？',
         options: [
           { name: '正常', desc: '缺省：项目内 .ddo/runs/<type>/<runId>/ 创建 runId 目录，产物与 state 同址随项目版控' },
-          { name: '临时', desc: '项目内不创建 runId 目录，运行材料落 <home>/tmp/ddo/<type>/<runId>/，run finish 后直接删除（--ephemeral；适合过程信息无需保留的流程型 run，如 PR 交付链；与 worktree 组合时产物不入分支）' },
+          { name: '临时', desc: '项目内不创建 runId 目录，运行材料落 ~/.ddo/tmp/<type>/<runId>/，run finish 后直接删除（--ephemeral；适合过程信息无需保留的流程型 run，如 PR 交付链；与 worktree 组合时产物不入分支）' },
         ],
       },
     ],
@@ -774,7 +774,7 @@ function runResume(f) {
   }
 
   // 发现（D2 全局清单，D3 一律先列）：惰性校验 → 概要清单；currentStage 空 = 待收束仍展示（D4）
-  // --project 过滤：statePath 前缀之外，临时模式 run（statePath 在 <home>/tmp 下）经 state.dirs.projectRoot
+  // --project 过滤：statePath 前缀之外，临时模式 run（statePath 在 ~/.ddo/tmp 下）经 state.dirs.projectRoot
   // 判定归属——失效条目（state 不可读）无法归属，静默跳过不计 stale
   const runs = [];
   let staleCount = 0;
@@ -885,14 +885,14 @@ const REGISTRY = [
   },
   {
     name: 'run start',
-    summary: '按预设装配启动 run：物化 .state.json + 注册 index（06）；--ephemeral 临时模式材料落 <home>/tmp/ddo',
+    summary: '按预设装配启动 run：物化 .state.json + 注册 index（06）；--ephemeral 临时模式材料落 ~/.ddo/tmp',
     usage: 'run start --title <text> [--workflow basic] [--type feat] [--dir-name <name>] [--ephemeral] [--project <path>] [--workflows-dir <path>] [--tasks-dir <path>]',
     options: [
       { flag: '--title', desc: 'run 标题（一句话描述，进 state 与 history）', required: true },
       { flag: '--workflow', desc: 'workflow 预设名（workflows/<name>.json，缺省 basic）' },
       { flag: '--type', desc: 'run 类型（目录第一段，缺省 feat）' },
       { flag: '--dir-name', desc: '运行目录名（目录第二段，缺省 runId；与 --ephemeral 互斥）' },
-      { flag: '--ephemeral', desc: '布尔旗标：临时模式——项目内不创建 runId 目录，运行材料（含 .state.json）落 <home>/tmp/ddo/<type>/<runId>/，run finish 后直接删除（蕴含免归档；适合过程信息无需保留的流程型 run）' },
+      { flag: '--ephemeral', desc: '布尔旗标：临时模式——项目内不创建 runId 目录，运行材料（含 .state.json）落 ~/.ddo/tmp/<type>/<runId>/，run finish 后直接删除（蕴含免归档；适合过程信息无需保留的流程型 run）' },
       { flag: '--project', desc: '项目根（缺省 cwd）' },
       { flag: '--workflows-dir', desc: '预设根目录（缺省仓库 workflows/；测试用）' },
       { flag: '--tasks-dir', desc: '原子任务根目录（缺省仓库 atom-tasks/；测试用）' },

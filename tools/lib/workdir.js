@@ -7,7 +7,7 @@
 const path = require('path');
 
 /** projectRoot（历史回落）：<projectRoot>/.ddo/runs/<type>/<dirName>/.state.json 上溯四级（02 基线布局）。
- *  临时模式 runDir 在 <home>/tmp/ddo 下，上溯结果错误——projectRoot 一律优先 state.dirs 显式声明（11）。 */
+ *  临时模式 runDir 在 ~/.ddo/tmp 下，上溯结果错误——projectRoot 一律优先 state.dirs 显式声明（11）。 */
 function projectRootOf(statePath) {
   let dir = path.dirname(path.resolve(statePath));
   for (let i = 0; i < 4; i++) dir = path.dirname(dir);

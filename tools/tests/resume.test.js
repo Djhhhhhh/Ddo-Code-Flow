@@ -183,7 +183,7 @@ test('resume：临时模式 run（statePath 在项目外）经 state.dirs 归属
   try {
     const runId = '20260927-000000-aa01';
     const projA = path.join(sb.dir, 'projA');
-    const runDir = path.join(sb.dir, 'home', 'tmp', 'ddo', 'feat', runId);
+    const runDir = path.join(sb.ddoHome, 'tmp', 'feat', runId);
     fs.mkdirSync(runDir, { recursive: true });
     const statePath = path.join(runDir, '.state.json');
     fs.writeFileSync(statePath, JSON.stringify({
