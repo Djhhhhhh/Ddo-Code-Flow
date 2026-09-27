@@ -215,6 +215,28 @@ test('exec coding 工作目录：worktreePath 非空 → worktree 分支（声�
   }
 });
 
+test('exec coding 工作目录：worktreePath = projectRoot（新拓扑）→ 仍为 worktree 分支语义（WTT 天然兼容）', () => {
+  const sb = sandbox();
+  try {
+    // 新拓扑单一性：worktree 本身即 projectRoot，runDir 在其内
+    writeState(sb, {
+      ...WORKDIR_CODING,
+      git: { mainBranch: 'main', branch: 'feat/x', worktreePath: sb.dir },
+      dirs: { projectRoot: sb.dir, runDir: sb.runDir },
+    });
+    put(sb, 'spec.md', '# Spec');
+    put(sb, 'plan.md', '# Plan');
+    const r = cli(['exec', '--state', sb.statePath, '--task', 'coding'], sb);
+    assert.equal(r.status, 0);
+    assert.match(r.stdout, /## Context: 工作目录/);
+    assert.match(r.stdout, new RegExp(`生效工作目录：${sb.dir.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}`));
+    assert.match(r.stdout, /不得触碰主工作树/);
+    assert.doesNotMatch(r.stdout, /不涉及 worktree/);
+  } finally {
+    cleanup(sb);
+  }
+});
+
 test('exec coding 工作目录：worktreePath 缺失 / 空串 / git 对象缺失 → projectRoot 分支；不含 worktree 硬约束', () => {
   const sb = sandbox();
   try {
@@ -259,16 +281,18 @@ test('exec verification：工作目录 ctx 与 coding 同源（共享判定，AC
   }
 });
 
-test('exec git-worktree：requirement 必需，缺失 exit 1；存在时注入并输出裸文本', () => {
+test('exec git-worktree：前置动作无 ctx 引擎——requirement 不注入，含标准时机声明与产出契约', () => {
   const sb = sandbox();
   try {
     writeState(sb, { currentStage: ['git-worktree:01'], stages: { 'git-worktree': { status: 'running', dependOn: [], at: '...' } } });
-    assert.equal(cli(['exec', '--state', sb.statePath, '--task', 'git-worktree'], sb).status, 1);
-    put(sb, 'requirement.md', '# 需求\n添加导出功能');
+    put(sb, 'requirement.md', '# 需求\n添加导出功能'); // 即使存在也不注入（输入源已改为冷启动 title）
     const r = cli(['exec', '--state', sb.statePath, '--task', 'git-worktree'], sb);
     assert.equal(r.status, 0);
-    assert.match(r.stdout, /添加导出功能/);
+    assert.match(r.stdout, /标准时机为启动前置/);        // 重定位声明（链内引用属误用）
+    assert.doesNotMatch(r.stdout, /## Context: Requirement/); // ctx 引擎已删
+    assert.doesNotMatch(r.stdout, /添加导出功能/);
     assert.match(r.stdout, /任何 git 命令失败立即暂停报告/); // defaults.rules 注入
+    assert.match(r.stdout, /## Output Contract（产出契约：worktree-info\.json）/); // 登记产物契约
   } finally {
     cleanup(sb);
   }

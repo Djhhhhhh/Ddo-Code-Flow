@@ -84,7 +84,7 @@ test('run start：目录布局 .ddo/runs/<type>/<dirName>，index 含 startedAt'
   }
 });
 
-test('run start：git 仓库 → mainBranch 走推断链（init.defaultBranch 档）', () => {
+test('run start：git 仓库 → mainBranch 走推断链（init.defaultBranch 档）；主检出不产出 worktree 字段（VA-3）', () => {
   const sb = sandbox();
   try {
     fs.mkdirSync(sb.project, { recursive: true });
@@ -94,6 +94,30 @@ test('run start：git 仓库 → mainBranch 走推断链（init.defaultBranch �
     assert.equal(r.status, 0, r.stderr);
     const state = JSON.parse(fs.readFileSync(JSON.parse(r.stdout).statePath, 'utf8'));
     assert.equal(state.git.mainBranch, 'trunk');
+    assert.ok(!('worktreePath' in state.git), '主检出不得出现 worktreePath');
+    assert.ok(!('branch' in state.git), '主检出不得出现 branch');
+  } finally {
+    cleanup(sb);
+  }
+});
+
+test('run start：projectRoot 位于 worktree → git 自动捕获 branch/worktreePath（WTT 注册内置，VA-2）', () => {
+  const sb = sandbox();
+  try {
+    fs.mkdirSync(sb.project, { recursive: true });
+    const g = (...a) => spawnSync('git', a, { cwd: sb.project, encoding: 'utf8' });
+    g('init', '-q', '-b', 'main');
+    g('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'init');
+    const wt = path.join(sb.dir, 'project-feat-wtt');
+    g('worktree', 'add', '-q', wt, '-b', 'feat/wtt-demo');
+    const r = cli(['run', 'start', '--title', 't', '--project', wt], sb);
+    assert.equal(r.status, 0, r.stderr);
+    const state = JSON.parse(fs.readFileSync(JSON.parse(r.stdout).statePath, 'utf8'));
+    assert.equal(state.git.branch, 'feat/wtt-demo');          // 第三档捕获
+    assert.equal(state.git.worktreePath, wt);                 // = dirs.projectRoot（新拓扑单一性）
+    assert.equal(state.git.mainBranch, 'main');               // mainBranch 推断不受第三档影响
+    assert.equal(state.dirs.projectRoot, wt);
+    assert.ok(state.dirs.runDir.startsWith(wt + path.sep), 'runDir 落在 worktree 内');
   } finally {
     cleanup(sb);
   }
