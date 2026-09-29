@@ -30,48 +30,46 @@ metadata:
   **临时模式例外**（`run start --ephemeral`）：runDir 改为 `~/.ddo/tmp/<type>/<runId>/`（项目内零创建，
   居所不变量的显式例外）——适合过程信息无需保留的流程型 run（如 PR 交付链）；与 worktree 组合时产物不入分支。
 - `DDO_HOME`：全局索引目录，缺省 `~/.ddo`（`index.json` 运行中指针、`history/runs.jsonl` 历史、
-  `history/<runId>.zip` 结束归档（runDir 整目录 zip，#51）。
+  `history/<runId>.zip` 结束归档（runDir 整目录 zip）。
 - CLI 入口：`node <skillRoot>/tools/cli.js <命令>`。
 
-**产物生命周期（11）**：中间产物默认随项目版控走（留在 runDir，不搬不移）；rollback 时重置阶段
+**产物生命周期**：中间产物默认随项目版控走（留在 runDir，不搬不移）；rollback 时重置阶段
 声明的产物**移动**到 `<runDir>/_del/rollback-<n>/`（原位消失，重做产新文件）；run finish 时
-runId 目录整目录 zip 归档到 `~/.ddo/history/<runId>.zip`（取代旧 state 目录副本；原目录不动，随项目版控走）。output 声明
+runId 目录整目录 zip 归档到 `~/.ddo/history/<runId>.zip`（原目录不动，随项目版控走）。output 声明
 禁绝对路径与 `..`（防逃逸，CLI 两层校验）。**临时模式**（`state.ephemeral`）：finish 蕴含免归档
 （zip 与 runs.jsonl 均不落）并**直接删除** runDir 整目录——项目内外零残留（含 aborted/failed 终态）。
 
 ## worktree 创建时机（WTT 机制）
 
-**时序定版**：worktree（如启用）在**冷启动阶段、`run start` 之前**创建——分支名从冷启动问得的
+**时序**：worktree（如启用）在**启动引导阶段、`run start` 之前**创建——分支名从引导问得的
 需求一句话（title）提取；随后 `run start --project <工作树绝对路径>` 落位，state 与全部产物
-落在 worktree 分支内（runDir ⊂ projectRoot 不变量天然满足）。这消解「分支名须源自需求 ↔
-state 须落 worktree 分支」的时序矛盾：创建在前、物化在后，无中途迁移、无分裂拓扑。
+落在 worktree 分支内（runDir ⊂ projectRoot 不变量天然满足）：创建在前、物化在后，无中途迁移。
 
-**职责分层（注册内置、创建留任）**：
+**注册与创建的分工**：
 
-- **注册内置**：`run start` 时 git-info 推断链第三档自动探测——projectRoot 位于 worktree
+- **注册**：`run start` 时 git-info 推断链自动探测——projectRoot 位于 worktree
   （`--git-dir` 与 `--git-common-dir` 绝对化比较不等）即捕获 `state.git.branch` 与
-  `state.git.worktreePath`（= `dirs.projectRoot`，新拓扑单一性；主检出/非 git 不产出新字段）。
+  `state.git.worktreePath`（= `dirs.projectRoot`；主检出/非 git 不产出新字段）。
   CLI 命令面零新增参数；`branch` 探测失败置空串，不阻断启动。
-- **创建留任**：创建动作（分支名提取 / git 建库）由 git-worktree 原子任务承载，
-  重定位为**启动前置动作**——不入预设链（workflows/*.json 零改动），链内引用属误用
-  （其 prompt 首部已声明标准时机）。宿主无 worktree 切换工具时，绝对路径操作 + `--project`
-  即等效路径。
+- **创建**：创建动作（分支名提取 / git 建库 / 审计登记）由 git-worktree 原子任务承载，
+  属**启动前置动作**——不入预设链，链内引用属误用。宿主无 worktree 切换工具时，
+  绝对路径操作 + `--project` 即等效路径。
 
 **三场景（mode 旋钮，缺省 none）**：
 
 | 场景 | 分支基线 | 启动形态 |
 |---|---|---|
-| none（缺省） | — | 主检出/当前目录 `run start`（现状零变化） |
+| none（缺省） | — | 主检出/当前目录 `run start` |
 | single（单分支） | 仓库主分支 | 前置创建 → `run start --project <worktree>` |
 | release-dev（发布+开发） | `base_branch` 旋钮 | 同上，基线换为发布分支 |
 
 **旋钮与消费时序**：`mode` / `base_branch` / `worktree_dir` 声明于 git-worktree 任务
-configurable。**消费时点在冷启动问答**——agent 读任务 config（`list tasks` 呈现或直读）呈现
-缺省并接受对话定制；`run start` 预填 `state.atomTasks` 仅为事后登记（创建先于 state 存在，
+configurable。**消费时点在启动引导问询**——选项数据由 `guide` payload 从该 config 现算呈现，
+对话表达即定制；`run start` 预填 `state.atomTasks` 仅为事后登记（创建先于 state 存在，
 预填值不参与创建）。持久定制走 `--tasks-dir` 覆盖任务目录。
 
 **收尾**：`run finish` 后由 cleanup-worktree 清理——先确认分支合并/去留（未合并分支不得删除），
-离开 worktree（新拓扑下切回**主检出**，而非 runDir 上溯的 projectRoot——它就是被清理目录），
+离开 worktree（切回**主检出**，而非 runDir 上溯的 projectRoot——它就是被清理目录），
 再 `git worktree remove`。
 
 ## 核心契约
@@ -81,15 +79,15 @@ configurable。**消费时点在冷启动问答**——agent 读任务 config（
    一切推进通过语义命令（`next` / `rollback` / `run finish`），不要手改 state。
 3. **渐进式加载**：每次只 `exec` 当前相位——指令、恰好必需的上下文（ctx 钩子按 state 现算）、
    Output Contract 会被组装进一个 prompt；不要全量加载任务文件。
-4. **确认门状态化（07）+ 呈现协议状态化（交互协议结构闭环）**：任务的 `type: human`
-   相位是确认门的**声明**（注册源，可选 `gate.options` 选项集定制——用户词汇决议名
-   （如 同意/驳回/修改/提问），action 分推进型/转移型/相位内交互 in-phase；per-task
-   `present` 钩子可现算动态选项，如 spec 门的 回答BQ-N）；进入该相位的推进命令把门实例
-   （含选项集）注册进 `stages[k].gate`。CLI 拦截「门未关就推进」**且拦截「未呈现就决议」**：
-   呈现经 `gate present`（盖 `presentedAt` 留痕）、in-phase 交互经 `gate interact`（留痕并使
-   呈现过期）——最后交互后未重新呈现，`next --decision` / 转移型 rollback 会被结构性拒绝。
-   agent 只负责「跑呈现命令 → 转述 payload → 按 dispatch 代跑」，不负责放行、不得自造呈现。
-5. **节律结构锁（07）**：exec/validate 只服务 `currentStage` 中的位置（相位缺省 = 当前相位，
+4. **确认门与呈现协议**：任务的 `type: human` 相位是确认门的**声明**（注册源，可选
+   `gate.options` 选项集定制——用户词汇决议名（如 同意/驳回/修改/提问），action 分推进型/
+   转移型/相位内交互 in-phase；per-task `present` 钩子可现算动态选项，如 spec 门的 回答BQ-N）；
+   进入该相位的推进命令把门实例（含选项集）注册进 `stages[k].gate`。CLI 拦截「门未关就推进」
+   **且拦截「未呈现就决议」**：呈现经 `gate present`（盖 `presentedAt` 留痕）、in-phase 交互经
+   `gate interact`（留痕并使呈现过期）——最后交互后未重新呈现，`next --decision` / 转移型
+   rollback 会被结构性拒绝。agent 只负责「跑呈现命令 → 转述 payload → 按 dispatch 代跑」，
+   不负责放行、不得自造呈现；呈现/交互/决议全程留痕供审计。
+5. **节律结构锁**：exec/validate 只服务 `currentStage` 中的位置（相位缺省 = 当前相位，
    不一致即拦）——不 next 就停在原相位，执行节律由结构保证而非指令约定。
 6. **四通道**：stdout=JSON（exec 为裸文本例外）/ stderr=人话 / exit 0·1·2 / state 现读不缓存。
 
@@ -98,7 +96,7 @@ configurable。**消费时点在冷启动问答**——agent 读任务 config（
 触发后若用户没有给出可启动的参数（或 `run start` 报参数/预设不合法），**不要自由发挥**——
 按启动状态机走。全部呈现数据出自 `guide` payload（启动检查唯一数据源：`startupCheck` +
 五问），本节只描述状态与时序、不自述问题清单——**payload 是唯一呈现源：不得自拼选项、
-不得重排或增删问题**（issue #64 的教训：双源描述必然漂移）。
+不得重排或增删问题**（双源描述必然漂移）。
 
 ```mermaid
 flowchart TD
@@ -143,7 +141,7 @@ flowchart TD
 # ① 启动（返回 statePath 与起点；git 信息自动推断，非 git 环境置空）
 node tools/cli.js run start --title "<一句话描述>"
 #    worktree 形态（WTT）：启动状态机问场景后先建分支与工作树，再 run start --project <工作树绝对路径>
-#    ——state.git 自动捕获 branch/worktreePath（注册内置），state 与产物全部落在 worktree 分支
+#    ——state.git 自动捕获 branch/worktreePath，state 与产物全部落在 worktree 分支
 #    临时模式（可选 --ephemeral）：运行材料落 ~/.ddo/tmp/<type>/<runId>/，项目内不建
 #    runId 目录；run 期间全部命令照常（state 唯一事实源），finish 后材料直接删除
 
@@ -199,28 +197,3 @@ payload（静态 ∪ 动态选项，含 dispatch 指引）并转述——这是�
   `<runDir>/_del/rollback-<n>/`（输出 `archivedTo`/`archived` 告知去向）——不要手工删产物或
   手工往 `_del` 搬文件。
 - 需要认证/TTY 的命令（如 `gh auth login`）不得代跑——交给用户在宿主 shell 执行。
-
-## 当前状态与边界（v2）
-
-已定版并实现：索引结构（02 v1.5：dirs 字段 + history/<runId>.zip 整目录 zip 归档，#51）、CLI 框架与命令集
-（03/04：run start / run finish / rollback / exec / validate / next）、原子任务 v2 全量改造
-（05，17 个任务）、workflow 预设与启动装配（06，`workflows/basic.json`）、执行节律与确认门状态化
-（07：`stages[k].gate` + `--decision` + `status` + 位置拦截）、断点重续
-（08：`resume` 发现层）、冷启动引导（10：`list tasks` / `list workflows` +
-configurable 预填 + 错误指路）、产物生命周期（11：目录术语定版 + dirs 显式化 +
-state 结束归档 + rollback `_del` 移动归档 + output 防逃逸）、worktree 创建时机机制
-（WTT：git-info 三档推断**注册链路已实现** + git-worktree 重定位为启动前置动作 +
-mode/base_branch/worktree_dir 三旋钮 + cleanup-worktree 清理前提修正）、交互协议结构闭环
-（`gate present` / `gate interact` / `guide`：统一呈现 payload + 呈现与 in-phase 交互留痕 +
-决议前置校验「最后交互后须重新呈现」+ present 钩子动态选项）、运行材料居所可配
-（`run start --ephemeral` 临时模式：runDir 移居 `~/.ddo/tmp/<type>/<runId>/` 项目外 +
-state.ephemeral 标记 + finish 蕴含免归档并删除材料 + assertDirs 居所例外 +
-resolveWorkdir/resume 改优先 state.dirs + closeout-worktree 产物入库条件化 + guide 第四问）、
-启动状态机定版（#64：`guide` 扩展为启动检查单一数据源——`startupCheck` 运行中 run 清单 +
-resume 优先呈现分支 + worktree 场景问进 payload 五问定版（goal → worktree → mode → type →
-home，选项源自 git-worktree configurable 现算）+ SKILL.md 冷启动节重写为状态机单一权威描述、
-消除双源漂移；`coding` 任务补 `:02` 完成确认门（同意/提问/修改），堵静默推进）。
-
-诚实边界：门拦截保证「未决议不推进」、呈现校验保证「未呈现/未重新呈现不决议」（均结构性），
-但不防 agent 伪造决议（跑完呈现命令后自己决议仍可能）——呈现/交互/决议全程留痕
-（presentedAt / interactions / decision / closedAt）供审计；严格用户亲跑通道留后续可选。
