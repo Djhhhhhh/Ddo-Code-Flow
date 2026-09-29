@@ -1,0 +1,132 @@
+{
+  "runId": "20260927-222639-720a",
+  "title": "重设计 eval 评测体系：新版本 playbook 对齐当前能力面",
+  "startedAt": "2026-09-27T22:26:39.084+08:00",
+  "git": {
+    "mainBranch": "main",
+    "branch": "feat/eval-redesign",
+    "worktreePath": "/Users/djhhh/work_area/Ddo-Code-Flow-feat-eval-redesign"
+  },
+  "dirs": {
+    "projectRoot": "/Users/djhhh/work_area/Ddo-Code-Flow-feat-eval-redesign",
+    "runDir": "/Users/djhhh/work_area/Ddo-Code-Flow-feat-eval-redesign/.ddo/runs/feat/20260927-222639-720a",
+    "tasksDir": "/Users/djhhh/work_area/Ddo-Code-Flow/atom-tasks"
+  },
+  "currentStage": [],
+  "stages": {
+    "requirement": {
+      "status": "done",
+      "dependOn": [],
+      "at": "2026-09-27T22:27:18.357+08:00"
+    },
+    "spec": {
+      "status": "done",
+      "dependOn": [
+        "requirement"
+      ],
+      "at": "2026-09-27T22:33:58.589+08:00",
+      "gate": {
+        "phase": "02",
+        "openedAt": "2026-09-27T22:29:44.257+08:00",
+        "options": [
+          {
+            "name": "同意",
+            "desc": "批准当前 spec（仅当不存在未解决 BQ），本相位完成",
+            "action": "next --decision 同意"
+          },
+          {
+            "name": "驳回",
+            "desc": "回滚 spec 阶段，按意见回到相位 01 重新生成",
+            "action": "rollback --stage spec"
+          },
+          {
+            "name": "修改",
+            "desc": "把反馈作为新的需求证据更新受影响条目，展示变化摘要后重新送审",
+            "action": "in-phase"
+          },
+          {
+            "name": "提问",
+            "desc": "只读答疑，不修改 spec、不改变任何 ID 与确认状态",
+            "action": "in-phase"
+          }
+        ],
+        "presentedAt": "2026-09-27T22:33:12.098+08:00",
+        "interactions": [
+          {
+            "option": "回答BQ-1",
+            "note": "a 只产出设计：新 playbook + 必要的约定更新，评测执行留待用户另起 run",
+            "at": "2026-09-27T22:32:13.737+08:00"
+          },
+          {
+            "option": "回答BQ-2",
+            "note": "a 纳入专项：playbook 含 pr-delivery 链与 WTT worktree 专项用例设计，执行可分期标注优先级",
+            "at": "2026-09-27T22:32:13.764+08:00"
+          },
+          {
+            "option": "回答BQ-3",
+            "note": "b 保留+标注：v2-beta showcase 保留并加「已过期、被新版本取代」标注",
+            "at": "2026-09-27T22:32:13.791+08:00"
+          }
+        ],
+        "decision": "同意",
+        "closedAt": "2026-09-27T22:33:58.589+08:00"
+      }
+    },
+    "plan": {
+      "status": "done",
+      "dependOn": [
+        "spec"
+      ],
+      "at": "2026-09-27T22:36:59.874+08:00",
+      "gate": {
+        "phase": "02",
+        "openedAt": "2026-09-27T22:36:27.410+08:00",
+        "options": [
+          {
+            "name": "同意",
+            "desc": "批准当前 revision，本相位完成",
+            "action": "next --decision 同意"
+          },
+          {
+            "name": "驳回",
+            "desc": "回滚 plan 阶段，按意见回到相位 01 重新生成",
+            "action": "rollback --stage plan"
+          },
+          {
+            "name": "修改",
+            "desc": "反馈应用到新 revision 并重评估，展示变化摘要后重新送审",
+            "action": "in-phase"
+          },
+          {
+            "name": "提问",
+            "desc": "只答疑，不改文档、revision 与确认状态",
+            "action": "in-phase"
+          },
+          {
+            "name": "归档",
+            "desc": "按相位 01 §5 归档当前 plan；不代表批准",
+            "action": "in-phase"
+          }
+        ],
+        "presentedAt": "2026-09-27T22:36:27.440+08:00",
+        "decision": "同意",
+        "closedAt": "2026-09-27T22:36:59.874+08:00"
+      }
+    },
+    "coding": {
+      "status": "done",
+      "dependOn": [
+        "plan"
+      ],
+      "at": "2026-09-27T22:39:27.416+08:00"
+    },
+    "reporting": {
+      "status": "done",
+      "dependOn": [
+        "coding"
+      ],
+      "at": "2026-09-27T22:39:49.058+08:00"
+    }
+  },
+  "atomTasks": {}
+}
