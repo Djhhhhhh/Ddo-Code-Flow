@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ddo 开发中需求 Dashboard</title>
+<style>
+  :root { --ink:#0f172a; --dim:#64748b; --line:#e2e8f0; --bg:#f8fafc; --card:#ffffff; }
+  * { box-sizing:border-box; margin:0; }
+  body { font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+         color:var(--ink); background:var(--bg); padding:32px 16px; }
+  main { max-width:920px; margin:0 auto; }
+  h1 { font-size:20px; margin-bottom:4px; }
+  .sub { color:var(--dim); font-size:12px; margin-bottom:24px; }
+  .sub code { background:#eef2f7; border-radius:4px; padding:1px 6px; font-size:11px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px 20px; margin-bottom:14px; }
+  .card.degraded { border-style:dashed; border-color:#f59e0b; background:#fffbeb; }
+  .r1 { display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; }
+  .badge { font-size:11px; font-weight:600; color:#fff; background:#3b82f6; border-radius:99px; padding:1px 10px; }
+  .title { font-size:15px; font-weight:600; }
+  .runid { font:11px/1 ui-monospace,Menlo,monospace; color:var(--dim); }
+  .chips { display:flex; gap:6px; flex-wrap:wrap; margin:10px 0 8px; }
+  .chip { display:inline-flex; align-items:center; gap:5px; font-size:12px; color:var(--dim);
+          border:1px solid var(--line); border-radius:99px; padding:2px 10px; background:#f8fafc; }
+  .chip .dot { width:8px; height:8px; border-radius:50%; }
+  .chip.current { border-color:#0f172a; color:var(--ink); font-weight:600; }
+  .chip.gate::after { content:"门"; font-size:10px; color:#b45309; font-weight:700; }
+  .meta { font-size:12px; color:var(--dim); word-break:break-all; }
+  .meta b { color:var(--ink); font-weight:600; }
+  .reason { font-size:12px; color:#b45309; margin-top:6px; }
+  .empty { text-align:center; color:var(--dim); padding:48px 0; border:1px dashed var(--line); border-radius:10px; }
+  footer { color:var(--dim); font-size:12px; margin-top:20px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>ddo 开发中需求 Dashboard</h1>
+  <p class="sub" id="sub"></p>
+  <div id="list"></div>
+  <footer>本页数据为生成时刻的内嵌快照（非实时）——刷新：node build.js 重新生成。</footer>
+</main>
+<script id="snapshot" type="application/json">{"source":"/Users/djhhh/.ddo/index.json","generatedAt":"2026-09-29T14:45:54.582Z","meta":{"label":{"pending":"待执行","running":"执行中","done":"完成","failed":"失败","waiting-human":"人审中"},"color":{"pending":"#94a3b8","running":"#3b82f6","done":"#22c55e","failed":"#ef4444","waiting-human":"#f59e0b"}},"runs":[{"runId":"20260929-221955-b3cd","startedAt":"2026-09-29T22:19:55.058+08:00","statePath":"/Users/djhhh/work_area/Ddo-Code-Flow-feat-ddo-index-dashboard/.ddo/runs/feat/20260929-221955-b3cd/.state.json","type":"feat","title":"eval showcase：基于 ~/.ddo/index.json 的开发中需求 dashboard","currentStage":"reporting:01","stages":[{"name":"requirement","status":"done","gateWaiting":false},{"name":"spec","status":"done","gateWaiting":false},{"name":"plan","status":"done","gateWaiting":false},{"name":"coding","status":"done","gateWaiting":false},{"name":"reporting","status":"running","gateWaiting":false}],"gitBranch":"feat/ddo-index-dashboard","projectRoot":"/Users/djhhh/work_area/Ddo-Code-Flow-feat-ddo-index-dashboard","readable":true}]}</script>
+<script>
+(function () {
+  var snap;
+  try { snap = JSON.parse(document.getElementById('snapshot').textContent); }
+  catch (e) { document.getElementById('sub').textContent = '快照解析失败：' + e.message; return; }
+  var L = snap.meta.label, C = snap.meta.color;
+  var el = function (tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  };
+  var runs = snap.runs || [];
+  var degraded = runs.filter(function (r) { return !r.readable; }).length;
+  document.getElementById('sub').innerHTML = '';
+  document.getElementById('sub').append(
+    '数据源 ', Object.assign(document.createElement('code'), { textContent: snap.source }),
+    ' · 生成于 ' + new Date(snap.generatedAt).toLocaleString(),
+    ' · 运行中 ' + runs.length + ' 个' + (degraded ? '（降级 ' + degraded + '）' : '')
+  );
+  var list = document.getElementById('list');
+  if (!runs.length) {
+    list.append(el('div', 'empty', '当前机器没有正在开发的 run（index.json 为空或不存在）'));
+    return;
+  }
+  runs.forEach(function (r) {
+    var card = el('article', 'card' + (r.readable ? '' : ' degraded'));
+    var r1 = el('div', 'r1');
+    if (r.type) r1.append(el('span', 'badge', r.type));
+    r1.append(el('span', 'title', r.title), el('span', 'runid', r.runId));
+    card.append(r1);
+    if (r.readable) {
+      var currentName = (r.currentStage || '').split(':')[0];
+      var chips = el('div', 'chips');
+      (r.stages || []).forEach(function (s) {
+        var chip = el('span', 'chip' + (s.name === currentName ? ' current' : '') + (s.gateWaiting ? ' gate' : ''));
+        chip.append(el('span', 'dot'));
+        chip.style.setProperty('--c', C[s.status] || C.pending);
+        chip.querySelector('.dot').style.background = C[s.status] || C.pending;
+        chip.append(s.name + '·' + (s.gateWaiting ? '人审中' : (L[s.status] || s.status)));
+        chips.append(chip);
+      });
+      card.append(chips);
+      var meta = el('div', 'meta');
+      var bits = [];
+      if (r.gitBranch) bits.push('分支：' + r.gitBranch);
+      if (r.projectRoot) bits.push(r.projectRoot);
+      bits.push('始于 ' + (r.startedAt || '?'));
+      meta.append(bits.join(' · '));
+      meta.append(el('div', 'runid', r.statePath));
+      card.append(meta);
+    } else {
+      card.append(el('div', 'reason', r.degraded || '状态不可读'));
+      card.append(el('div', 'meta', '始于 ' + (r.startedAt || '?')));
+    }
+    list.append(card);
+  });
+})();
+</script>
+</body>
+</html>
