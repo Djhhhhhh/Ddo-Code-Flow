@@ -120,7 +120,7 @@ flowchart TD
 | `next` | 纯状态推进：相位内前进（human 相位写门置 `waiting-human`）→ 阶段 done → DAG 就绪点亮；**门未关闭必须 `--decision <用户词汇>`**（如 同意；决议留痕），且**决议前须存在有效呈现**（见 `gate present`）——未呈现或 in-phase 交互后未重新呈现会被结构性拒绝 |
 | `gate present` | **统一交互呈现入口**：对开着的门输出 payload（静态声明 ∪ per-task `present` 钩子动态选项，如 spec 门的 `回答BQ-N`，各选项含 name/desc/dispatch 执行指引）并盖 `presentedAt` 留痕；隐式门（无实例手写 state）在此物化 |
 | `gate interact` | 相位内交互留痕：记录 in-phase 选项交互（提问/修改/回答BQ-N，`--note` 可带摘要），使既有呈现过期——此后决议被拦，须重新 `gate present` 送审（re-ask 由结构强制） |
-| `guide` | 冷启动引导唯一数据源：问目标（freeText）/ 问模式（内嵌预设 + 自定义）/ 问类型 / 问居所（正常 / 临时 `--ephemeral`）的统一 payload，无 state、无副作用 |
+| `guide` | 启动检查唯一数据源：`startupCheck`（运行中 run 清单 + 每行 resumeCommand，resume 优先呈现）+ 五问引导 payload——问目标（freeText）/ 问 worktree 场景（选项源自 git-worktree configurable 现算）/ 问模式（内嵌预设 + 自定义）/ 问类型 / 问居所（正常 / 临时 `--ephemeral`），顺序定版即问询协议；无 state、无副作用 |
 | `rollback` | 回滚一个阶段（每次一个）：目标及其 DAG 路径上的节点重置为 pending、清除未关闭的门（含呈现/交互留痕）；重置集合内已声明的产物**移动**归档到 `<runDir>/_del/rollback-<n>/`（输出 `archivedTo`/`archived`）；作为门决议载体（驳回）时同样要求先呈现 |
 | `run finish` | 生命周期收口：runId 目录整目录 zip 归档 `~/.ddo/history/<runId>.zip`（含 .state.json 与全部产物，纯 Node 零依赖写入器）→ history 追加一行 → index 移除 → 清 currentStage（原目录保留在项目中，随版本控制管理）；幂等可重入。临时模式（`state.ephemeral`）改走删除分支：蕴含免归档（zip 与 runs.jsonl 均不落）→ 删除 runDir → index 移除，项目内外零残留 |
 | `status` | 已知 statePath 时的定位：当前位置 + 未关闭的门选项（gateOptions，与 `gate present` payload 同源，含 in-phase 与动态选项）+ 派生的可执行命令（availableCommands） |

@@ -93,36 +93,56 @@ configurable。**消费时点在冷启动问答**——agent 读任务 config（
    不一致即拦）——不 next 就停在原相位，执行节律由结构保证而非指令约定。
 6. **四通道**：stdout=JSON（exec 为裸文本例外）/ stderr=人话 / exit 0·1·2 / state 现读不缓存。
 
-## 冷启动（skill 触发时无参数 / 参数不合法）
+## 启动状态机（skill 触发时无参数 / 参数不合法）
 
 触发后若用户没有给出可启动的参数（或 `run start` 报参数/预设不合法），**不要自由发挥**——
-按初始化引导协议走（工作流启动时明确目标是关键）：
+按启动状态机走。全部呈现数据出自 `guide` payload（启动检查唯一数据源：`startupCheck` +
+五问），本节只描述状态与时序、不自述问题清单——**payload 是唯一呈现源：不得自拼选项、
+不得重排或增删问题**（issue #64 的教训：双源描述必然漂移）。
 
-1. **跑 `node tools/cli.js guide`** 取引导 payload：问目标（freeText，worktree 场景下同时是
-   分支名的语义来源）/ 问模式 / 问类型 / 问居所四问的选项数据由 CLI 统一产出，逐问原样呈现给用户
-   （宿主提问工具），不自拼选项。居所选「临时」→ 启动附加 `--ephemeral`（运行材料落
-   `~/.ddo/tmp`，项目内不建 runId 目录，finish 后即删——适合流程型 run）。
-2. **问 worktree 场景**（WTT 旋钮，缺省 none）：none（不使用）/ single（单分支，基线=仓库
-   主分支）/ release-dev（发布+开发，基线=base_branch）——选项与缺省读 git-worktree 任务的
-   configurable（`list tasks` 呈现或直读 config），对话表达即定制。选 single / release-dev 时
-   按 git-worktree 前置动作执行：title 提取分支名 → 建分支与工作树 → `run start --project
-   <工作树绝对路径>`（机制详见「worktree 创建时机」节）。
-3. 问模式选**自定义**时：`node tools/cli.js list tasks` → 呈现任务清单（desc / 相位与人审位 /
-   可配置项），与用户商定阶段链（顺序与依赖）→ 写临时预设 JSON（os.tmpdir，结构同
-   workflows/*.json）→ `run start --workflows-dir <临时目录> --workflow <名>`
-   （物化进 .state.json 后临时文件即弃）。
-4. 启动后把 `state.atomTasks` 中**预填的可配置项**告知用户（有 default 的已填入，如
-   test-plan 的 tdd；其余可配置项见 list tasks 输出的 configurable）——用户可改哪些旋钮一目了然
-   （git-worktree 的 mode 预填值为登记留痕：创建已在启动前完成）。
+```mermaid
+flowchart TD
+    A[skill 触发·无参或参数不合法] --> S0["S0 preflight：node tools/cli.js guide"]
+    S0 -->|"startupCheck.running 非空"| B1{"用户决议：继续 or 新开"}
+    B1 -->|继续| R["代跑该行 resumeCommand（resume --run-id）→ 按驱动协议接续"]
+    B1 -->|新开| S1
+    S0 -->|"running 为空"| S1["S1 引导问询：payload.questions 五问定版<br/>goal → worktree → mode → type → home"]
+    S1 -->|worktree = none| S3
+    S1 -->|worktree = single/release-dev| S2["S2 worktree 前置：分支名取自 goal 答案<br/>→ 建分支与工作树（git-worktree 前置动作）"]
+    S2 --> S3["S3 run start（worktree 形态加 --project 工作树绝对路径；居所选临时加 --ephemeral）"]
+    S3 --> S4["S4 告知 atomTasks 预填可配置项 → 进入驱动循环"]
+```
 
-`run start` 的报错自带指路：未知预设会列出现有预设；未知任务指向 list tasks——按提示回到引导。
+**各状态行为**：
+
+1. **S0 preflight**：跑 `node tools/cli.js guide` 取 payload。`startupCheck.running` 非空 →
+   先向用户呈现「继续（各行含位置与门概要，附带 resumeCommand）/ 新开」——选继续即代跑该
+   resumeCommand，之后按其 availableCommands 接续驱动（旧 run 不打断、与新开并存）；
+   选新开走 S1。`running` 为空 → 直接 S1。
+2. **S1 引导问询**：按 `payload.questions` 顺序逐问原样呈现（宿主提问工具）：
+   **goal**（freeText 一句话，同时是 worktree 分支名的语义来源）→ **worktree 场景**
+   （WTT 旋钮；选项与缺省由 payload 从 git-worktree 任务 configurable 现算，`--tasks-dir`
+   定制自动传导；选 release-dev 时按 followUp 追问基线分支名）→ **mode** → **type** →
+   **home**（选「临时」→ 启动附加 `--ephemeral`，运行材料落 `~/.ddo/tmp`，项目内不建
+   runId 目录，finish 后即删——适合流程型 run）。mode 选**自定义**时：`node tools/cli.js
+   list tasks` → 呈现任务清单（desc / 相位与人审位 / 可配置项），与用户商定阶段链（顺序与
+   依赖）→ 写临时预设 JSON（os.tmpdir，结构同 workflows/*.json）→ `run start
+   --workflows-dir <临时目录> --workflow <名>`（物化进 .state.json 后临时文件即弃）。
+3. **S2 worktree 前置**（场景 single / release-dev）：按 git-worktree 前置动作执行——
+   title 提取分支名 → 建分支与工作树（机制详见「worktree 创建时机」节）→ S3。
+4. **S3 run start**：按答案组装参数启动（`--title` / `--workflow` / `--type`；worktree
+   形态 `--project <工作树绝对路径>`；居所临时 `--ephemeral`）。报错自带指路：未知预设
+   列出现有预设；未知任务指向 list tasks——按提示回到 S1 对应问重问。
+5. **S4 启动后告知**：把 `state.atomTasks` 中**预填的可配置项**告知用户（有 default 的已
+   填入，如 test-plan 的 tdd；其余可配置项见 list tasks 输出的 configurable）——用户可改
+   哪些旋钮一目了然（git-worktree 的 mode 预填值为登记留痕：创建已在启动前完成）。
 
 ## 驱动一个 run
 
 ```bash
 # ① 启动（返回 statePath 与起点；git 信息自动推断，非 git 环境置空）
 node tools/cli.js run start --title "<一句话描述>"
-#    worktree 形态（WTT）：冷启动问场景后先建分支与工作树，再 run start --project <工作树绝对路径>
+#    worktree 形态（WTT）：启动状态机问场景后先建分支与工作树，再 run start --project <工作树绝对路径>
 #    ——state.git 自动捕获 branch/worktreePath（注册内置），state 与产物全部落在 worktree 分支
 #    临时模式（可选 --ephemeral）：运行材料落 ~/.ddo/tmp/<type>/<runId>/，项目内不建
 #    runId 目录；run 期间全部命令照常（state 唯一事实源），finish 后材料直接删除
@@ -147,7 +167,7 @@ node tools/cli.js gate interact --state <statePath> --option 提问 --note "<问
 #    …按该相位 prompt 的行为定义处理（答疑/写回/归档）→ 重新 gate present 送审
 #    （未重新呈现就决议会被结构拦截：next/rollback exit 1 并重发选项清单）
 
-# ④ 中断恢复（新会话接手 run 时——先发现，再加载）
+# ④ 中断恢复（新会话接手 run 时——先发现，再加载；启动路径上的优先呈现见「启动状态机」S0）
 node tools/cli.js resume                        # 全局列运行中的 run（位置/门概要；stale 惰性淘汰）
 node tools/cli.js resume --run-id <runId>       # 加载选定 run 的完整状态（含 statePath 与双清单）
 #    已知 statePath 时可直接 status；之后按 availableCommands 继续
@@ -195,7 +215,11 @@ mode/base_branch/worktree_dir 三旋钮 + cleanup-worktree 清理前提修正）
 决议前置校验「最后交互后须重新呈现」+ present 钩子动态选项）、运行材料居所可配
 （`run start --ephemeral` 临时模式：runDir 移居 `~/.ddo/tmp/<type>/<runId>/` 项目外 +
 state.ephemeral 标记 + finish 蕴含免归档并删除材料 + assertDirs 居所例外 +
-resolveWorkdir/resume 改优先 state.dirs + closeout-worktree 产物入库条件化 + guide 第四问）。
+resolveWorkdir/resume 改优先 state.dirs + closeout-worktree 产物入库条件化 + guide 第四问）、
+启动状态机定版（#64：`guide` 扩展为启动检查单一数据源——`startupCheck` 运行中 run 清单 +
+resume 优先呈现分支 + worktree 场景问进 payload 五问定版（goal → worktree → mode → type →
+home，选项源自 git-worktree configurable 现算）+ SKILL.md 冷启动节重写为状态机单一权威描述、
+消除双源漂移；`coding` 任务补 `:02` 完成确认门（同意/提问/修改），堵静默推进）。
 
 诚实边界：门拦截保证「未决议不推进」、呈现校验保证「未呈现/未重新呈现不决议」（均结构性），
 但不防 agent 伪造决议（跑完呈现命令后自己决议仍可能）——呈现/交互/决议全程留痕
