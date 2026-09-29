@@ -508,3 +508,97 @@ test('run start：config 不符合标准格式的任务 → 装配时 fail fast�
     cleanup(sb);
   }
 });
+
+// ---------------------------------------------------------------- coding 完成确认门（#64 症状二回归：不得静默推进）
+
+// 用真实仓库 atom-tasks/ 的 coding 任务（不传 --tasks-dir → 三级取值落仓库缺省），
+// basic 链骨架：requirement/spec/plan done，coding 至指定位，reporting pending。
+const codingStages = (codingOverride) => ({
+  requirement: { status: 'done', dependOn: [], at: 't' },
+  spec: { status: 'done', dependOn: ['requirement'], at: 't' },
+  plan: { status: 'done', dependOn: ['spec'], at: 't' },
+  coding: codingOverride || { status: 'running', dependOn: ['plan'], at: 't' },
+  reporting: { status: 'pending', dependOn: ['coding'], at: 't' },
+});
+
+test('coding 门：:01 完成后 next 开 :02 门，选项且仅为 同意/提问/修改（按序，真实任务 config）', () => {
+  const sb = sandbox();
+  try {
+    writeState(sb, ['coding:01'], codingStages());
+    const r = cli(['next', '--state', sb.statePath], sb);
+    assert.equal(r.status, 0, r.stderr);
+    const out = JSON.parse(r.stdout);
+    assert.equal(out.openedGates.length, 1);
+    assert.equal(out.openedGates[0].stage, 'coding');
+    assert.equal(out.openedGates[0].phase, '02');
+    assert.deepStrictEqual(out.openedGates[0].options.map((o) => o.name), ['同意', '提问', '修改']);
+    assert.deepStrictEqual(out.currentStage, ['coding:02']);
+    assert.equal(readBack(sb).stages.coding.status, 'waiting-human');
+  } finally {
+    cleanup(sb);
+  }
+});
+
+test('coding 门全循环：拦截 → 呈现 → interact 提问使呈现过期 → 决议被拦 → 重新呈现 → 同意放行 reporting', () => {
+  const sb = sandbox();
+  try {
+    writeState(sb, ['coding:02'], codingStages({
+      status: 'waiting-human', dependOn: ['plan'], at: 't',
+      gate: { phase: '02', openedAt: 't', options: [
+        { name: '同意', desc: '确认 coding 产物完成，本相位完成并放行后续阶段', action: 'next --decision 同意' },
+        { name: '提问', desc: '对实现内容答疑，不改变确认状态；处理后重新呈现', action: 'in-phase' },
+        { name: '修改', desc: '按反馈调整代码实现，完成后重新送审', action: 'in-phase' },
+      ] },
+    }));
+    // ① 门未关 → next 拦截（不得静默推进到 reporting）
+    const blocked = cli(['next', '--state', sb.statePath], sb);
+    assert.equal(blocked.status, 1);
+    assert.match(blocked.stderr, /确认门未关闭/);
+    assert.deepStrictEqual(readBack(sb).currentStage, ['coding:02']);
+    // ② 呈现留痕
+    const p1 = cli(['gate', 'present', '--state', sb.statePath], sb);
+    assert.equal(p1.status, 0, p1.stderr);
+    // ③ in-phase 提问 → 呈现过期 → 决议被结构性拦截
+    const i = cli(['gate', 'interact', '--state', sb.statePath, '--option', '提问', '--note', '这个实现为什么这样选？'], sb);
+    assert.equal(i.status, 0, i.stderr);
+    const stale = cli(['next', '--state', sb.statePath, '--decision', '同意'], sb);
+    assert.equal(stale.status, 1);
+    assert.match(stale.stderr, /重新呈现|呈现已过期/);
+    // ④ 重新呈现 → 同意 → coding done + reporting 点亮
+    const p2 = cli(['gate', 'present', '--state', sb.statePath], sb);
+    assert.equal(p2.status, 0, p2.stderr);
+    const r = cli(['next', '--state', sb.statePath, '--decision', '同意'], sb);
+    assert.equal(r.status, 0, r.stderr);
+    const out = JSON.parse(r.stdout);
+    assert.deepStrictEqual(out.finished, ['coding']);
+    assert.deepStrictEqual(out.activated, ['reporting']);
+    assert.deepStrictEqual(out.closedGates, [{ stage: 'coding', decision: '同意' }]);
+  } finally {
+    cleanup(sb);
+  }
+});
+
+test('coding 门：修改 in-phase 留痕（反馈进 state 供审计），同意前不推进', () => {
+  const sb = sandbox();
+  try {
+    writeState(sb, ['coding:02'], codingStages({
+      status: 'waiting-human', dependOn: ['plan'], at: 't',
+      gate: { phase: '02', openedAt: 't', options: [
+        { name: '同意', desc: '确认 coding 产物完成，本相位完成并放行后续阶段', action: 'next --decision 同意' },
+        { name: '提问', desc: '对实现内容答疑，不改变确认状态；处理后重新呈现', action: 'in-phase' },
+        { name: '修改', desc: '按反馈调整代码实现，完成后重新送审', action: 'in-phase' },
+      ] },
+    }));
+    const p = cli(['gate', 'present', '--state', sb.statePath], sb);
+    assert.equal(p.status, 0, p.stderr);
+    const i = cli(['gate', 'interact', '--state', sb.statePath, '--option', '修改', '--note', '补一个边界测试'], sb);
+    assert.equal(i.status, 0, i.stderr);
+    const gate = readBack(sb).stages.coding.gate;
+    assert.ok(Array.isArray(gate.interactions) && gate.interactions.length === 1);
+    assert.equal(gate.interactions[0].option, '修改');
+    assert.equal(gate.interactions[0].note, '补一个边界测试');
+    assert.deepStrictEqual(readBack(sb).currentStage, ['coding:02']); // 仍在门上
+  } finally {
+    cleanup(sb);
+  }
+});

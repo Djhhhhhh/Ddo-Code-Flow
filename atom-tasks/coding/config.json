@@ -1,7 +1,38 @@
 {
   "name": "coding",
-  "version": "2.0.0",
-  "desc": "按任务清单/plan 实施步骤执行真实代码改动（产物是代码变更本身）",
+  "version": "2.1.0",
+  "desc": "按任务清单/plan 实施步骤执行真实代码改动（产物是代码变更本身），完成后经用户确认门放行",
+  "phases": [
+    {
+      "id": "01",
+      "summary": "按 plan/任务清单执行代码改动（产物是代码变更本身）",
+      "type": "action"
+    },
+    {
+      "id": "02",
+      "summary": "coding 完成确认门（同意/提问/修改）",
+      "type": "human",
+      "gate": {
+        "options": [
+          {
+            "name": "同意",
+            "desc": "确认 coding 产物完成，本相位完成并放行后续阶段",
+            "action": "next --decision 同意"
+          },
+          {
+            "name": "提问",
+            "desc": "对实现内容答疑，不改变确认状态；处理后重新呈现",
+            "action": "in-phase"
+          },
+          {
+            "name": "修改",
+            "desc": "按反馈调整代码实现，完成后重新送审",
+            "action": "in-phase"
+          }
+        ]
+      }
+    }
+  ],
   "defaults": {
     "extra_ctx": "",
     "rules": [

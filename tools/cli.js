@@ -680,12 +680,53 @@ function gateInteract(f) {
   return { recorded: { stage: g.stage, phase: g.phase, option: f.option, at: now } };
 }
 
-/** guide：冷启动引导唯一数据源（无 state、无副作用）——问目标/问模式/问类型，选项数据同 payload 形态。 */
+/** guide 的 worktree 场景问（WTT 旋钮）：选项 name 固定三场景（机制名稳定），缺省值与机制
+ * 权威说明源自 git-worktree 任务 configurable 现算——--tasks-dir 定制传导至本问；config
+ * 缺失/损坏时退化为固定文案，不阻断引导。release-dev 的基线分支追问以 followUp 声明。 */
+function guideWorktreeQuestion(tasksDir) {
+  let modeNote = '';
+  let def = 'none';
+  try {
+    const cfg = JSON.parse(fs.readFileSync(path.join(tasksDir, 'git-worktree', 'config.json'), 'utf8'));
+    const mode = (cfg.configurable || []).find((c) => c.key === 'mode');
+    if (mode) {
+      if (typeof mode.desc === 'string') modeNote = mode.desc;
+      if (mode.default) def = mode.default;
+    }
+  } catch { /* 任务 config 不可读 → 固定文案兜底（启动引导不得因此阻断） */ }
+  const mark = (name) => (name === def ? '（缺省）' : '');
+  return {
+    id: 'worktree',
+    question: 'worktree 场景？（决定启动形态与分支基线）',
+    ...(modeNote ? { note: modeNote } : {}),
+    options: [
+      { name: 'none', desc: `不使用：主检出/当前目录直接 run start${mark('none')}` },
+      { name: 'single', desc: `单分支：前置建分支与工作树（基线=仓库主分支）→ run start --project <工作树>${mark('single')}` },
+      { name: 'release-dev', desc: `发布+开发：同 single，基线=发布分支（追问基线名）${mark('release-dev')}` },
+    ],
+    followUp: { whenOption: 'release-dev', question: '基线（发布）分支名？（对应 base_branch 旋钮）', freeText: true },
+  };
+}
+
+/** guide：启动检查唯一数据源（无 state、无副作用）——startupCheck（运行中 run 发现，复用 resume
+ * 发现层的惰性校验语义）+ 五问引导（goal → worktree → mode → type → home，顺序定版即问询协议，
+ * agent 不得重排增删）。问题序列与 resume 优先分支的全部呈现数据均出自本 payload，SKILL.md 只引用不自述。 */
 function runGuide(f) {
   const wf = listWorkflows(f);
+  const tasksDir = f['tasks-dir'] ? path.resolve(f['tasks-dir']) : ATOM_TASKS_DIR;
+  const discovered = runResume(f); // 只读发现层（无 --run-id 即清单分支；guide 无 --project flag → 全局清单）
+  const running = discovered.runs.map((r) => ({ ...r, resumeCommand: `resume --run-id ${r.runId}` }));
   return {
+    startupCheck: {
+      running,
+      staleCount: discovered.staleCount,
+      hint: running.length
+        ? '存在运行中的 run：先向用户呈现「继续（各行 resumeCommand）/ 新开（按 questions 引导）」，选定后代跑对应命令；继续则跑 resumeCommand 后按其 availableCommands 接续'
+        : '无运行中的 run：直接按 questions 逐问引导',
+    },
     questions: [
-      { id: 'goal', question: '本次要做什么？一句话即为 --title', freeText: true },
+      { id: 'goal', question: '本次要做什么？一句话即为 --title（worktree 场景下同时是分支名的语义来源）', freeText: true },
+      guideWorktreeQuestion(tasksDir),
       {
         id: 'mode',
         question: '用哪个工作流模式？',
@@ -714,7 +755,7 @@ function runGuide(f) {
         ],
       },
     ],
-    hint: '逐问呈现给用户（宿主提问工具），答案依次对应 run start 的 --title / --workflow（或自定义流程）/ --type；居所选「临时」时附加 --ephemeral',
+    hint: '逐问呈现给用户（宿主提问工具），答案依次对应：--title / worktree 前置动作（single·release-dev 先建分支与工作树，分支名取自 goal 答案，再 run start --project <工作树绝对路径>）/ --workflow（或自定义流程）/ --type；居所选「临时」时附加 --ephemeral',
   };
 }
 
@@ -1010,7 +1051,7 @@ const REGISTRY = [
   },
   {
     name: 'guide',
-    summary: '冷启动引导唯一数据源：问目标/问模式/问类型/问居所的统一 payload（无 state、无副作用）',
+    summary: '启动检查唯一数据源：startupCheck（运行中 run 清单 + resume 指引）+ 五问引导 payload（goal/worktree/mode/type/home，顺序定版）；无 state、无副作用',
     usage: 'guide [--workflows-dir <path>] [--tasks-dir <path>]',
     options: [
       { flag: '--workflows-dir', desc: '预设根目录（缺省仓库 workflows/；测试用）' },
