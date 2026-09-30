@@ -1,0 +1,21 @@
+$ node --test tools/tests/*.test.js
+1..131
+# tests 131
+# suites 0
+# pass 131
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1568.187458
+
+$ node --test tools/tests/delivery.test.js
+# tests 9
+# pass 9
+# fail 0
+# skipped 0
+
+$ git diff --check
+exit 0 (no output)
+
+远端验证：未执行 push 或 gh pr create；本轮验证仅覆盖本地生成协议与回归。

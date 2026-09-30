@@ -276,6 +276,12 @@ tools/tests/                     # node:test 沙箱隔离测试
 .ddo/runs/                       # 正常模式运行材料
 ```
 
+## PR 格式
+
+`pr-delivery` 与 `pr-delivery-issue` 共用 `deliver-pr` 的 [PR 内容格式](atom-tasks/deliver-pr/prompt.md#pr-内容格式)：标题使用 `【type】(scope):<中文摘要>`（scope 可省略），正文固定为变更摘要、主要变更、验证结果、风险与兼容性、关联事项五个栏目。
+
+交付任务依据实际变更生成内容，以 `--title` 和 `--body-file` 显式传给 `gh pr create`；验证结果必须如实区分已通过、失败与未执行。仓库的 [GitHub PR 模板](.github/pull_request_template.md) 同步该栏目结构。这是流水线生成协议，不是 CLI 或 CI 对远端 PR 的格式硬校验；不改写已有 PR，也不改变原有合并确认门。
+
 ## 开发与测试
 
 在仓库根目录使用支持 glob 展开的 shell 执行：
