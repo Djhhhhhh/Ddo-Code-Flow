@@ -1,0 +1,778 @@
+TAP version 13
+# Subtest: 全局 help：exit 0，含顶层动词与域命令两组
+ok 1 - 全局 help：exit 0，含顶层动词与域命令两组
+  ---
+  duration_ms: 47.593416
+  type: 'test'
+  ...
+# Subtest: 命令级 help：rollback --help 输出用法与参数
+ok 2 - 命令级 help：rollback --help 输出用法与参数
+  ---
+  duration_ms: 38.4575
+  type: 'test'
+  ...
+# Subtest: 未知命令（顶层/两段式）：exit 2 + stderr
+ok 3 - 未知命令（顶层/两段式）：exit 2 + stderr
+  ---
+  duration_ms: 113.736125
+  type: 'test'
+  ...
+# Subtest: 必填参数缺失：exit 2，提示参数名（注册表驱动）
+ok 4 - 必填参数缺失：exit 2，提示参数名（注册表驱动）
+  ---
+  duration_ms: 38.183417
+  type: 'test'
+  ...
+# Subtest: --flag=value 等价形态可用
+ok 5 - --flag=value 等价形态可用
+  ---
+  duration_ms: 38.842583
+  type: 'test'
+  ...
+# Subtest: 布尔旗标：bare 置 true 不吞后续 token；=true/false 取字面布尔；非法取值 exit 2；集合外 bare 仍报缺少取值
+ok 6 - 布尔旗标：bare 置 true 不吞后续 token；=true/false 取字面布尔；非法取值 exit 2；集合外 bare 仍报缺少取值
+  ---
+  duration_ms: 224.797917
+  type: 'test'
+  ...
+# Subtest: rollback：DAG 路径重置——目标+路径节点（含当前执行位置终点），路径外并行分支不动
+ok 7 - rollback：DAG 路径重置——目标+路径节点（含当前执行位置终点），路径外并行分支不动
+  ---
+  duration_ms: 38.399
+  type: 'test'
+  ...
+# Subtest: rollback：pending 目标 exit 1；不存在目标 exit 1
+ok 8 - rollback：pending 目标 exit 1；不存在目标 exit 1
+  ---
+  duration_ms: 68.574542
+  type: 'test'
+  ...
+# Subtest: rollback --reason：写入 stderr 日志，不进 state/stdout
+ok 9 - rollback --reason：写入 stderr 日志，不进 state/stdout
+  ---
+  duration_ms: 39.97925
+  type: 'test'
+  ...
+# Subtest: run finish：清 currentStage → history 追加 → index 移除
+ok 10 - run finish：清 currentStage → history 追加 → index 移除
+  ---
+  duration_ms: 40.516375
+  type: 'test'
+  ...
+# Subtest: run finish：--status 非法 exit 2；state 不存在 exit 1
+ok 11 - run finish：--status 非法 exit 2；state 不存在 exit 1
+  ---
+  duration_ms: 66.914459
+  type: 'test'
+  ...
+# Subtest: run finish 幂等：重复调用 exit 0，history 追加由读取方容忍
+ok 12 - run finish 幂等：重复调用 exit 0，history 追加由读取方容忍
+  ---
+  duration_ms: 73.86975
+  type: 'test'
+  ...
+# Subtest: list workflows：两条交付预设入清单且阶段链正确，basic/standard 不受影响
+ok 13 - list workflows：两条交付预设入清单且阶段链正确，basic/standard 不受影响
+  ---
+  duration_ms: 46.175083
+  type: 'test'
+  ...
+# Subtest: list tasks：deliver-pr 两相位（action+human 门）、link-issue 单相位，旋钮无 default 不预填提示
+ok 14 - list tasks：deliver-pr 两相位（action+human 门）、link-issue 单相位，旋钮无 default 不预填提示
+  ---
+  duration_ms: 39.382833
+  type: 'test'
+  ...
+# Subtest: run start --workflow pr-delivery：物化两阶段 DAG，起点 deliver-pr:01，无 default 旋钮不预填
+ok 15 - run start --workflow pr-delivery：物化两阶段 DAG，起点 deliver-pr:01，无 default 旋钮不预填
+  ---
+  duration_ms: 55.897291
+  type: 'test'
+  ...
+# Subtest: deliver-pr 门：01 契约注入 → 产物校验 → 开门（已合并/未合并）→ 无决议拦截 → 已合并放行点亮 link-issue
+ok 16 - deliver-pr 门：01 契约注入 → 产物校验 → 开门（已合并/未合并）→ 无决议拦截 → 已合并放行点亮 link-issue
+  ---
+  duration_ms: 458.125
+  type: 'test'
+  ...
+# Subtest: link-issue：pr-info 在场注入 Context；缺失时 exec 硬失败（必需上下文）
+ok 17 - link-issue：pr-info 在场注入 Context；缺失时 exec 硬失败（必需上下文）
+  ---
+  duration_ms: 450.205209
+  type: 'test'
+  ...
+# Subtest: closeout-worktree：单相位注册；exec 步骤顺序=产物入库 → next 完成 → finish --no-archive → 终态入库 → 移除 worktree
+ok 18 - closeout-worktree：单相位注册；exec 步骤顺序=产物入库 → next 完成 → finish --no-archive → 终态入库 → 移除 worktree
+  ---
+  duration_ms: 279.389417
+  type: 'test'
+  ...
+# Subtest: exec：任务不存在 / 相位未声明 → exit 1；--task 非法 → exit 2
+ok 19 - exec：任务不存在 / 相位未声明 → exit 1；--task 非法 → exit 2
+  ---
+  duration_ms: 158.998417
+  type: 'test'
+  ...
+# Subtest: exec spec :01：只含相位 01 指令，不含 :02 确认门；ctx 注入 requirement 全文
+ok 20 - exec spec :01：只含相位 01 指令，不含 :02 确认门；ctx 注入 requirement 全文
+  ---
+  duration_ms: 40.927083
+  type: 'test'
+  ...
+# Subtest: exec spec :02：含 L2 交互硬约束 + 待确认 spec 注入；:01 指令不重喂
+ok 21 - exec spec :02：含 L2 交互硬约束 + 待确认 spec 注入；:01 指令不重喂
+  ---
+  duration_ms: 42.04775
+  type: 'test'
+  ...
+# Subtest: exec spec :02 缺 spec.md（必需 ctx 缺失）→ exit 1
+ok 22 - exec spec :02 缺 spec.md（必需 ctx 缺失）→ exit 1
+  ---
+  duration_ms: 38.737417
+  type: 'test'
+  ...
+# Subtest: 配置三层合并：标量覆盖、rules 拼接（任务默认 → 用户级 → run 级）
+ok 23 - 配置三层合并：标量覆盖、rules 拼接（任务默认 → 用户级 → run 级）
+  ---
+  duration_ms: 40.089375
+  type: 'test'
+  ...
+# Subtest: exec 任务目录取值：--tasks-dir flag > state.dirs.tasksDir（无 flag 不得回落仓库缺省）
+ok 24 - exec 任务目录取值：--tasks-dir flag > state.dirs.tasksDir（无 flag 不得回落仓库缺省）
+  ---
+  duration_ms: 174.775958
+  type: 'test'
+  ...
+# Subtest: exec coding：单相位全文件指令 + 存在性容错 ctx（缺 test-plan 不失败）
+ok 25 - exec coding：单相位全文件指令 + 存在性容错 ctx（缺 test-plan 不失败）
+  ---
+  duration_ms: 39.398791
+  type: 'test'
+  ...
+# Subtest: exec coding：tasks 目录存在时注入 task 文件
+ok 26 - exec coding：tasks 目录存在时注入 task 文件
+  ---
+  duration_ms: 38.814333
+  type: 'test'
+  ...
+# Subtest: exec coding 工作目录：worktreePath 非空 → worktree 分支（声明路径 + 主工作树禁触）
+ok 27 - exec coding 工作目录：worktreePath 非空 → worktree 分支（声明路径 + 主工作树禁触）
+  ---
+  duration_ms: 38.009417
+  type: 'test'
+  ...
+# Subtest: exec coding 工作目录：worktreePath = projectRoot（新拓扑）→ 仍为 worktree 分支语义（WTT 天然兼容）
+ok 28 - exec coding 工作目录：worktreePath = projectRoot（新拓扑）→ 仍为 worktree 分支语义（WTT 天然兼容）
+  ---
+  duration_ms: 37.752375
+  type: 'test'
+  ...
+# Subtest: exec coding 工作目录：worktreePath 缺失 / 空串 / git 对象缺失 → projectRoot 分支；不含 worktree 硬约束
+ok 29 - exec coding 工作目录：worktreePath 缺失 / 空串 / git 对象缺失 → projectRoot 分支；不含 worktree 硬约束
+  ---
+  duration_ms: 106.813459
+  type: 'test'
+  ...
+# Subtest: exec verification：工作目录 ctx 与 coding 同源（共享判定，AC-5）
+ok 30 - exec verification：工作目录 ctx 与 coding 同源（共享判定，AC-5）
+  ---
+  duration_ms: 35.173417
+  type: 'test'
+  ...
+# Subtest: exec git-worktree：前置动作无 ctx 引擎——requirement 不注入，含标准时机声明，无产出契约
+ok 31 - exec git-worktree：前置动作无 ctx 引擎——requirement 不注入，含标准时机声明，无产出契约
+  ---
+  duration_ms: 33.647375
+  type: 'test'
+  ...
+# Subtest: 门拦截：开门位 next 无 --decision → exit 1，错误即提示（stderr 选项人话版 + stdout gate JSON）
+ok 32 - 门拦截：开门位 next 无 --decision → exit 1，错误即提示（stderr 选项人话版 + stdout gate JSON）
+  ---
+  duration_ms: 48.246958
+  type: 'test'
+  ...
+# Subtest: 决议推进：--decision 同意 → 相位耗尽收尾 + decision/closedAt 留痕 + DAG 点亮
+ok 33 - 决议推进：--decision 同意 → 相位耗尽收尾 + decision/closedAt 留痕 + DAG 点亮
+  ---
+  duration_ms: 81.480792
+  type: 'test'
+  ...
+# Subtest: 定制决议名（带修改通过）合法放行——用户词汇即 --decision 取值
+ok 34 - 定制决议名（带修改通过）合法放行——用户词汇即 --decision 取值
+  ---
+  duration_ms: 81.049834
+  type: 'test'
+  ...
+# Subtest: in-phase 决议喂 next → exit 1；转移型 → exit 1 指向声明命令；未知 → exit 2；无门用 → exit 2
+ok 35 - in-phase 决议喂 next → exit 1；转移型 → exit 1 指向声明命令；未知 → exit 2；无门用 → exit 2
+  ---
+  duration_ms: 186.845417
+  type: 'test'
+  ...
+# Subtest: 无门 human 位置（手工 state）→ 严格拦截，兜底标准二元（同意/驳回）
+ok 36 - 无门 human 位置（手工 state）→ 严格拦截，兜底标准二元（同意/驳回）
+  ---
+  duration_ms: 77.502542
+  type: 'test'
+  ...
+# Subtest: 进入 human 相位时注册门：任务级选项逐字进 state（含 in-phase）
+ok 37 - 进入 human 相位时注册门：任务级选项逐字进 state（含 in-phase）
+  ---
+  duration_ms: 43.040375
+  type: 'test'
+  ...
+# Subtest: action 白名单 fail fast：非法 action 在开门（注册）时 exit 1，垃圾不进 state
+ok 38 - action 白名单 fail fast：非法 action 在开门（注册）时 exit 1，垃圾不进 state
+  ---
+  duration_ms: 38.002833
+  type: 'test'
+  ...
+# Subtest: run start：首相位 human 的任务 → 启动即开门
+ok 39 - run start：首相位 human 的任务 → 启动即开门
+  ---
+  duration_ms: 54.057625
+  type: 'test'
+  ...
+# Subtest: rollback：阶段重置显式清门（clearedGates 输出），重做再入 human 相位开新门
+ok 40 - rollback：阶段重置显式清门（clearedGates 输出），重做再入 human 相位开新门
+  ---
+  duration_ms: 111.280459
+  type: 'test'
+  ...
+# Subtest: status：action 位派生 exec/validate/next + rollback + finish；gateOptions 为空
+ok 41 - status：action 位派生 exec/validate/next + rollback + finish；gateOptions 为空
+  ---
+  duration_ms: 33.833083
+  type: 'test'
+  ...
+# Subtest: status 开门位：gateOptions = 门全部选项（含 in-phase）；availableCommands 仅命令型（--state 补全）
+ok 42 - status 开门位：gateOptions = 门全部选项（含 in-phase）；availableCommands 仅命令型（--state 补全）
+  ---
+  duration_ms: 35.064417
+  type: 'test'
+  ...
+# Subtest: status：currentStage 空 → 唯一操作是 run finish --status done
+ok 43 - status：currentStage 空 → 唯一操作是 run finish --status done
+  ---
+  duration_ms: 34.818084
+  type: 'test'
+  ...
+# Subtest: exec 位置协议：不在 currentStage → exit 1；显式相位不一致 → exit 1；缺省 = 当前相位
+ok 44 - exec 位置协议：不在 currentStage → exit 1；显式相位不一致 → exit 1；缺省 = 当前相位
+  ---
+  duration_ms: 102.112458
+  type: 'test'
+  ...
+# Subtest: 真实任务声明注册：spec:01 → next 开门，用户词汇选项来自 config 声明
+ok 45 - 真实任务声明注册：spec:01 → next 开门，用户词汇选项来自 config 声明
+  ---
+  duration_ms: 34.754833
+  type: 'test'
+  ...
+# Subtest: 兜底 desc 现算真实下一步：中段人审位（无声明门）→「进入下一相位」
+ok 46 - 兜底 desc 现算真实下一步：中段人审位（无声明门）→「进入下一相位」
+  ---
+  duration_ms: 34.592541
+  type: 'test'
+  ...
+# Subtest: 兜底 desc 现算真实下一步：末段无后继（无声明门）→「run 将完成」
+ok 47 - 兜底 desc 现算真实下一步：末段无后继（无声明门）→「run 将完成」
+  ---
+  duration_ms: 36.73975
+  type: 'test'
+  ...
+# Subtest: config 标准格式：仓库全部任务 config 均符合 _schema/task-config.schema.json
+ok 48 - config 标准格式：仓库全部任务 config 均符合 _schema/task-config.schema.json
+  ---
+  duration_ms: 4.389375
+  type: 'test'
+  ...
+# Subtest: config 标准格式：非法样例 fail fast（坏相位 id / 坏 type 枚举 / 门选项缺 desc / name 不一致）
+ok 49 - config 标准格式：非法样例 fail fast（坏相位 id / 坏 type 枚举 / 门选项缺 desc / name 不一致）
+  ---
+  duration_ms: 0.67825
+  type: 'test'
+  ...
+# Subtest: run start：config 不符合标准格式的任务 → 装配时 fail fast（不产生半截 run）
+ok 50 - run start：config 不符合标准格式的任务 → 装配时 fail fast（不产生半截 run）
+  ---
+  duration_ms: 35.5555
+  type: 'test'
+  ...
+# Subtest: coding 门：:01 完成后 next 开 :02 门，选项且仅为 同意/提问/修改（按序，真实任务 config）
+ok 51 - coding 门：:01 完成后 next 开 :02 门，选项且仅为 同意/提问/修改（按序，真实任务 config）
+  ---
+  duration_ms: 35.412292
+  type: 'test'
+  ...
+# Subtest: coding 门全循环：拦截 → 呈现 → interact 提问使呈现过期 → 决议被拦 → 重新呈现 → 同意放行 reporting
+ok 52 - coding 门全循环：拦截 → 呈现 → interact 提问使呈现过期 → 决议被拦 → 重新呈现 → 同意放行 reporting
+  ---
+  duration_ms: 196.379083
+  type: 'test'
+  ...
+# Subtest: coding 门：修改 in-phase 留痕（反馈进 state 供审计），同意前不推进
+ok 53 - coding 门：修改 in-phase 留痕（反馈进 state 供审计），同意前不推进
+  ---
+  duration_ms: 62.531625
+  type: 'test'
+  ...
+# Subtest: 五问定版：questions 顺序 goal → worktree → mode → type → home（顺序即问询协议）
+ok 54 - 五问定版：questions 顺序 goal → worktree → mode → type → home（顺序即问询协议）
+  ---
+  duration_ms: 44.633709
+  type: 'test'
+  ...
+# Subtest: worktree 问：缺省标注与 note 源自 git-worktree configurable（--tasks-dir 定制传导）
+ok 55 - worktree 问：缺省标注与 note 源自 git-worktree configurable（--tasks-dir 定制传导）
+  ---
+  duration_ms: 40.44275
+  type: 'test'
+  ...
+# Subtest: worktree config 不可读 → 固定文案兜底，不阻断引导
+ok 56 - worktree config 不可读 → 固定文案兜底，不阻断引导
+  ---
+  duration_ms: 37.364125
+  type: 'test'
+  ...
+# Subtest: startupCheck（无 running）：空清单 + 引导 hint
+ok 57 - startupCheck（无 running）：空清单 + 引导 hint
+  ---
+  duration_ms: 36.579208
+  type: 'test'
+  ...
+# Subtest: startupCheck（有 running）：行含 runId/title/位置概要 + resumeCommand（沙箱 run start 造 run）
+ok 58 - startupCheck（有 running）：行含 runId/title/位置概要 + resumeCommand（沙箱 run start 造 run）
+  ---
+  duration_ms: 96.746958
+  type: 'test'
+  ...
+# Subtest: 确定性：同环境两次 guide 输出逐字节等值（AC 一致性的可测形式）
+ok 59 - 确定性：同环境两次 guide 输出逐字节等值（AC 一致性的可测形式）
+  ---
+  duration_ms: 177.244291
+  type: 'test'
+  ...
+# Subtest: run start 物化 dirs：两绝对路径且 runDir ⊂ projectRoot；历史 state 缺 dirs → 命令容错回落 dirname
+ok 60 - run start 物化 dirs：两绝对路径且 runDir ⊂ projectRoot；历史 state 缺 dirs → 命令容错回落 dirname
+  ---
+  duration_ms: 146.801541
+  type: 'test'
+  ...
+# Subtest: run finish 将 runId 目录 zip 归档到 ~/.ddo/history/<runId>.zip：内容一致、收束前位置保留、原目录不动、无目录副本、重复 finish 幂等
+ok 61 - run finish 将 runId 目录 zip 归档到 ~/.ddo/history/<runId>.zip：内容一致、收束前位置保留、原目录不动、无目录副本、重复 finish 幂等
+  ---
+  duration_ms: 144.734083
+  type: 'test'
+  ...
+# Subtest: run finish --no-archive：跳过 zip 归档与 runs.jsonl；index 移除与 currentStage 清空照旧；输出 archived:false
+ok 62 - run finish --no-archive：跳过 zip 归档与 runs.jsonl；index 移除与 currentStage 清空照旧；输出 archived:false
+  ---
+  duration_ms: 232.588042
+  type: 'test'
+  ...
+# Subtest: rollback 激活 _del 归档：重置集合汇总同一 rollback-n、移动语义、编号递增、重做产新文件
+ok 63 - rollback 激活 _del 归档：重置集合汇总同一 rollback-n、移动语义、编号递增、重做产新文件
+  ---
+  duration_ms: 77.1045
+  type: 'test'
+  ...
+# Subtest: rollback 产物缺失：跳过不报错，不产生空 rollback-n 目录
+ok 64 - rollback 产物缺失：跳过不报错，不产生空 rollback-n 目录
+  ---
+  duration_ms: 38.103625
+  type: 'test'
+  ...
+# Subtest: run start 记录 dirs.tasksDir：自定义链后续命令免 flag 读 state，门决议正常走通
+ok 65 - run start 记录 dirs.tasksDir：自定义链后续命令免 flag 读 state，门决议正常走通
+  ---
+  duration_ms: 191.401375
+  type: 'test'
+  ...
+# Subtest: output 声明防逃逸：validateTaskConfig 拒绝 .. 与绝对路径（顶层 / 相位级 updates）
+ok 66 - output 声明防逃逸：validateTaskConfig 拒绝 .. 与绝对路径（顶层 / 相位级 updates）
+  ---
+  duration_ms: 1.349959
+  type: 'test'
+  ...
+# Subtest: runValidate 运行时防逃逸：非法声明在拼路径前被拦（exit 1，不触产物）
+ok 67 - runValidate 运行时防逃逸：非法声明在拼路径前被拦（exit 1，不触产物）
+  ---
+  duration_ms: 70.114
+  type: 'test'
+  ...
+# Subtest: 时间戳为本地时区偏移格式，日期与 runId 一致（D-3）
+ok 68 - 时间戳为本地时区偏移格式，日期与 runId 一致（D-3）
+  ---
+  duration_ms: 48.850041
+  type: 'test'
+  ...
+# Subtest: history 的 statePath 为绝对路径，与 index 注册一致（D-4）
+ok 69 - history 的 statePath 为绝对路径，与 index 注册一致（D-4）
+  ---
+  duration_ms: 83.80625
+  type: 'test'
+  ...
+# Subtest: run finish（临时模式）：蕴含免归档 + 删 runDir 整目录 + index 移除；成功后重跑不可入（VA-4）
+ok 70 - run finish（临时模式）：蕴含免归档 + 删 runDir 整目录 + index 移除；成功后重跑不可入（VA-4）
+  ---
+  duration_ms: 108.099125
+  type: 'test'
+  ...
+# Subtest: list tasks：全量任务注册表（desc/相位/人审位/可配置项，config 直读）
+ok 71 - list tasks：全量任务注册表（desc/相位/人审位/可配置项，config 直读）
+  ---
+  duration_ms: 46.558708
+  type: 'test'
+  ...
+# Subtest: list workflows：默认目录与 --workflows-dir 自定义目录（描述 + 阶段链）
+ok 72 - list workflows：默认目录与 --workflows-dir 自定义目录（描述 + 阶段链）
+  ---
+  duration_ms: 77.457
+  type: 'test'
+  ...
+# Subtest: run start 预填：链内任务有 default 的旋钮进 state.atomTasks；无 default 与链外任务不进
+ok 73 - run start 预填：链内任务有 default 的旋钮进 state.atomTasks；无 default 与链外任务不进
+  ---
+  duration_ms: 56.996708
+  type: 'test'
+  ...
+# Subtest: 错误指路：未知预设列现有；任务不存在指向 list tasks
+ok 74 - 错误指路：未知预设列现有；任务不存在指向 list tasks
+  ---
+  duration_ms: 80.202833
+  type: 'test'
+  ...
+# Subtest: next：单相位任务（requirement:01）→ 阶段 done + spec 就绪点亮
+ok 75 - next：单相位任务（requirement:01）→ 阶段 done + spec 就绪点亮
+  ---
+  duration_ms: 45.264125
+  type: 'test'
+  ...
+# Subtest: next：spec:01 → :02（相位内推进，human 相位置 waiting-human + 开门）
+ok 76 - next：spec:01 → :02（相位内推进，human 相位置 waiting-human + 开门）
+  ---
+  duration_ms: 41.317416
+  type: 'test'
+  ...
+# Subtest: next：spec:02（相位耗尽）→ spec done + plan 就绪
+ok 77 - next：spec:02（相位耗尽）→ spec done + plan 就绪
+  ---
+  duration_ms: 38.279583
+  type: 'test'
+  ...
+# Subtest: next：reporting:01（终点）→ 全链完成，completed=true，不自动 run finish
+ok 78 - next：reporting:01（终点）→ 全链完成，completed=true，不自动 run finish
+  ---
+  duration_ms: 38.7865
+  type: 'test'
+  ...
+# Subtest: next：currentStage 为空 → exit 1（run 已结束或未启动）
+ok 79 - next：currentStage 为空 → exit 1（run 已结束或未启动）
+  ---
+  duration_ms: 38.925833
+  type: 'test'
+  ...
+# Subtest: next：相位未在任务声明（requirement:02）→ exit 1
+ok 80 - next：相位未在任务声明（requirement:02）→ exit 1
+  ---
+  duration_ms: 39.071834
+  type: 'test'
+  ...
+# Subtest: gate present：统一 payload（静态选项 + dispatch）+ presentedAt 留痕
+ok 81 - gate present：统一 payload（静态选项 + dispatch）+ presentedAt 留痕
+  ---
+  duration_ms: 51.540333
+  type: 'test'
+  ...
+# Subtest: gate present：隐式门（无门实例手写 state）物化——选项来自相位声明，留痕落新实例
+ok 82 - gate present：隐式门（无门实例手写 state）物化——选项来自相位声明，留痕落新实例
+  ---
+  duration_ms: 41.428375
+  type: 'test'
+  ...
+# Subtest: gate present：无开门 → exit 1 + stderr 指引
+ok 83 - gate present：无开门 → exit 1 + stderr 指引
+  ---
+  duration_ms: 40.278666
+  type: 'test'
+  ...
+# Subtest: 动态选项：spec 门 present 产出 回答BQ-N（present 钩子现算，name 无空格）
+ok 84 - 动态选项：spec 门 present 产出 回答BQ-N（present 钩子现算，name 无空格）
+  ---
+  duration_ms: 43.427292
+  type: 'test'
+  ...
+# Subtest: 动态选项：spec.md 无未解决 BQ → payload 不含动态项（降级不阻塞）
+ok 85 - 动态选项：spec.md 无未解决 BQ → payload 不含动态项（降级不阻塞）
+  ---
+  duration_ms: 41.549
+  type: 'test'
+  ...
+# Subtest: 未呈现决议被拦：next --decision → exit 1（blocked gate-unpresented）+ stderr 指引 gate present
+ok 86 - 未呈现决议被拦：next --decision → exit 1（blocked gate-unpresented）+ stderr 指引 gate present
+  ---
+  duration_ms: 41.7975
+  type: 'test'
+  ...
+# Subtest: 补呈现后决议成功：presentedAt 与 decision/closedAt 留痕并存
+ok 87 - 补呈现后决议成功：presentedAt 与 decision/closedAt 留痕并存
+  ---
+  duration_ms: 76.501208
+  type: 'test'
+  ...
+# Subtest: re-ask 闭环：present → interact(提问) → 决议被拦 → 重新 present → 决议成功
+ok 88 - re-ask 闭环：present → interact(提问) → 决议被拦 → 重新 present → 决议成功
+  ---
+  duration_ms: 280.593125
+  type: 'test'
+  ...
+# Subtest: gate interact：命令型选项报错指引走声明命令；未知选项列有效 in-phase 名单
+ok 89 - gate interact：命令型选项报错指引走声明命令；未知选项列有效 in-phase 名单
+  ---
+  duration_ms: 74.149208
+  type: 'test'
+  ...
+# Subtest: gate interact：动态选项名（回答BQ-1）合法记录
+ok 90 - gate interact：动态选项名（回答BQ-1）合法记录
+  ---
+  duration_ms: 36.074541
+  type: 'test'
+  ...
+# Subtest: rollback 作为门决议载体：未呈现被拦，补呈现后放行
+ok 91 - rollback 作为门决议载体：未呈现被拦，补呈现后放行
+  ---
+  duration_ms: 104.677375
+  type: 'test'
+  ...
+# Subtest: rollback 非门用途不受呈现校验影响（action 相位回滚）
+ok 92 - rollback 非门用途不受呈现校验影响（action 相位回滚）
+  ---
+  duration_ms: 35.914166
+  type: 'test'
+  ...
+# Subtest: assertGate 留痕字段：非法 presentedAt / interactions → exit 1
+ok 93 - assertGate 留痕字段：非法 presentedAt / interactions → exit 1
+  ---
+  duration_ms: 65.469041
+  type: 'test'
+  ...
+# Subtest: next 无 --decision：stderr 指引先跑 gate present（同源清单重发）
+ok 94 - next 无 --decision：stderr 指引先跑 gate present（同源清单重发）
+  ---
+  duration_ms: 34.274042
+  type: 'test'
+  ...
+# Subtest: guide：启动检查五问 payload（问目标 freeText / 问 worktree 场景 / 问模式含真实预设 / 问类型枚举 / 问居所）
+ok 95 - guide：启动检查五问 payload（问目标 freeText / 问 worktree 场景 / 问模式含真实预设 / 问类型枚举 / 问居所）
+  ---
+  duration_ms: 32.321584
+  type: 'test'
+  ...
+# Subtest: resume --run-id：gateOptions 与 gate present payload 同源（含动态选项）
+ok 96 - resume --run-id：gateOptions 与 gate present payload 同源（含动态选项）
+  ---
+  duration_ms: 121.381583
+  type: 'test'
+  ...
+# Subtest: resume 无参：全局清单（一律先列）——位置/门概要 + 待收束标记 + stale 计数
+ok 97 - resume 无参：全局清单（一律先列）——位置/门概要 + 待收束标记 + stale 计数
+  ---
+  duration_ms: 47.909958
+  type: 'test'
+  ...
+# Subtest: resume --run-id：完整状态视图（与 status 同构）+ 元数据；未知 runId → exit 1
+ok 98 - resume --run-id：完整状态视图（与 status 同构）+ 元数据；未知 runId → exit 1
+  ---
+  duration_ms: 76.262875
+  type: 'test'
+  ...
+# Subtest: resume --project 过滤：只列 statePath 前缀匹配的 run；--run-id 指向 stale → exit 1
+ok 99 - resume --project 过滤：只列 statePath 前缀匹配的 run；--run-id 指向 stale → exit 1
+  ---
+  duration_ms: 78.792917
+  type: 'test'
+  ...
+# Subtest: resume 空 index：runs 空 + 引导提示，exit 0
+ok 100 - resume 空 index：runs 空 + 引导提示，exit 0
+  ---
+  duration_ms: 41.522792
+  type: 'test'
+  ...
+# Subtest: resume：临时模式 run（statePath 在项目外）经 state.dirs 归属项目；全局清单含 projectRoot/type 元数据
+ok 101 - resume：临时模式 run（statePath 在项目外）经 state.dirs 归属项目；全局清单含 projectRoot/type 元数据
+  ---
+  duration_ms: 114.995917
+  type: 'test'
+  ...
+# Subtest: run start：物化 state（basic 五阶段）+ 注册 index
+ok 102 - run start：物化 state（basic 五阶段）+ 注册 index
+  ---
+  duration_ms: 64.829041
+  type: 'test'
+  ...
+# Subtest: run start：目录布局 .ddo/runs/<type>/<dirName>，index 含 startedAt
+ok 103 - run start：目录布局 .ddo/runs/<type>/<dirName>，index 含 startedAt
+  ---
+  duration_ms: 56.625459
+  type: 'test'
+  ...
+# Subtest: run start：git 仓库 → mainBranch 走推断链（init.defaultBranch 档）；主检出不产出 worktree 字段（VA-3）
+ok 104 - run start：git 仓库 → mainBranch 走推断链（init.defaultBranch 档）；主检出不产出 worktree 字段（VA-3）
+  ---
+  duration_ms: 151.374542
+  type: 'test'
+  ...
+# Subtest: run start：projectRoot 位于 worktree → git 自动捕获 branch/worktreePath（WTT 注册内置，VA-2）
+ok 105 - run start：projectRoot 位于 worktree → git 自动捕获 branch/worktreePath（WTT 注册内置，VA-2）
+  ---
+  duration_ms: 286.756458
+  type: 'test'
+  ...
+# Subtest: run start：任务不存在 → exit 1（不产生半截 run）
+ok 106 - run start：任务不存在 → exit 1（不产生半截 run）
+  ---
+  duration_ms: 33.846042
+  type: 'test'
+  ...
+# Subtest: run start：DAG 有环 → exit 1
+ok 107 - run start：DAG 有环 → exit 1
+  ---
+  duration_ms: 37.226334
+  type: 'test'
+  ...
+# Subtest: run start：任务重复出现 → exit 1
+ok 108 - run start：任务重复出现 → exit 1
+  ---
+  duration_ms: 37.498916
+  type: 'test'
+  ...
+# Subtest: run start：dependOn 引用不存在 → exit 1；预设文件不存在 → exit 1
+ok 109 - run start：dependOn 引用不存在 → exit 1；预设文件不存在 → exit 1
+  ---
+  duration_ms: 69.126666
+  type: 'test'
+  ...
+# Subtest: run start：--dir-name 含路径段 → exit 2（用法错误）
+ok 110 - run start：--dir-name 含路径段 → exit 2（用法错误）
+  ---
+  duration_ms: 33.288666
+  type: 'test'
+  ...
+# Subtest: run start：运行目录已存在（同 --dir-name 二次启动）→ exit 1
+ok 111 - run start：运行目录已存在（同 --dir-name 二次启动）→ exit 1
+  ---
+  duration_ms: 86.906833
+  type: 'test'
+  ...
+# Subtest: run start --ephemeral：材料落 ~/.ddo/tmp/<type>/<runId>/，项目内零创建，state 含标记（VA-2）
+ok 112 - run start --ephemeral：材料落 ~/.ddo/tmp/<type>/<runId>/，项目内零创建，state 含标记（VA-2）
+  ---
+  duration_ms: 38.542
+  type: 'test'
+  ...
+# Subtest: run start --ephemeral 与 --dir-name 并传 → exit 2（互斥 fail fast）
+ok 113 - run start --ephemeral 与 --dir-name 并传 → exit 2（互斥 fail fast）
+  ---
+  duration_ms: 32.904583
+  type: 'test'
+  ...
+# Subtest: run start 缺省（无 --ephemeral）：现状回归——项目内 runId 目录、state 无 ephemeral 字段（VA-1）
+ok 114 - run start 缺省（无 --ephemeral）：现状回归——项目内 runId 目录、state 无 ephemeral 字段（VA-1）
+  ---
+  duration_ms: 48.252708
+  type: 'test'
+  ...
+# Subtest: validate spec :01：产物符合 schema（可选 section 省略）→ exit 0 true
+ok 115 - validate spec :01：产物符合 schema（可选 section 省略）→ exit 0 true
+  ---
+  duration_ms: 48.803375
+  type: 'test'
+  ...
+# Subtest: validate：缺必需 section → exit 1；缺必需子节（Non-goals）→ exit 1
+ok 116 - validate：缺必需 section → exit 1；缺必需子节（Non-goals）→ exit 1
+  ---
+  duration_ms: 87.441291
+  type: 'test'
+  ...
+# Subtest: validate：占位填充（待定）→ exit 1；表格缺列 → exit 1
+ok 117 - validate：占位填充（待定）→ exit 1；表格缺列 → exit 1
+  ---
+  duration_ms: 82.29525
+  type: 'test'
+  ...
+# Subtest: validate：structured-list ID 格式（BQ-1 合法 / Q-1 不合法）
+ok 118 - validate：structured-list ID 格式（BQ-1 合法 / Q-1 不合法）
+  ---
+  duration_ms: 83.574
+  type: 'test'
+  ...
+# Subtest: validate：jsonFields 模式（合成 schema 直测 lib）
+ok 119 - validate：jsonFields 模式（合成 schema 直测 lib）
+  ---
+  duration_ms: 1.510041
+  type: 'test'
+  ...
+# Subtest: validate：schema 不符合 meta-schema → exit 1（--tasks-dir 沙箱任务）
+ok 120 - validate：schema 不符合 meta-schema → exit 1（--tasks-dir 沙箱任务）
+  ---
+  duration_ms: 39.617292
+  type: 'test'
+  ...
+# Subtest: validate spec :02（updates）：存在即过，缺失 exit 1；coding 无声明 skipped；用法错误 exit 2
+ok 121 - validate spec :02（updates）：存在即过，缺失 exit 1；coding 无声明 skipped；用法错误 exit 2
+  ---
+  duration_ms: 235.581208
+  type: 'test'
+  ...
+# Subtest: validate test-plan：占位符 heading（G1\\. {{ 分组名称 }}）匹配真实组名 → exit 0
+ok 122 - validate test-plan：占位符 heading（G1\\. {{ 分组名称 }}）匹配真实组名 → exit 0
+  ---
+  duration_ms: 37.403667
+  type: 'test'
+  ...
+# Subtest: 占位符通配不误伤：缺 G 分组仍 exit 1；字面 heading（spec 契约）仍精确匹配
+ok 123 - 占位符通配不误伤：缺 G 分组仍 exit 1；字面 heading（spec 契约）仍精确匹配
+  ---
+  duration_ms: 78.800708
+  type: 'test'
+  ...
+# Subtest: crc32：已知向量（"123456789" → 0xCBF43926）
+ok 124 - crc32：已知向量（"123456789" → 0xCBF43926）
+  ---
+  duration_ms: 0.489042
+  type: 'test'
+  ...
+# Subtest: buildZip：EOCD/中心目录结构、UTF-8 条目名、空文件条目
+ok 125 - buildZip：EOCD/中心目录结构、UTF-8 条目名、空文件条目
+  ---
+  duration_ms: 1.989875
+  type: 'test'
+  ...
+# Subtest: buildZip：确定性（乱序传入同字节）与不可压内容降级 store
+ok 126 - buildZip：确定性（乱序传入同字节）与不可压内容降级 store
+  ---
+  duration_ms: 1.176292
+  type: 'test'
+  ...
+# Subtest: zipDir：目录打包（含点开头与嵌套 _del/）→ unzip 交叉验证逐字节一致
+ok 127 - zipDir：目录打包（含点开头与嵌套 _del/）→ unzip 交叉验证逐字节一致
+  ---
+  duration_ms: 34.544375
+  type: 'test'
+  ...
+# Subtest: zipDir：压缩收益——高重复文本产物明显小于原目录
+ok 128 - zipDir：压缩收益——高重复文本产物明显小于原目录
+  ---
+  duration_ms: 2.41975
+  type: 'test'
+  ...
+1..128
+# tests 128
+# suites 0
+# pass 128
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1419.830083
