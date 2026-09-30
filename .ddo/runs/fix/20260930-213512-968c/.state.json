@@ -1,0 +1,146 @@
+{
+  "runId": "20260930-213512-968c",
+  "title": "修复 issue #69：对齐 SKILL.md 与 README.md 的调用及执行协议",
+  "startedAt": "2026-09-30T21:35:12.945+08:00",
+  "git": {
+    "mainBranch": "main",
+    "branch": "fix/issue-69-skill-protocol",
+    "worktreePath": "/Users/djhhh/work_area/Ddo-Code-Flow-fix-issue-69-skill-protocol"
+  },
+  "dirs": {
+    "projectRoot": "/Users/djhhh/work_area/Ddo-Code-Flow-fix-issue-69-skill-protocol",
+    "runDir": "/Users/djhhh/work_area/Ddo-Code-Flow-fix-issue-69-skill-protocol/.ddo/runs/fix/20260930-213512-968c",
+    "tasksDir": "/Users/djhhh/work_area/Ddo-Code-Flow-fix-issue-69-skill-protocol/atom-tasks"
+  },
+  "currentStage": [],
+  "stages": {
+    "requirement": {
+      "status": "done",
+      "dependOn": [],
+      "at": "2026-09-30T21:35:54.248+08:00"
+    },
+    "spec": {
+      "status": "done",
+      "dependOn": [
+        "requirement"
+      ],
+      "at": "2026-09-30T21:39:41.208+08:00",
+      "gate": {
+        "phase": "02",
+        "openedAt": "2026-09-30T21:37:15.130+08:00",
+        "options": [
+          {
+            "name": "同意",
+            "desc": "批准当前 spec（仅当不存在未解决 BQ），本相位完成",
+            "action": "next --decision 同意"
+          },
+          {
+            "name": "驳回",
+            "desc": "回滚 spec 阶段，按意见回到相位 01 重新生成",
+            "action": "rollback --stage spec"
+          },
+          {
+            "name": "修改",
+            "desc": "把反馈作为新的需求证据更新受影响条目，展示变化摘要后重新送审",
+            "action": "in-phase"
+          },
+          {
+            "name": "提问",
+            "desc": "只读答疑，不修改 spec、不改变任何 ID 与确认状态",
+            "action": "in-phase"
+          }
+        ],
+        "presentedAt": "2026-09-30T21:37:28.414+08:00",
+        "decision": "同意",
+        "closedAt": "2026-09-30T21:39:41.208+08:00"
+      }
+    },
+    "plan": {
+      "status": "done",
+      "dependOn": [
+        "spec"
+      ],
+      "at": "2026-09-30T21:43:42.452+08:00",
+      "gate": {
+        "phase": "02",
+        "openedAt": "2026-09-30T21:42:34.127+08:00",
+        "options": [
+          {
+            "name": "同意",
+            "desc": "批准当前 revision，本相位完成",
+            "action": "next --decision 同意"
+          },
+          {
+            "name": "驳回",
+            "desc": "回滚 plan 阶段，按意见回到相位 01 重新生成",
+            "action": "rollback --stage plan"
+          },
+          {
+            "name": "修改",
+            "desc": "反馈应用到新 revision 并重评估，展示变化摘要后重新送审",
+            "action": "in-phase"
+          },
+          {
+            "name": "提问",
+            "desc": "只答疑，不改文档、revision 与确认状态",
+            "action": "in-phase"
+          },
+          {
+            "name": "归档",
+            "desc": "按相位 01 §5 归档当前 plan；不代表批准",
+            "action": "in-phase"
+          }
+        ],
+        "presentedAt": "2026-09-30T21:42:47.051+08:00",
+        "decision": "同意",
+        "closedAt": "2026-09-30T21:43:42.452+08:00"
+      }
+    },
+    "coding": {
+      "status": "done",
+      "dependOn": [
+        "plan"
+      ],
+      "at": "2026-09-30T21:53:07.673+08:00",
+      "gate": {
+        "phase": "02",
+        "openedAt": "2026-09-30T21:44:37.139+08:00",
+        "options": [
+          {
+            "name": "同意",
+            "desc": "确认 coding 产物完成，本相位完成并放行后续阶段",
+            "action": "next --decision 同意"
+          },
+          {
+            "name": "提问",
+            "desc": "对实现内容答疑，不改变确认状态；处理后重新呈现",
+            "action": "in-phase"
+          },
+          {
+            "name": "修改",
+            "desc": "按反馈调整代码实现，完成后重新送审",
+            "action": "in-phase"
+          }
+        ],
+        "presentedAt": "2026-09-30T21:51:55.007+08:00",
+        "interactions": [
+          {
+            "option": "修改",
+            "note": "用户要求：SKILL.md 的小版本+1；沿用仓库 2.0.x 小版本递增为 2.0.4",
+            "at": "2026-09-30T21:51:40.301+08:00"
+          }
+        ],
+        "decision": "同意",
+        "closedAt": "2026-09-30T21:53:07.673+08:00"
+      }
+    },
+    "reporting": {
+      "status": "done",
+      "dependOn": [
+        "coding"
+      ],
+      "at": "2026-09-30T21:54:06.620+08:00"
+    }
+  },
+  "atomTasks": {}
+}
