@@ -99,6 +99,79 @@ test('run start --workflow pr-delivery：物化两阶段 DAG，起点 deliver-pr
   }
 });
 
+// ---------------------------------------------------------------- PR 格式协议
+
+const PR_HEADINGS = ['变更摘要', '主要变更', '验证结果', '风险与兼容性', '关联事项'];
+const PR_TITLE_FORMAT = '【type】(scope):<中文摘要>';
+
+function prBodyTemplate(prompt) {
+  const match = prompt.match(/```markdown\n(## 变更摘要\n[\s\S]*?)```/);
+  assert.ok(match, 'exec 必须注入完整 PR 正文模板');
+  return match[1];
+}
+
+function headings(md) {
+  return [...md.matchAll(/^## (.+)$/gm)].map((m) => m[1]);
+}
+
+for (const workflow of ['pr-delivery', 'pr-delivery-issue']) {
+  test(`${workflow}：创建相位注入统一 PR 格式，交付文档可选且不替代规范`, () => {
+    const sb = sandbox();
+    try {
+      const out = startRun(sb, workflow);
+      for (const withDoc of [false, true]) {
+        if (withDoc) {
+          fs.writeFileSync(path.join(path.dirname(out.statePath), 'delivery-doc.md'),
+            '# 交付文档\n\n交付文档内容标记：本次调整日志格式。\n');
+        }
+        const ex = cli(['exec', '--state', out.statePath, '--task', 'deliver-pr'], sb);
+        assert.equal(ex.status, 0, ex.stderr);
+        assert.ok(ex.stdout.includes(PR_TITLE_FORMAT));
+        assert.match(ex.stdout, /feat \/ fix \/ docs \/ refactor \/ test \/ chore \/ perf \/ build \/ ci \/ revert/);
+        assert.match(ex.stdout, /scope 可省略，省略时连同圆括号一起省略/);
+        assert.match(ex.stdout, /冒号后不加空格/);
+        assert.ok(ex.stdout.includes('【feat】(deliver-pr):统一 PR 标题与正文格式'));
+        assert.ok(ex.stdout.includes('【docs】:补充使用说明'));
+        assert.deepEqual(headings(prBodyTemplate(ex.stdout)), PR_HEADINGS);
+        assert.match(ex.stdout, /--title "<已格式化标题>" --body-file "<正文文件绝对路径>"/);
+        assert.match(ex.stdout, /<runDir>\/pr-body\.md/);
+        assert.match(ex.stdout, /每次执行本相位都重新生成，不复用旧文件内容/);
+        assert.match(ex.stdout, /不得使用 `--fill` 或默认模板替代显式内容/);
+        assert.match(ex.stdout, /不得直接照搬 run title/);
+        assert.match(ex.stdout, /必须区分已通过、失败与未执行/);
+        assert.match(ex.stdout, /禁止从分支名猜测 issue/);
+        assert.match(ex.stdout, /禁止生成 `Closes\/Fixes\/Resolves` 自动关闭指令/);
+        assert.match(ex.stdout, /不得携带 draft 标志/);
+        assert.doesNotMatch(ex.stdout, /PR 标题引用 run 的/);
+        const pushAt = ex.stdout.indexOf('git push -u origin');
+        const createAt = ex.stdout.indexOf('gh pr create');
+        const resultAt = ex.stdout.indexOf('创建成功后将 PR 编号');
+        assert.ok(pushAt >= 0 && pushAt < createAt && createAt < resultAt);
+        assert.equal(ex.stdout.includes('Context: 交付文档'), withDoc);
+        assert.equal(ex.stdout.includes('交付文档内容标记'), withDoc);
+      }
+    } finally {
+      cleanup(sb);
+    }
+  });
+}
+
+test('GitHub PR 模板：标题约定与五栏目顺序同交付协议，保留适用的检查提示', () => {
+  const root = path.join(__dirname, '..', '..');
+  const template = fs.readFileSync(path.join(root, '.github', 'pull_request_template.md'), 'utf8');
+  const prompt = fs.readFileSync(path.join(root, 'atom-tasks', 'deliver-pr', 'prompt.md'), 'utf8');
+  assert.ok(template.includes(PR_TITLE_FORMAT));
+  assert.ok(prompt.includes(PR_TITLE_FORMAT));
+  assert.deepEqual(headings(template), PR_HEADINGS);
+  assert.deepEqual(headings(template), headings(prBodyTemplate(prompt)));
+  assert.match(template, /### 流程符合性/);
+  assert.match(template, /### 测试/);
+  assert.match(template, /### 文档同步/);
+  assert.match(template, /node --test tools\/tests\/\*\.test\.js/);
+  assert.match(template, /未执行的说明原因/);
+  assert.match(template, /不使用自动关闭指令/);
+});
+
 // ---------------------------------------------------------------- 合并确认门（AC-3 前半）
 
 test('deliver-pr 门：01 契约注入 → 产物校验 → 开门（已合并/未合并）→ 无决议拦截 → 已合并放行点亮 link-issue', () => {
@@ -131,6 +204,8 @@ test('deliver-pr 门：01 契约注入 → 产物校验 → 开门（已合并/�
     const ex2 = cli(['exec', '--state', sp, '--task', 'deliver-pr', '--phase', '02'], sb);
     assert.equal(ex2.status, 0, ex2.stderr);
     assert.match(ex2.stdout, /Context: PR 信息/);
+    assert.ok(!ex2.stdout.includes(PR_TITLE_FORMAT), '合并门不注入创建相位的标题格式');
+    assert.doesNotMatch(ex2.stdout, /## 变更摘要|--body-file|pr-body\.md/);
     assert.match(ex2.stdout, /@interact|宿主提问工具/); // 门呈现硬约束
 
     // 门未决推进 → 拦截（结构性「未确认不清理」）

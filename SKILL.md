@@ -1,10 +1,11 @@
 ---
 name: ddo-code-flow
 description: |
-  Engineering pipeline skill for AI coding agents. Drives requirement → spec
-  → plan → coding → reporting through atom-tasks assembled per-phase by a
-  deterministic Node CLI. 面向 AI 编码代理的工程化流水线：按阶段组装恰好必需的
-  prompt，产物按 schema 规范化，.state.json 为唯一事实源。
+  显式调用的分阶段任务执行流程。按所选工作流推进任务，在人工审核点等待
+  用户确认，保存执行状态，支持中断恢复。仅在用户显式调用本 skill，或显式
+  引用本 SKILL.md 作为执行入口时启动；不根据普通对话中的关键词自动激活。
+  显式调用后，无论任务复杂度如何，都必须进入流程。带需求或 bug 描述时
+  新开 run 并询问其余配置；不带描述时先询问恢复已有 run 还是新开 run。
 metadata:
   authors:
     - "djhhhhhh"
@@ -13,201 +14,257 @@ metadata:
 
 # ddo-code-flow
 
-## 何时使用
+本 skill 将用户交付的任务放入选定的工作流中执行，而不是收到需求后直接写代码。
+代理依次完成工作流中的任务，在人工审核点暂停，得到用户决议后继续。
+最终交付哪些文档和代码，由所选工作流决定。
 
-用户要求「跑流水线」「按 ddo 流程开发」「use ddo-code-flow」，或明确要走过
-需求 → 规格 → 计划 → 编码 → 报告的多阶段流程时激活本 skill。
-一次性的小改动、问答、单文件修复不需要流水线，不要激活。
+CLI 提供当前任务指令、校验产物并管理状态；代理完成实际工作；用户负责审核和决议。
 
-## 运行位置
+## 调用契约
 
-- `skillRoot`：本 SKILL.md 所在目录（atom-tasks / workflows / tools）。运行期只读，不得写入。
-- `projectRoot`（项目根）：用户调用时的项目根，版控根。
-- `代码工作目录`：代码改动发生地——`git.multiRepo` 为 true → 多仓库隔离（各仓库改动落
-  `state.git.repos` 对应工作树，任务 ctx 注入仓库↔工作目录全映射，容器根见 `git.container`）；
-  否则 `git.worktreePath` 非空 → worktree，否则 projectRoot
-  （worktree 何时/如何创建见下节「worktree 创建时机」）。
-- `runDir`（run 工作目录 = 流水线产物目录，同址不分家）：`<projectRoot>/.ddo/runs/<type>/<dirName>/`。
-  `.state.json` 与全部流水线文档产物（spec.md / plan.md…）的唯一合法居所，state 的 `dirs` 字段显式携带。
-  **临时模式例外**（`run start --ephemeral`）：runDir 改为 `~/.ddo/tmp/<type>/<runId>/`（项目内零创建，
-  居所不变量的显式例外）——适合过程信息无需保留的流程型 run（如 PR 交付链）；与 worktree 组合时产物不入分支。
-- `DDO_HOME`：全局索引目录，缺省 `~/.ddo`（`index.json` 运行中指针、`history/runs.jsonl` 历史、
-  `history/<runId>.zip` 结束归档（runDir 整目录 zip）。
-- CLI 入口：`node <skillRoot>/tools/cli.js <命令>`。
+仅接受用户显式调用本 skill，或显式引用本 SKILL.md 作为执行入口。
+斜杠命令是调用形式之一；其他宿主显式引用本文件执行时，遵循同一契约。
+仅要求审阅、解释或修改本文件，不视为执行调用。
 
-**产物生命周期**：中间产物默认随项目版控走（留在 runDir，不搬不移）；rollback 时重置阶段
-声明的产物**移动**到 `<runDir>/_del/rollback-<n>/`（原位消失，重做产新文件）；run finish 时
-runId 目录整目录 zip 归档到 `~/.ddo/history/<runId>.zip`（原目录不动，随项目版控走）。output 声明
-禁绝对路径与 `..`（防逃逸，CLI 两层校验）。**临时模式**（`state.ephemeral`）：finish 蕴含免归档
-（zip 与 runs.jsonl 均不落）并**直接删除** runDir 整目录——项目内外零残留（含 aborted/failed 终态）。
+不根据“使用工作流”“分阶段开发”等普通对话表达自动激活。
+显式调用后，不判断任务是否值得启动流程：简单需求、问答、单文件修改和复杂开发任务都必须进入。
 
-## worktree 创建时机（WTT 机制）
+先读取本次调用是否附带需求或 bug 描述，再选择启动分支。
+不得用已有运行、任务复杂度或代理自己的推断改变该分支。
 
-**时序**：worktree（如启用）在**启动引导阶段、`run start` 之前**创建——分支名从引导问得的
-需求一句话（title）提取；随后 `run start --project <工作树绝对路径>` 落位，state 与全部产物
-落在 worktree 分支内（runDir ⊂ projectRoot 不变量天然满足）：创建在前、物化在后，无中途迁移。
+## 执行位置
 
-**注册与创建的分工**：
+- `skillRoot`：本 SKILL.md 所在目录，运行期只读。
+- CLI：`node "<skillRoot>/tools/cli.js" <命令>`。执行时替换为绝对路径，不假设项目中存在 `tools/cli.js`。
+- 启动项目：用户调用本 skill 时的项目；使用 worktree 时，改为创建后的工作树。
+- 启动后，项目与文档产物路径以 state 的 `dirs` 为准；代码工作目录为 `git.worktreePath`，未设置时使用 `dirs.projectRoot`；
+  多仓库隔离 run（`git.multiRepo` 为 true）以 `git.repos` 为准——各仓库改动落其对应工作树，任务 ctx 注入仓库↔工作目录全映射，容器根见 `git.container`。
+- 有效任务目录：启动前，使用本次调用显式指定的 `--tasks-dir`，未指定时使用 `<skillRoot>/atom-tasks`；
+  启动或恢复后，按“本次命令显式指定的 `--tasks-dir` → `state.dirs.tasksDir` → 内置目录”取值。
+  所有直接读取的任务文件均使用有效任务目录下的绝对路径，不因恢复调用未附带参数而回落默认目录。
 
-- **注册**：`run start` 时 git-info 推断链自动探测——projectRoot 位于 worktree
-  （`--git-dir` 与 `--git-common-dir` 绝对化比较不等）即捕获 `state.git.branch` 与
-  `state.git.worktreePath`（= `dirs.projectRoot`；主检出/非 git 不产出新字段）。
-  CLI 命令面零新增参数；`branch` 探测失败置空串，不阻断启动。
-- **创建**：创建动作（分支名提取 / git 建库 / 审计登记）由 git-worktree 原子任务承载，
-  属**启动前置动作**——不入预设链，链内引用属误用。宿主无 worktree 切换工具时，
-  绝对路径操作 + `--project` 即等效路径。
+`.state.json` 是执行状态的唯一事实源，只通过 CLI 更新，不手工编辑。
 
-**三场景（mode 旋钮，缺省 none）**：
+## 产物与生命周期
 
-| 场景 | 分支基线 | 启动形态 |
-|---|---|---|
-| none（缺省） | — | 主检出/当前目录 `run start` |
-| single（单分支） | 仓库主分支 | 前置创建 → `run start --project <worktree>` |
-| release-dev（发布+开发） | `base_branch` 旋钮 | 同上，基线换为发布分支 |
-| multi（多仓库隔离） | 各仓库同名分支 | 前置建容器目录（根含 `.ddo`，内并列各仓库 worktree；分支名同规则逐仓库同名）→ `run start --project <容器> --multi-repos <主检出列表>`（首位=主仓库）；注册校验逐仓库全或无，state.git 物化 `multiRepo`/`container`/`repos`，`dirs.projects` 列全部工作树（同序） |
+### 存放位置
 
-**旋钮与消费时序**：`mode` / `base_branch` / `worktree_dir` 声明于 git-worktree 任务
-configurable。**消费时点在启动引导问询**——选项数据由 `guide` payload 从该 config 现算呈现，
-对话表达即定制；`run start` 预填 `state.atomTasks` 仅为事后登记（创建先于 state 存在，
-预填值不参与创建）。持久定制走 `--tasks-dir` 覆盖任务目录。
+- 代码修改发生在代码工作目录，不写入流程产物目录。
+- `.state.json` 与流程文档产物统一放在 `state.dirs.runDir`；
+  具体文件名和格式以当前 exec 的 Output Contract 为准。
+- 正常模式的 runDir 位于项目内：`<projectRoot>/.ddo/runs/<type>/<dirName>/`。
+  默认 dirName 为 runId，显式指定 `--dir-name` 时使用指定名称。
+- 临时模式（`--ephemeral`）的 runDir 位于 `<DDO_HOME>/tmp/<type>/<runId>/`，
+  不在项目内创建运行目录。
+- `DDO_HOME` 未设置时默认为 `~/.ddo`。实际路径以 CLI 返回值和 state 为准，
+  不从 statePath 的父目录推断项目位置。
 
-**收尾**：`run finish` 后由 cleanup-worktree 清理——先确认分支合并/去留（未合并分支不得删除），
-离开 worktree（切回**主检出**，而非 runDir 上溯的 projectRoot——它就是被清理目录），
-再 `git worktree remove`。
+### 运行与回滚
 
-## 核心契约
+运行期间不自行搬移 state 或文档产物。
+声明的文档输出路径必须位于 runDir 内，不使用绝对路径或 `..` 逃逸。
+正常模式的运行材料保留在项目内，可随项目版控管理；这不等于已自动提交。
 
-1. **格式分界**：脚本读的写 JSON，agent 读的写 markdown——exec 组装出的 prompt 也是 md。
-2. **`.state.json` 是唯一事实源**：读 `currentStage`（形如 `spec:01`）决定当前要做什么；
-   一切推进通过语义命令（`next` / `rollback` / `run finish`），不要手改 state。
-3. **渐进式加载**：每次只 `exec` 当前相位——指令、恰好必需的上下文（ctx 钩子按 state 现算）、
-   Output Contract 会被组装进一个 prompt；不要全量加载任务文件。
-4. **确认门与呈现协议**：任务的 `type: human` 相位是确认门的**声明**（注册源，可选
-   `gate.options` 选项集定制——用户词汇决议名（如 同意/驳回/修改/提问），action 分推进型/
-   转移型/相位内交互 in-phase；per-task `present` 钩子可现算动态选项，如 spec 门的 回答BQ-N）；
-   进入该相位的推进命令把门实例（含选项集）注册进 `stages[k].gate`。CLI 拦截「门未关就推进」
-   **且拦截「未呈现就决议」**：呈现经 `gate present`（盖 `presentedAt` 留痕）、in-phase 交互经
-   `gate interact`（留痕并使呈现过期）——最后交互后未重新呈现，`next --decision` / 转移型
-   rollback 会被结构性拒绝。agent 只负责「跑呈现命令 → 转述 payload → 按 dispatch 代跑」，
-   不负责放行、不得自造呈现；呈现/交互/决议全程留痕供审计。
-5. **节律结构锁**：exec/validate 只服务 `currentStage` 中的位置（相位缺省 = 当前相位，
-   不一致即拦）——不 next 就停在原相位，执行节律由结构保证而非指令约定。
-6. **四通道**：stdout=JSON（exec 为裸文本例外）/ stderr=人话 / exit 0·1·2 / state 现读不缓存。
+回滚只通过 `rollback` 执行。CLI 会把本次重置阶段已声明且存在的
+旧产物移动到 `<runDir>/_del/rollback-<n>/`；
+旧文件从原位置移走，重做时按当前指令生成新产物。
+以命令返回的 `archived` 和 `archivedTo` 为准，不手工删除或搬移。
 
-## 启动状态机（skill 触发时无参数 / 参数不合法）
+### 结束
 
-触发后若用户没有给出可启动的参数（或 `run start` 报参数/预设不合法），**不要自由发挥**——
-按启动状态机走。全部呈现数据出自 `guide` payload（启动检查唯一数据源：`startupCheck` +
-五问），本节只描述状态与时序、不自述问题清单——**payload 是唯一呈现源：不得自拼选项、
-不得重排或增删问题**（双源描述必然漂移）。
+必须通过 `run finish` 结束运行；done、aborted、failed 均适用：
 
-```mermaid
-flowchart TD
-    A[skill 触发·无参或参数不合法] --> S0["S0 preflight：node tools/cli.js guide"]
-    S0 -->|"startupCheck.running 非空"| B1{"用户决议：继续 or 新开"}
-    B1 -->|继续| R["代跑该行 resumeCommand（resume --run-id）→ 按驱动协议接续"]
-    B1 -->|新开| S1
-    S0 -->|"running 为空"| S1["S1 引导问询：payload.questions 五问定版<br/>goal → worktree → mode → type → home"]
-    S1 -->|worktree = none| S3
-    S1 -->|worktree = single/release-dev| S2["S2 worktree 前置：分支名取自 goal 答案<br/>→ 建分支与工作树（git-worktree 前置动作）"]
-    S1 -->|worktree = multi| S2M["S2 multi 前置：追问仓库清单（agent 提候选<br/>用户确认）→ 建容器 → 逐仓库建分支与工作树"]
-    S2 --> S3["S3 run start（worktree 形态加 --project 工作树绝对路径；居所选临时加 --ephemeral）"]
-    S2M --> S3M["S3 run start --project <容器> --multi-repos <主检出列表>（首位=主仓库）"]
-    S3 --> S4["S4 告知 atomTasks 预填可配置项 → 进入驱动循环"]
-    S3M --> S4
-```
+- 正常模式：保留原 runDir，不搬移、不自动删除；
+  默认将整个运行目录归档到 `<DDO_HOME>/history/<runId>.zip`，
+  并在 `<DDO_HOME>/history/runs.jsonl` 记录结束历史。
+  明确使用 `--no-archive` 时跳过归档和历史记录，但仍保留原目录。
+- 临时模式：不生成 ZIP 归档或结束历史记录，
+  直接删除整个 runDir，包括 state 和其中的文档产物。
 
-**各状态行为**：
+若用户要求保留临时模式中的内容，必须在 finish 前确认保留位置并完成保存；
+不得先删除材料再尝试补交付。
 
-1. **S0 preflight**：跑 `node tools/cli.js guide` 取 payload。`startupCheck.running` 非空 →
-   先向用户呈现「继续（各行含位置与门概要，附带 resumeCommand）/ 新开」——选继续即代跑该
-   resumeCommand，之后按其 availableCommands 接续驱动（旧 run 不打断、与新开并存）；
-   选新开走 S1。`running` 为空 → 直接 S1。
-2. **S1 引导问询**：按 `payload.questions` 顺序逐问原样呈现（宿主提问工具）：
-   **goal**（freeText 一句话，同时是 worktree 分支名的语义来源）→ **worktree 场景**
-   （WTT 旋钮；选项与缺省由 payload 从 git-worktree 任务 configurable 现算，`--tasks-dir`
-   定制自动传导；选 release-dev 时按 followUp 追问基线分支名；选 **multi** 时按 followUps
-   追问仓库清单——agent 依需求分析提出候选主检出清单，经用户确认/修订后生效，
-   首位=主仓库）→ **mode** → **type** →
-   **home**（选「临时」→ 启动附加 `--ephemeral`，运行材料落 `~/.ddo/tmp`，项目内不建
-   runId 目录，finish 后即删——适合流程型 run）。mode 选**自定义**时：`node tools/cli.js
-   list tasks` → 呈现任务清单（desc / 相位与人审位 / 可配置项），与用户商定阶段链（顺序与
-   依赖）→ 写临时预设 JSON（os.tmpdir，结构同 workflows/*.json）→ `run start
-   --workflows-dir <临时目录> --workflow <名>`（物化进 .state.json 后临时文件即弃）。
-3. **S2 worktree 前置**（场景 single / release-dev）：按 git-worktree 前置动作执行——
-   title 提取分支名 → 建分支与工作树（机制详见「worktree 创建时机」节）→ S3。
-   场景 **multi** 走 S2M：先建隔离容器目录（根含 `.ddo`），再按确认清单逐仓库建同名分支与
-   工作树（先容器后 worktree 的顺序不变量；任一仓库 git 失败即暂停报告）→ S3M。
-4. **S3 run start**：按答案组装参数启动（`--title` / `--workflow` / `--type`；worktree
-   形态 `--project <工作树绝对路径>`；multi 形态 `--project <容器绝对路径> --multi-repos
-   <主检出列表>`（首位=主仓库，CLI 逐仓库校验全或无）；居所临时 `--ephemeral`）。报错自带指路：未知预设
-   列出现有预设；未知任务指向 list tasks——按提示回到 S1 对应问重问。
-5. **S4 启动后告知**：把 `state.atomTasks` 中**预填的可配置项**告知用户（有 default 的已
-   填入，如 test-plan 的 tdd；其余可配置项见 list tasks 输出的 configurable）——用户可改
-   哪些旋钮一目了然（git-worktree 的 mode 预填值为登记留痕：创建已在启动前完成）。
+run finish 不负责撤销代码修改，也不等于删除 worktree。
+worktree 清理是单独的收尾动作，可能影响其中保留的运行材料，
+执行前须遵守相应清理与用户确认规则。
 
-## 驱动一个 run
+## 启动分流
+
+### 带描述调用：新开 run
+
+例如：`/ddo-code-flow 修复登录后跳回首页的问题`。
+
+1. 将附带描述作为本次任务的目标输入，保留原始内容；需要提取一句话 title 时，不丢弃原始需求或 bug 信息。
+2. 运行 `guide`，获取启动问题、选项和参数映射。
+3. 不呈现恢复已有运行的询问，不重复询问已提供的目标。
+4. 按 guide 中的顺序，询问其余启动配置及适用的条件追问。
+5. 完成下方适用的启动前置动作后，按确认的配置执行 `run start`。
+
+即使发现已有运行，本次调用仍进入新建分支；不恢复、中止或修改其他运行。
+附带描述不等于已经完成启动配置，不得仅凭描述直接执行 `run start`。
+
+### 不带描述调用：先选择恢复或新建
+
+例如：`/ddo-code-flow`。
+
+先通过宿主提问工具询问用户：
+
+- **恢复已有 run**：继续之前尚未结束的运行。
+- **新开 run**：从目标和启动配置开始一次新运行。
+
+用户选择恢复时：
+
+1. 执行 `resume`，获取运行中的 run 清单。
+2. 呈现清单并请用户选定运行，再执行对应的 `resume --run-id <runId>`。
+3. 若没有可恢复的运行，说明情况，等待用户决定，不擅自转为新建。
+4. 保存返回的 statePath，按 state 确定有效任务目录，读取当前位置和可用命令。
+   当前位置为空时按“结束与异常”收口；否则进入执行循环。
+
+用户选择新建时：
+
+1. 运行 `guide`。
+2. 从目标问题开始，按顺序询问全部启动配置及适用的条件追问。
+3. 完成下方适用的启动前置动作后，执行 `run start`。
+
+不得因为没有发现已有运行而跳过最初的恢复/新建询问。
+不得因为只发现一个运行而自动恢复。
+
+### 启动问询与前置动作
 
 ```bash
-# ① 启动（返回 statePath 与起点；git 信息自动推断，非 git 环境置空）
-node tools/cli.js run start --title "<一句话描述>"
-#    worktree 形态（WTT）：启动状态机问场景后先建分支与工作树，再 run start --project <工作树绝对路径>
-#    ——state.git 自动捕获 branch/worktreePath，state 与产物全部落在 worktree 分支
-#    multi 形态（多仓库隔离）：先建容器（根含 .ddo）→ 逐仓库建同名分支与工作树 →
-#    run start --project <容器绝对路径> --multi-repos <主检出列表>（首位=主仓库）；
-#    state.git 物化 multiRepo/container/repos，任务 ctx 注入仓库↔工作目录全映射
-#    临时模式（可选 --ephemeral）：运行材料落 ~/.ddo/tmp/<type>/<runId>/，项目内不建
-#    runId 目录；run 期间全部命令照常（state 唯一事实源），finish 后材料直接删除
-
-# ② 逐相位循环，直到 next 返回 completed:true
-读 state.currentStage → 得 <stageId>:<phase>
-node tools/cli.js exec      --state <statePath> --task <stageId>   # 相位缺省=当前位置
-node tools/cli.js validate  --state <statePath> --task <stageId>
-node tools/cli.js next      --state <statePath>
-#    硬约束：每个相位的执行以【当次 exec 的组装结果】为准——不得跳过 exec、不得以
-#    「与之前相位/之前 run 相同」为由凭记忆替代（重放当前相位、中断重开后尤其如此）；
-#    exec 输出必须完整消费后再动手，不得只读前段忽略 Context 注入。
-
-# ③ 确认门（next 输出 openedGates，或 status 显示 waiting-human）
-#    呈现与交互全部走结构命令——payload 是唯一呈现数据源，不得自造：
-node tools/cli.js gate present --state <statePath>   # 取统一 payload + 盖 presentedAt 留痕
-#    用宿主提问工具把 payload 的 options（name/desc/dispatch）原样呈现给用户；用户选择后按 dispatch 处理：
-node tools/cli.js next --state <statePath> --decision 同意    # 推进型决议（用户词汇）
-#    转移型（dispatch 是 rollback / run finish 命令）→ agent 代跑该命令；
-#    相位内交互（in-phase，如 修改/提问/回答BQ）→ 先记录再处理，处理后重新呈现：
-node tools/cli.js gate interact --state <statePath> --option 提问 --note "<问题>"
-#    …按该相位 prompt 的行为定义处理（答疑/写回/归档）→ 重新 gate present 送审
-#    （未重新呈现就决议会被结构拦截：next/rollback exit 1 并重发选项清单）
-
-# ④ 中断恢复（新会话接手 run 时——先发现，再加载；启动路径上的优先呈现见「启动状态机」S0）
-node tools/cli.js resume                        # 全局列运行中的 run（位置/门概要；stale 惰性淘汰）
-node tools/cli.js resume --run-id <runId>       # 加载选定 run 的完整状态（含 statePath 与双清单）
-#    已知 statePath 时可直接 status；之后按 availableCommands 继续
-
-# ⑤ 结束（唯一收口入口；runId 目录自动 zip 归档到 ~/.ddo/history/<runId>.zip，原目录随项目版控走）
-node tools/cli.js run finish --state <statePath> --status done   # 或 aborted / failed
-#    临时模式 run（state.ephemeral）：finish 蕴含免归档并直接删除 ~/.ddo/tmp 下的运行材料
+node "<skillRoot>/tools/cli.js" guide
 ```
 
-**确认门协议（gate present 呈现、用户选择、agent 代跑）**：开门后先 `gate present` 取
-payload（静态 ∪ 动态选项，含 dispatch 指引）并转述——这是唯一呈现入口。门未关闭时 `next`
-会被拦截（exit 1，stderr 重发选项清单——错误信息本身就是提示）；**呈现留痕后才能决议**：
-`next --decision` 与转移型载体（rollback 驳回）在「从未呈现」或「in-phase 交互后未重新呈现」
-时被结构性拒绝（`gate interact` 留痕使呈现过期——提问/修改/回答BQ 处理完必须重新
-`gate present` 送审，re-ask 由结构强制）。不得替用户决议、不得在 payload 之外自造选项。
+启动分支由本次显式调用决定。guide 提供问题、选项、默认值和参数映射，不改变启动分支；
+其 `startupCheck.hint` 若与上方分流冲突，不据此重新询问恢复/新建或跳过首次选择。
 
-**中断恢复协议**：先 `resume` 发现运行中的 run（全局清单，多项目可见），用户选定后
-`resume --run-id` 取完整状态；若有开门，跑 `gate present` 取同源 payload（resume 的
-`gateOptions` 与之一致）呈现给用户后等选择——提示来自结构化输出，不自行发挥。
+通过宿主提问工具呈现问题。已由调用描述提供的目标不再次询问；
+其余问题保持 guide 中的顺序与选项，按条件追问呈现（`followUp`，multi 场景见 `followUps` 中的仓库清单追问——
+agent 依需求分析提出候选主检出清单，经用户确认/修订后生效，首位=主仓库），不自行补造配置选项。
+用户指定了任务或工作流目录时，获取引导和启动运行使用同一目录配置。
 
-`validate` 失败（exit 1）时进入修正循环：按 stderr 指出的缺失/结构问题修正产物后重新校验，
-不要带错推进（重放当前相位 exec 是合法的）。
+仅在选中相应能力时加载以下内容：
 
-## 硬边界
+- **worktree**：在 `run start` 前，读取有效任务目录中的 `git-worktree/config.json` 与
+  `git-worktree/prompt.md`，按已确认的配置执行。single / release-dev 场景创建成功后，以
+  `run start --project "<工作树绝对路径>"` 启动；multi 场景按该前置动作先建隔离容器目录
+  （根含 `.ddo`，内并列各仓库 worktree），再以
+  `run start --project "<容器绝对路径>" --multi-repos "<主检出列表>"`（首位=主仓库）启动；
+  创建失败则暂停并报告，不继续启动。
+  不把 git-worktree 加入运行中的阶段链。
+- **自定义工作流**：按 guide 指引执行 `list tasks`，与用户确定任务链；参照现有
+  `workflows/*.json` 的结构，在系统临时目录写预设，通过 `--workflows-dir` 与
+  `--workflow` 启动。不得写入 skillRoot。
 
-- 运行期不写 `skillRoot`；不修改 `.gitignore` 或 git exclude。
-- 回滚用 `rollback --stage <stageId>`（每次一个阶段），不要手工改 stages 状态；
-  回滚会清除该阶段未关闭的确认门（重做后重新送审），并把重置阶段已声明的产物移动到
-  `<runDir>/_del/rollback-<n>/`（输出 `archivedTo`/`archived` 告知去向）——不要手工删产物或
-  手工往 `_del` 搬文件。
-- 需要认证/TTY 的命令（如 `gh auth login`）不得代跑——交给用户在宿主 shell 执行。
+按 guide 的参数映射启动；用户选择临时存储时附加 `--ephemeral`。
+若启动参数不合法，按 CLI 错误说明修正并确认受影响的选择，不改为另一个启动分支。
+
+启动成功后保存 statePath，告知用户 `state.atomTasks` 中预填的可配置项，再进入执行循环。
+恢复成功后重新获取当前步骤指令，不凭会话记忆继续。
+工作流包含 requirement 任务时，按该任务及时固化原始输入；恢复时若原始输入尚未落盘
+且当前上下文缺失，应向用户重新索取，不从 title 或模型记忆重建。
+
+## 执行循环
+
+一次执行称为一个 run。工作流由任务组成，每个任务可以包含多个步骤（相位）。
+state 的 `currentStage` 是当前位置清单，其中每项形如 `spec:01`。
+每轮读取完整清单；为空时转入“结束与异常”，不再调用 exec 或 next。
+
+每次进入一个步骤，包括人工审核步骤，都先获取本次指令：
+
+```bash
+node "<skillRoot>/tools/cli.js" exec --state "<statePath>" --task "<stageId>"
+```
+
+`exec` 只组装并返回指令，不会替代理完成任务。
+必须完整阅读返回内容，包括 Context 和 Output Contract，再执行实际工作。
+不得跳过 exec，不得用之前步骤或之前运行的指令代替，不预先通读全部任务文件。
+
+### 普通执行与统一推进
+
+1. 对本轮所有普通执行位置，分别获取指令并完成分析、文件修改或其他任务，生成要求的产物。
+2. 分别校验各位置的产物：
+
+   ```bash
+   node "<skillRoot>/tools/cli.js" validate --state "<statePath>" --task "<stageId>"
+   ```
+
+3. 全部普通执行位置校验成功后，处理本轮的人工审核。任何一项尚未完成或校验失败，
+   都不得调用推进命令，包括审核选项中的 `next --decision`。
+4. 本轮没有待决议的人工审核时，统一执行一次：
+
+   ```bash
+   node "<skillRoot>/tools/cli.js" next --state "<statePath>"
+   ```
+
+   存在人工审核时，按下方协议取得用户明确决议，再执行合法的推进 dispatch，
+   不在 dispatch 之后重复调用 next。
+5. 每次推进或回滚后重新读取完整位置清单，开始下一轮，不沿用旧的位置清单。
+
+校验失败时，按错误说明修正产物并重新校验，不带错推进。
+`next` 会推进所有当前位置，不是只推进刚校验的任务；
+有多个位置时，不能只完成其中一个就调用 next。
+
+### 人工审核步骤
+
+1. 按当前 exec 指令展示待审内容，并获取审核选项：
+
+   ```bash
+   node "<skillRoot>/tools/cli.js" gate present --state "<statePath>"
+   ```
+
+2. 通过宿主提问工具呈现 payload 中的选项，等待用户明确选择，不自造选项，不替用户批准。
+3. 按用户所选项的 `dispatch` 执行：
+   - 推进型选择：先确认本轮所有普通执行位置均已完成并校验成功，再执行返回的命令。
+   - 回滚或中止等选择：按返回的命令执行，不额外调用 next；状态改变后重新读取位置。
+   - 相位内交互：先通过 `gate interact` 记录，再按当前步骤指令处理。
+     多个门同时开启时，使用 `--stage <stageId>` 指定交互目标。
+4. 相位内交互处理完成后，重新执行 `gate present` 并请求用户选择。
+   修改、提问或回答问题不等于批准，未重新呈现不得推进。
+   若交互改变了本轮已校验的普通执行产物，推进前重新校验受影响的位置。
+
+当前 CLI 的一次 `next --decision` 会将同一个决议用于所有当前确认门，不支持逐门独立推进。
+多个门同时开启时，不把用户对某一个门的批准当成全部批准；只有用户明确批准全部待审内容，
+且同一推进决议对所有门都合法时，才能统一推进。
+需要不同决议或独立推进时，暂停并说明限制，不猜测、不伪造逐门推进命令。
+自定义工作流应避免依赖尚不支持的独立并行审核；需要独立审核时，将相关步骤串行编排。
+
+### 交付链专用收尾
+
+`closeout-worktree` 仅用于交付预设末段，是跨运行完成边界的专用收尾任务。
+进入时须为唯一当前位置；否则暂停并报告编排问题，不执行其内部 next。
+
+仍先通过 exec 获取指令，再按该任务的专属顺序完成产物入库、推进完成、run 收口、
+终态入库和 worktree 清理。正常模式保留其 `--no-archive` 参数；
+临时模式按该任务指定的临时收口命令执行。
+
+外层不再重复 validate、next、run finish 或 cleanup-worktree。
+此例外只调整该任务的收尾顺序，不取消用户确认、安全约束或失败处理规则。
+如任一步失败，按该任务指令暂停并报告，不把部分完成当成全部交付完成。
+
+## 结束与异常
+
+- 普通流程中，next 返回 `completed: true` 后，若任务尚未自行完成收口，执行
+  `run finish --state "<statePath>" --status done`，再报告交付结果。
+  不把阶段完成误当成已经结束运行。
+- 恢复时若当前位置已为空，按 status/resume 返回的可用命令完成收口；
+  不再调用 exec 或 next。专用收尾已经开始但尚未全部完成时，继续其收尾协议，
+  不以通用命令替代指定参数或重复已成功执行的动作。
+- 用户要求中止时，通过 `run finish --state "<statePath>" --status aborted` 收口。
+- 确定无法继续时，说明原因，通过 `run finish --state "<statePath>" --status failed` 收口；
+  普通校验失败先进入修正循环，不直接结束运行。
+- 回退使用 `rollback --state "<statePath>" --stage "<stageId>"`，每次一个阶段，
+  按返回的新位置重新执行。
+- 检查命令退出码和 stderr。普通命令的 stdout 是 JSON；exec 的 stdout 是任务指令文本。
+  退出码 0 表示成功，1 表示执行失败或被拦截，2 表示用法错误；出错后按提示处理，不假定成功。
+- 非 closeout-worktree 的 worktree 清理，在 finish 前读取
+  `<有效任务目录>/cleanup-worktree/prompt.md` 并保留必要的路径和分支信息，
+  finish 后按该任务清理。不擅自丢弃未提交变更或删除未合并分支。
+- 执行 finish 前，按“产物与生命周期”处理需保留的材料。
+
+## 不可越界
+
+- 不修改 skillRoot、`.gitignore` 或 git exclude。
+- 不绕过校验、人工审核或 CLI 的位置检查。
+- 不把用户未回复、代理推断或工具事件当成用户决议。
+- 需要认证或交互式终端的命令交给用户执行，不代跑登录。

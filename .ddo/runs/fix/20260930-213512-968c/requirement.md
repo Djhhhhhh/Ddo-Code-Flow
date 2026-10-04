@@ -1,3 +1,293 @@
+# 用户需求
+
+## 原始需求
+
+https://github.com/Djhhhhhh/Ddo-Code-Flow/issues/69 理解这issue，修一下
+
+## 需求摘要
+
+依据 issue #69 的两份目标稿，对齐 SKILL.md 与 README.md 的显式调用、启动分流及执行协议。
+
+## Issue 原始材料
+
+来源：https://github.com/Djhhhhhh/Ddo-Code-Flow/issues/69
+
+标题：【Bugfix】SKILL.md 质量优化
+
+正文：（空）
+
+### 评论 1 原文
+
+---
+name: ddo-code-flow
+description: |
+  显式调用的分阶段任务执行流程。按所选工作流推进任务，在人工审核点等待
+  用户确认，保存执行状态，支持中断恢复。仅在用户显式调用本 skill，或显式
+  引用本 SKILL.md 作为执行入口时启动；不根据普通对话中的关键词自动激活。
+  显式调用后，无论任务复杂度如何，都必须进入流程。带需求或 bug 描述时
+  新开 run 并询问其余配置；不带描述时先询问恢复已有 run 还是新开 run。
+metadata:
+  authors:
+    - "djhhhhhh"
+  version: "2.0.3"
+---
+
+# ddo-code-flow
+
+本 skill 将用户交付的任务放入选定的工作流中执行，而不是收到需求后直接写代码。
+代理依次完成工作流中的任务，在人工审核点暂停，得到用户决议后继续。
+最终交付哪些文档和代码，由所选工作流决定。
+
+CLI 提供当前任务指令、校验产物并管理状态；代理完成实际工作；用户负责审核和决议。
+
+## 调用契约
+
+仅接受用户显式调用本 skill，或显式引用本 SKILL.md 作为执行入口。
+斜杠命令是调用形式之一；其他宿主显式引用本文件执行时，遵循同一契约。
+仅要求审阅、解释或修改本文件，不视为执行调用。
+
+不根据“使用工作流”“分阶段开发”等普通对话表达自动激活。
+显式调用后，不判断任务是否值得启动流程：简单需求、问答、单文件修改和复杂开发任务都必须进入。
+
+先读取本次调用是否附带需求或 bug 描述，再选择启动分支。
+不得用已有运行、任务复杂度或代理自己的推断改变该分支。
+
+## 执行位置
+
+- `skillRoot`：本 SKILL.md 所在目录，运行期只读。
+- CLI：`node "<skillRoot>/tools/cli.js" <命令>`。执行时替换为绝对路径，不假设项目中存在 `tools/cli.js`。
+- 启动项目：用户调用本 skill 时的项目；使用 worktree 时，改为创建后的工作树。
+- 启动后，项目与文档产物路径以 state 的 `dirs` 为准；代码工作目录为 `git.worktreePath`，未设置时使用 `dirs.projectRoot`。
+- 有效任务目录：启动前，使用本次调用显式指定的 `--tasks-dir`，未指定时使用 `<skillRoot>/atom-tasks`；
+  启动或恢复后，按“本次命令显式指定的 `--tasks-dir` → `state.dirs.tasksDir` → 内置目录”取值。
+  所有直接读取的任务文件均使用有效任务目录下的绝对路径，不因恢复调用未附带参数而回落默认目录。
+
+`.state.json` 是执行状态的唯一事实源，只通过 CLI 更新，不手工编辑。
+
+## 产物与生命周期
+
+### 存放位置
+
+- 代码修改发生在代码工作目录，不写入流程产物目录。
+- `.state.json` 与流程文档产物统一放在 `state.dirs.runDir`；
+  具体文件名和格式以当前 exec 的 Output Contract 为准。
+- 正常模式的 runDir 位于项目内：`<projectRoot>/.ddo/runs/<type>/<dirName>/`。
+  默认 dirName 为 runId，显式指定 `--dir-name` 时使用指定名称。
+- 临时模式（`--ephemeral`）的 runDir 位于 `<DDO_HOME>/tmp/<type>/<runId>/`，
+  不在项目内创建运行目录。
+- `DDO_HOME` 未设置时默认为 `~/.ddo`。实际路径以 CLI 返回值和 state 为准，
+  不从 statePath 的父目录推断项目位置。
+
+### 运行与回滚
+
+运行期间不自行搬移 state 或文档产物。
+声明的文档输出路径必须位于 runDir 内，不使用绝对路径或 `..` 逃逸。
+正常模式的运行材料保留在项目内，可随项目版控管理；这不等于已自动提交。
+
+回滚只通过 `rollback` 执行。CLI 会把本次重置阶段已声明且存在的
+旧产物移动到 `<runDir>/_del/rollback-<n>/`；
+旧文件从原位置移走，重做时按当前指令生成新产物。
+以命令返回的 `archived` 和 `archivedTo` 为准，不手工删除或搬移。
+
+### 结束
+
+必须通过 `run finish` 结束运行；done、aborted、failed 均适用：
+
+- 正常模式：保留原 runDir，不搬移、不自动删除；
+  默认将整个运行目录归档到 `<DDO_HOME>/history/<runId>.zip`，
+  并在 `<DDO_HOME>/history/runs.jsonl` 记录结束历史。
+  明确使用 `--no-archive` 时跳过归档和历史记录，但仍保留原目录。
+- 临时模式：不生成 ZIP 归档或结束历史记录，
+  直接删除整个 runDir，包括 state 和其中的文档产物。
+
+若用户要求保留临时模式中的内容，必须在 finish 前确认保留位置并完成保存；
+不得先删除材料再尝试补交付。
+
+run finish 不负责撤销代码修改，也不等于删除 worktree。
+worktree 清理是单独的收尾动作，可能影响其中保留的运行材料，
+执行前须遵守相应清理与用户确认规则。
+
+## 启动分流
+
+### 带描述调用：新开 run
+
+例如：`/ddo-code-flow 修复登录后跳回首页的问题`。
+
+1. 将附带描述作为本次任务的目标输入，保留原始内容；需要提取一句话 title 时，不丢弃原始需求或 bug 信息。
+2. 运行 `guide`，获取启动问题、选项和参数映射。
+3. 不呈现恢复已有运行的询问，不重复询问已提供的目标。
+4. 按 guide 中的顺序，询问其余启动配置及适用的条件追问。
+5. 完成下方适用的启动前置动作后，按确认的配置执行 `run start`。
+
+即使发现已有运行，本次调用仍进入新建分支；不恢复、中止或修改其他运行。
+附带描述不等于已经完成启动配置，不得仅凭描述直接执行 `run start`。
+
+### 不带描述调用：先选择恢复或新建
+
+例如：`/ddo-code-flow`。
+
+先通过宿主提问工具询问用户：
+
+- **恢复已有 run**：继续之前尚未结束的运行。
+- **新开 run**：从目标和启动配置开始一次新运行。
+
+用户选择恢复时：
+
+1. 执行 `resume`，获取运行中的 run 清单。
+2. 呈现清单并请用户选定运行，再执行对应的 `resume --run-id <runId>`。
+3. 若没有可恢复的运行，说明情况，等待用户决定，不擅自转为新建。
+4. 保存返回的 statePath，按 state 确定有效任务目录，读取当前位置和可用命令。
+   当前位置为空时按“结束与异常”收口；否则进入执行循环。
+
+用户选择新建时：
+
+1. 运行 `guide`。
+2. 从目标问题开始，按顺序询问全部启动配置及适用的条件追问。
+3. 完成下方适用的启动前置动作后，执行 `run start`。
+
+不得因为没有发现已有运行而跳过最初的恢复/新建询问。
+不得因为只发现一个运行而自动恢复。
+
+### 启动问询与前置动作
+
+```bash
+node "<skillRoot>/tools/cli.js" guide
+```
+
+启动分支由本次显式调用决定。guide 提供问题、选项、默认值和参数映射，不改变启动分支；
+其 `startupCheck.hint` 若与上方分流冲突，不据此重新询问恢复/新建或跳过首次选择。
+
+通过宿主提问工具呈现问题。已由调用描述提供的目标不再次询问；
+其余问题保持 guide 中的顺序与选项，按 `followUp` 追问，不自行补造配置选项。
+用户指定了任务或工作流目录时，获取引导和启动运行使用同一目录配置。
+
+仅在选中相应能力时加载以下内容：
+
+- **worktree**：在 `run start` 前，读取有效任务目录中的 `git-worktree/config.json` 与
+  `git-worktree/prompt.md`，按已确认的配置执行。创建成功后，以
+  `run start --project "<工作树绝对路径>"` 启动；创建失败则暂停并报告，不继续启动。
+  不把 git-worktree 加入运行中的阶段链。
+- **自定义工作流**：按 guide 指引执行 `list tasks`，与用户确定任务链；参照现有
+  `workflows/*.json` 的结构，在系统临时目录写预设，通过 `--workflows-dir` 与
+  `--workflow` 启动。不得写入 skillRoot。
+
+按 guide 的参数映射启动；用户选择临时存储时附加 `--ephemeral`。
+若启动参数不合法，按 CLI 错误说明修正并确认受影响的选择，不改为另一个启动分支。
+
+启动成功后保存 statePath，告知用户 `state.atomTasks` 中预填的可配置项，再进入执行循环。
+恢复成功后重新获取当前步骤指令，不凭会话记忆继续。
+工作流包含 requirement 任务时，按该任务及时固化原始输入；恢复时若原始输入尚未落盘
+且当前上下文缺失，应向用户重新索取，不从 title 或模型记忆重建。
+
+## 执行循环
+
+一次执行称为一个 run。工作流由任务组成，每个任务可以包含多个步骤（相位）。
+state 的 `currentStage` 是当前位置清单，其中每项形如 `spec:01`。
+每轮读取完整清单；为空时转入“结束与异常”，不再调用 exec 或 next。
+
+每次进入一个步骤，包括人工审核步骤，都先获取本次指令：
+
+```bash
+node "<skillRoot>/tools/cli.js" exec --state "<statePath>" --task "<stageId>"
+```
+
+`exec` 只组装并返回指令，不会替代理完成任务。
+必须完整阅读返回内容，包括 Context 和 Output Contract，再执行实际工作。
+不得跳过 exec，不得用之前步骤或之前运行的指令代替，不预先通读全部任务文件。
+
+### 普通执行与统一推进
+
+1. 对本轮所有普通执行位置，分别获取指令并完成分析、文件修改或其他任务，生成要求的产物。
+2. 分别校验各位置的产物：
+
+   ```bash
+   node "<skillRoot>/tools/cli.js" validate --state "<statePath>" --task "<stageId>"
+   ```
+
+3. 全部普通执行位置校验成功后，处理本轮的人工审核。任何一项尚未完成或校验失败，
+   都不得调用推进命令，包括审核选项中的 `next --decision`。
+4. 本轮没有待决议的人工审核时，统一执行一次：
+
+   ```bash
+   node "<skillRoot>/tools/cli.js" next --state "<statePath>"
+   ```
+
+   存在人工审核时，按下方协议取得用户明确决议，再执行合法的推进 dispatch，
+   不在 dispatch 之后重复调用 next。
+5. 每次推进或回滚后重新读取完整位置清单，开始下一轮，不沿用旧的位置清单。
+
+校验失败时，按错误说明修正产物并重新校验，不带错推进。
+`next` 会推进所有当前位置，不是只推进刚校验的任务；
+有多个位置时，不能只完成其中一个就调用 next。
+
+### 人工审核步骤
+
+1. 按当前 exec 指令展示待审内容，并获取审核选项：
+
+   ```bash
+   node "<skillRoot>/tools/cli.js" gate present --state "<statePath>"
+   ```
+
+2. 通过宿主提问工具呈现 payload 中的选项，等待用户明确选择，不自造选项，不替用户批准。
+3. 按用户所选项的 `dispatch` 执行：
+   - 推进型选择：先确认本轮所有普通执行位置均已完成并校验成功，再执行返回的命令。
+   - 回滚或中止等选择：按返回的命令执行，不额外调用 next；状态改变后重新读取位置。
+   - 相位内交互：先通过 `gate interact` 记录，再按当前步骤指令处理。
+     多个门同时开启时，使用 `--stage <stageId>` 指定交互目标。
+4. 相位内交互处理完成后，重新执行 `gate present` 并请求用户选择。
+   修改、提问或回答问题不等于批准，未重新呈现不得推进。
+   若交互改变了本轮已校验的普通执行产物，推进前重新校验受影响的位置。
+
+当前 CLI 的一次 `next --decision` 会将同一个决议用于所有当前确认门，不支持逐门独立推进。
+多个门同时开启时，不把用户对某一个门的批准当成全部批准；只有用户明确批准全部待审内容，
+且同一推进决议对所有门都合法时，才能统一推进。
+需要不同决议或独立推进时，暂停并说明限制，不猜测、不伪造逐门推进命令。
+自定义工作流应避免依赖尚不支持的独立并行审核；需要独立审核时，将相关步骤串行编排。
+
+### 交付链专用收尾
+
+`closeout-worktree` 仅用于交付预设末段，是跨运行完成边界的专用收尾任务。
+进入时须为唯一当前位置；否则暂停并报告编排问题，不执行其内部 next。
+
+仍先通过 exec 获取指令，再按该任务的专属顺序完成产物入库、推进完成、run 收口、
+终态入库和 worktree 清理。正常模式保留其 `--no-archive` 参数；
+临时模式按该任务指定的临时收口命令执行。
+
+外层不再重复 validate、next、run finish 或 cleanup-worktree。
+此例外只调整该任务的收尾顺序，不取消用户确认、安全约束或失败处理规则。
+如任一步失败，按该任务指令暂停并报告，不把部分完成当成全部交付完成。
+
+## 结束与异常
+
+- 普通流程中，next 返回 `completed: true` 后，若任务尚未自行完成收口，执行
+  `run finish --state "<statePath>" --status done`，再报告交付结果。
+  不把阶段完成误当成已经结束运行。
+- 恢复时若当前位置已为空，按 status/resume 返回的可用命令完成收口；
+  不再调用 exec 或 next。专用收尾已经开始但尚未全部完成时，继续其收尾协议，
+  不以通用命令替代指定参数或重复已成功执行的动作。
+- 用户要求中止时，通过 `run finish --state "<statePath>" --status aborted` 收口。
+- 确定无法继续时，说明原因，通过 `run finish --state "<statePath>" --status failed` 收口；
+  普通校验失败先进入修正循环，不直接结束运行。
+- 回退使用 `rollback --state "<statePath>" --stage "<stageId>"`，每次一个阶段，
+  按返回的新位置重新执行。
+- 检查命令退出码和 stderr。普通命令的 stdout 是 JSON；exec 的 stdout 是任务指令文本。
+  退出码 0 表示成功，1 表示执行失败或被拦截，2 表示用法错误；出错后按提示处理，不假定成功。
+- 非 closeout-worktree 的 worktree 清理，在 finish 前读取
+  `<有效任务目录>/cleanup-worktree/prompt.md` 并保留必要的路径和分支信息，
+  finish 后按该任务清理。不擅自丢弃未提交变更或删除未合并分支。
+- 执行 finish 前，按“产物与生命周期”处理需保留的材料。
+
+## 不可越界
+
+- 不修改 skillRoot、`.gitignore` 或 git exclude。
+- 不绕过校验、人工审核或 CLI 的位置检查。
+- 不把用户未回复、代理推断或工具事件当成用户决议。
+- 需要认证或交互式终端的命令交给用户执行，不代跑登录。
+
+
+
+### 评论 2 原文
+
 # ddo-code-flow
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) ![Node](https://img.shields.io/badge/node-%E2%89%A518-blue) ![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)
@@ -276,12 +566,6 @@ tools/tests/                     # node:test 沙箱隔离测试
 .ddo/runs/                       # 正常模式运行材料
 ```
 
-## PR 格式
-
-`pr-delivery` 与 `pr-delivery-issue` 共用 `deliver-pr` 的 [PR 内容格式](atom-tasks/deliver-pr/prompt.md#pr-内容格式)：标题使用 `【type】(scope):<中文摘要>`（scope 可省略），正文固定为变更摘要、主要变更、验证结果、风险与兼容性、关联事项五个栏目。
-
-交付任务依据实际变更生成内容，以 `--title` 和 `--body-file` 显式传给 `gh pr create`；验证结果必须如实区分已通过、失败与未执行。仓库的 [GitHub PR 模板](.github/pull_request_template.md) 同步该栏目结构。这是流水线生成协议，不是 CLI 或 CI 对远端 PR 的格式硬校验；不改写已有 PR，也不改变原有合并确认门。
-
 ## 开发与测试
 
 在仓库根目录使用支持 glob 展开的 shell 执行：
@@ -322,3 +606,4 @@ v2 的需求与定版方案保存在 `.ddo/runs/feat/ddo-code-flow-v2/`，涵盖
 ## 许可证
 
 [MIT](LICENSE) © 2026 Djhhhhhh
+
