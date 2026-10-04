@@ -57,11 +57,13 @@ test('五问定版：questions 顺序 goal → worktree → mode → type → ho
     assert.deepStrictEqual(out.questions.map((q) => q.id), ['goal', 'worktree', 'mode', 'type', 'home']);
     // goal 保持 freeText（worktree 分支名的语义来源）
     assert.equal(out.questions[0].freeText, true);
-    // worktree 问：三场景 + release-dev 基线追问 followUp
+    // worktree 问：四场景（none/single/release-dev/multi）+ 条件追问（release-dev→基线；multi→仓库清单）
     const wt = out.questions[1];
-    assert.deepStrictEqual(wt.options.map((o) => o.name), ['none', 'single', 'release-dev']);
+    assert.deepStrictEqual(wt.options.map((o) => o.name), ['none', 'single', 'release-dev', 'multi']);
     assert.equal(wt.followUp.whenOption, 'release-dev');
     assert.equal(wt.followUp.freeText, true);
+    assert.deepStrictEqual(wt.followUps.map((f) => f.whenOption), ['release-dev', 'multi']);
+    assert.equal(wt.followUps[1].freeText, true);
   } finally {
     cleanup(sb);
   }
@@ -92,7 +94,7 @@ test('worktree config 不可读 → 固定文案兜底，不阻断引导', () =>
     const r = cli(['guide', '--tasks-dir', sb.tasks], sb);
     assert.equal(r.status, 0, r.stderr);
     const wt = JSON.parse(r.stdout).questions[1];
-    assert.deepStrictEqual(wt.options.map((o) => o.name), ['none', 'single', 'release-dev']);
+    assert.deepStrictEqual(wt.options.map((o) => o.name), ['none', 'single', 'release-dev', 'multi']);
     assert.ok(wt.options[0].desc.includes('（缺省）')); // 兜底缺省 none
     assert.ok(!wt.note); // 无 config 说明则省略 note
   } finally {

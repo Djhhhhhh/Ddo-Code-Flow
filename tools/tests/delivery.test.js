@@ -315,3 +315,61 @@ test('closeout-worktree：单相位注册；exec 步骤顺序=产物入库 → n
     cleanup(sb);
   }
 });
+
+// ---------------------------------------------------------------- 多仓库隔离（multi 适配）
+
+test('deliver-pr：multi 逐仓库汇总形态的 pr-info 通过 schema 校验（单仓库原形不变）', () => {
+  const sb = sandbox();
+  try {
+    const out = startRun(sb, 'pr-delivery');
+    const runDir = path.dirname(out.statePath);
+    fs.writeFileSync(path.join(runDir, 'pr-info.md'), [
+      '# PR 信息', '',
+      '## PR 信息', '',
+      '- app：#57 https://github.com/o/app/pull/57（feat/multi-demo → main，ready）',
+      '- web：#12 https://github.com/o/web/pull/12（feat/multi-demo → develop，ready）', '',
+      '## PR 信息（app）', '',
+      '- PR 编号：#57', '- URL：https://github.com/o/app/pull/57', '- 源分支：feat/multi-demo',
+      '- base 分支：main', '- 状态：ready（非 draft）', '- 创建时间：2026-10-04 18:00', '',
+      '## PR 信息（web）', '',
+      '- PR 编号：#12', '- URL：https://github.com/o/web/pull/12', '- 源分支：feat/multi-demo',
+      '- base 分支：develop', '- 状态：ready（非 draft）', '- 创建时间：2026-10-04 18:00', '',
+    ].join('\n'));
+    const v = JSON.parse(cli(['validate', '--state', out.statePath, '--task', 'deliver-pr'], sb).stdout);
+    assert.equal(v.validated, true, JSON.stringify(v));
+  } finally {
+    cleanup(sb);
+  }
+});
+
+test('closeout-worktree：multi state → prompt 含多仓库形态（逐仓库移除 + 容器处置询问，置于单仓库步骤之后）', () => {
+  const sb = sandbox();
+  try {
+    const container = path.join(sb.dir, 'container');
+    const repos = [
+      { role: 'primary', name: 'app', repoPath: path.join(sb.dir, 'app'), worktreePath: path.join(container, 'app'), branch: 'feat/multi', mainBranch: 'main' },
+      { role: 'member', name: 'web', repoPath: path.join(sb.dir, 'web'), worktreePath: path.join(container, 'web'), branch: 'feat/multi', mainBranch: 'develop' },
+    ];
+    const runDir = path.join(container, '.ddo', 'runs', 'feat', 'run-multi');
+    fs.mkdirSync(runDir, { recursive: true });
+    const statePath = path.join(runDir, '.state.json');
+    fs.writeFileSync(statePath, JSON.stringify({
+      runId: 'run-multi', title: 'multi', startedAt: '2026-10-04T10:00:00.000+08:00',
+      git: { mainBranch: 'main', branch: 'feat/multi', worktreePath: repos[0].worktreePath, multiRepo: true, container, repos },
+      dirs: { projectRoot: container, runDir, projects: repos.map((r) => r.worktreePath) },
+      currentStage: ['closeout-worktree:01'],
+      stages: { 'closeout-worktree': { status: 'running', dependOn: [], at: '2026-10-04T10:00:00.000+08:00' } },
+    }, null, 2));
+    const ex = cli(['exec', '--state', statePath, '--task', 'closeout-worktree'], sb);
+    assert.equal(ex.status, 0, ex.stderr);
+    const iRemove = ex.stdout.match(/git worktree remove/).index;
+    const iMulti = ex.stdout.match(/## 多仓库形态/).index;
+    assert.ok(iRemove < iMulti, '多仓库形态附于单仓库步骤之后');
+    assert.match(ex.stdout, /repos\[i\]\.repoPath> worktree remove/);
+    assert.match(ex.stdout, /容器处置询问/);
+    assert.match(ex.stdout, /保留容器目录/);
+    assert.match(ex.stdout, /产物以容器持久化/);
+  } finally {
+    cleanup(sb);
+  }
+});

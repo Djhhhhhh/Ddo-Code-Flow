@@ -4,7 +4,7 @@
 
 ## 指令
 
-前置：读 state 的 `git.worktreePath` 与 `git.branch`（statePath 从本次执行的组装上下文获得）；worktreePath 为空 → 记录「无 worktree 需要清理」，跳过步骤 ⑤⑥，其余步骤照常（完成与收口仍须执行）。另读 `state.ephemeral`：为 true（临时模式，运行材料居 `~/.ddo/tmp` 项目外）→ 步骤 ①④ 跳过（无物可入库），步骤 ③ 改用临时语义收口，其余照常。
+前置：读 state 的 `git.worktreePath` 与 `git.branch`（statePath 从本次执行的组装上下文获得）；worktreePath 为空 → 记录「无 worktree 需要清理」，跳过步骤 ⑤⑥，其余步骤照常（完成与收口仍须执行）。另读 `state.ephemeral`：为 true（临时模式，运行材料居 `~/.ddo/tmp` 项目外）→ 步骤 ①④ 跳过（无物可入库），步骤 ③ 改用临时语义收口，其余照常。再读 `state.git.multiRepo`：为 true（多仓库隔离，runDir 位于容器 `.ddo`，不属于任何仓库）→ 步骤 ①④ 跳过（产物以容器持久化），步骤 ⑤⑥ 按多仓库形态执行（见下），其余照常。
 
 1. **产物入库（保底）**：将本 run 目录（`state.dirs.runDir`）内尚未提交的产物点名提交并推送（`git add <runDir 内产物路径>` → commit → push）——任何 git 失败立即暂停报告（`state.ephemeral` 为 true 时本步骤跳过）；
 2. **推进完成**：`next --state <statePath>`——本相位耗尽即 run `completed:true`；**此步骤之后才允许收口**（顺序不变量之一）；
@@ -15,7 +15,14 @@
 
 完成后向用户报告：收口结果（正常 `archived:false`；临时模式 `ephemeral:true, deleted:true`）、提交的提交号（临时模式无）、移除的 worktree、保留的本地/远程分支。
 
+## 多仓库形态（`state.git.multiRepo` 为 true 时，步骤 ⑤⑥ 展开如下）
+
+- **⑤ 切回主检出**：从主仓库工作树（`git.repos[0].worktreePath`）以宿主 worktree 切换工具（ExitWorktree，keep）离开，回到主仓库主检出；**不得**用 `cd` 代替，**不得**在任何待清理目录内执行删除。
+- **⑥ 逐仓库移除**：按 `state.git.repos` 顺序，在各仓库主检出执行 `git -C <repos[i].repoPath> worktree remove <repos[i].worktreePath>`（任一仓库有未提交变更时先向用户确认是否强制）；分支保留规则逐仓库同上（本地默认保留、未合并不删、远程永不删）。
+- **容器处置询问**：全部 worktree 移除后，容器仅剩 `.ddo`（run 产物）。向用户询问处置：**保留容器目录**（缺省——产物留存磁盘，可随时查阅）或**删除整个容器**（运行材料随之丢弃，须用户明确确认后方可删除）。
+- 报告追加：逐仓库移除结果、保留分支清单、容器处置结果（保留路径或已删除）。
+
 ## 约束
 
-- 不得删除主工作树；不得操作与本次 run 无关的 worktree。
+- 不得删除任何仓库的主检出（主工作树）；不得操作与本次 run 无关的 worktree。
 - 本任务的动作横跨 run 完成边界（步骤 ② 前属 run 内、之后属收尾）——顺序即契约，测试对其有关键词与先后断言。

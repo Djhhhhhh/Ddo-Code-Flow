@@ -9,7 +9,7 @@ description: |
 metadata:
   authors:
     - "djhhhhhh"
-  version: "2.0.4"
+  version: "2.1.0"
 ---
 
 # ddo-code-flow
@@ -37,7 +37,8 @@ CLI 提供当前任务指令、校验产物并管理状态；代理完成实际�
 - `skillRoot`：本 SKILL.md 所在目录，运行期只读。
 - CLI：`node "<skillRoot>/tools/cli.js" <命令>`。执行时替换为绝对路径，不假设项目中存在 `tools/cli.js`。
 - 启动项目：用户调用本 skill 时的项目；使用 worktree 时，改为创建后的工作树。
-- 启动后，项目与文档产物路径以 state 的 `dirs` 为准；代码工作目录为 `git.worktreePath`，未设置时使用 `dirs.projectRoot`。
+- 启动后，项目与文档产物路径以 state 的 `dirs` 为准；代码工作目录为 `git.worktreePath`，未设置时使用 `dirs.projectRoot`；
+  多仓库隔离 run（`git.multiRepo` 为 true）以 `git.repos` 为准——各仓库改动落其对应工作树，任务 ctx 注入仓库↔工作目录全映射，容器根见 `git.container`。
 - 有效任务目录：启动前，使用本次调用显式指定的 `--tasks-dir`，未指定时使用 `<skillRoot>/atom-tasks`；
   启动或恢复后，按“本次命令显式指定的 `--tasks-dir` → `state.dirs.tasksDir` → 内置目录”取值。
   所有直接读取的任务文件均使用有效任务目录下的绝对路径，不因恢复调用未附带参数而回落默认目录。
@@ -138,14 +139,18 @@ node "<skillRoot>/tools/cli.js" guide
 其 `startupCheck.hint` 若与上方分流冲突，不据此重新询问恢复/新建或跳过首次选择。
 
 通过宿主提问工具呈现问题。已由调用描述提供的目标不再次询问；
-其余问题保持 guide 中的顺序与选项，按 `followUp` 追问，不自行补造配置选项。
+其余问题保持 guide 中的顺序与选项，按条件追问呈现（`followUp`，multi 场景见 `followUps` 中的仓库清单追问——
+agent 依需求分析提出候选主检出清单，经用户确认/修订后生效，首位=主仓库），不自行补造配置选项。
 用户指定了任务或工作流目录时，获取引导和启动运行使用同一目录配置。
 
 仅在选中相应能力时加载以下内容：
 
 - **worktree**：在 `run start` 前，读取有效任务目录中的 `git-worktree/config.json` 与
-  `git-worktree/prompt.md`，按已确认的配置执行。创建成功后，以
-  `run start --project "<工作树绝对路径>"` 启动；创建失败则暂停并报告，不继续启动。
+  `git-worktree/prompt.md`，按已确认的配置执行。single / release-dev 场景创建成功后，以
+  `run start --project "<工作树绝对路径>"` 启动；multi 场景按该前置动作先建隔离容器目录
+  （根含 `.ddo`，内并列各仓库 worktree），再以
+  `run start --project "<容器绝对路径>" --multi-repos "<主检出列表>"`（首位=主仓库）启动；
+  创建失败则暂停并报告，不继续启动。
   不把 git-worktree 加入运行中的阶段链。
 - **自定义工作流**：按 guide 指引执行 `list tasks`，与用户确定任务链；参照现有
   `workflows/*.json` 的结构，在系统临时目录写预设，通过 `--workflows-dir` 与

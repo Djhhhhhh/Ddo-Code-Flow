@@ -8,23 +8,26 @@
 const path = require('path');
 const { spawnSync } = require('node:child_process');
 
+/** 仓库默认分支推断（06 plan §3.2 三档）：origin/HEAD → init.defaultBranch → main 常量兜底。
+ *  gitInfo 与 run start 多仓库注册（--multi-repos）共用。 */
+function inferMainBranch(git) {
+  const originHead = git(['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']);
+  if (originHead.status === 0) {
+    const ref = String(originHead.stdout).trim();
+    if (ref.startsWith('origin/')) return ref.slice('origin/'.length);
+  }
+  const def = git(['config', '--get', 'init.defaultBranch']);
+  if (def.status === 0 && String(def.stdout).trim()) return String(def.stdout).trim();
+  return 'main';
+}
+
 function gitInfo(projectRoot) {
   const git = (args) => spawnSync('git', args, { cwd: projectRoot, encoding: 'utf8' });
 
   const inside = git(['rev-parse', '--is-inside-work-tree']);
   if (inside.status !== 0 || String(inside.stdout).trim() !== 'true') return { mainBranch: '' };
 
-  // ① 远程默认分支（origin/HEAD，如 refs/remotes/origin/main → main）
-  let mainBranch = 'main'; // ③ 常量兜底
-  const originHead = git(['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']);
-  if (originHead.status === 0) {
-    const ref = String(originHead.stdout).trim();
-    if (ref.startsWith('origin/')) mainBranch = ref.slice('origin/'.length);
-  } else {
-    // ② 本地 init.defaultBranch
-    const def = git(['config', '--get', 'init.defaultBranch']);
-    if (def.status === 0 && String(def.stdout).trim()) mainBranch = String(def.stdout).trim();
-  }
+  const mainBranch = inferMainBranch(git);
 
   // 第三档：git-dir ≠ common-dir（绝对化后比较）⇒ 位于 worktree（submodule 同判定）；
   // 任何探测 git 失败 ⇒ 视为不在 worktree，不产出新字段，不阻断启动
@@ -38,4 +41,4 @@ function gitInfo(projectRoot) {
   return { mainBranch };
 }
 
-module.exports = { gitInfo };
+module.exports = { gitInfo, inferMainBranch };

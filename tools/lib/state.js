@@ -36,7 +36,49 @@ function assertState(state) {
     if (st.gate !== undefined) assertGate(id, st.gate);
   }
   if (state.dirs !== undefined) assertDirs(state.dirs, state.ephemeral === true);
+  if (state.git !== undefined) assertGit(state.git);
+  // 不变量 I2：multi 模式下 dirs.projects 与 git.repos 工作树同序一致（两侧都出现时校验）
+  if (state.git && state.git.multiRepo === true && state.dirs && state.dirs.projects !== undefined) {
+    const expected = state.git.repos.map((r) => r.worktreePath);
+    if (JSON.stringify(expected) !== JSON.stringify(state.dirs.projects)) {
+      throw new Error('state.dirs.projects 须与 git.repos 的 worktreePath 同序一致');
+    }
+  }
   return true;
+}
+
+/** 多仓库可选段校验（multi 模式，出现即须完整；缺失 = 单仓库旧语义零迁移）。
+ *  不变量：repos 主仓库首位且与 git.worktreePath 一致；worktreePath 全局唯一；
+ *  dirs.projects 与 repos 工作树同序一致（I2/I3，两侧都出现时校验）。 */
+function assertGit(git) {
+  if (!git || typeof git !== 'object') throw new Error('state.git must be an object');
+  if (git.multiRepo === undefined) return;
+  if (typeof git.multiRepo !== 'boolean') throw new Error('state.git.multiRepo must be a boolean');
+  if (git.multiRepo !== true) return;
+  if (typeof git.container !== 'string' || !path.isAbsolute(git.container)) {
+    throw new Error('state.git.container must be an absolute path');
+  }
+  if (!Array.isArray(git.repos) || !git.repos.length) {
+    throw new Error('state.git.repos must be a non-empty array');
+  }
+  const seen = new Set();
+  for (const [i, r] of git.repos.entries()) {
+    const where = `state.git.repos[${i}]`;
+    if (!r || typeof r !== 'object') throw new Error(`${where} must be an object`);
+    if (r.role !== 'primary' && r.role !== 'member') throw new Error(`${where}.role must be "primary" | "member"`);
+    for (const k of ['name', 'repoPath', 'worktreePath', 'branch', 'mainBranch']) {
+      if (typeof r[k] !== 'string' || !r[k]) throw new Error(`${where}.${k} must be a non-empty string`);
+    }
+    if (!path.isAbsolute(r.repoPath) || !path.isAbsolute(r.worktreePath)) {
+      throw new Error(`${where}.repoPath / worktreePath must be absolute paths`);
+    }
+    if (seen.has(r.worktreePath)) throw new Error(`${where} worktreePath 重复: ${r.worktreePath}`);
+    seen.add(r.worktreePath);
+  }
+  if (git.repos[0].role !== 'primary') throw new Error('state.git.repos[0].role must be "primary"（主仓库首位）');
+  if (git.repos[0].worktreePath !== git.worktreePath) {
+    throw new Error('state.git.repos[0].worktreePath 须与 git.worktreePath 一致');
+  }
 }
 
 /** 目录声明校验（11 §1.2，可选字段）：两绝对路径，runDir 须位于 projectRoot 之内——
@@ -58,6 +100,16 @@ function assertDirs(dirs, ephemeral = false) {
   }
   if (dirs.tasksDir !== undefined && (typeof dirs.tasksDir !== 'string' || !path.isAbsolute(dirs.tasksDir))) {
     throw new Error('state.dirs.tasksDir must be an absolute path'); // 12 D1：可选，出现即须绝对路径
+  }
+  if (dirs.projects !== undefined) {
+    if (!Array.isArray(dirs.projects) || !dirs.projects.length) {
+      throw new Error('state.dirs.projects must be a non-empty array');
+    }
+    for (const p of dirs.projects) {
+      if (typeof p !== 'string' || !path.isAbsolute(p)) {
+        throw new Error('state.dirs.projects[] must be absolute paths');
+      }
+    }
   }
 }
 
