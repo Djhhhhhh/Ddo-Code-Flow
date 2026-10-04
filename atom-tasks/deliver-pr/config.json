@@ -1,17 +1,17 @@
 {
   "name": "deliver-pr",
-  "version": "2.0.0",
-  "desc": "推送特性分支、创建正式 PR（base 可配）并经合并确认门放行（产出 pr-info）",
+  "version": "2.1.0",
+  "desc": "推送特性分支、创建正式 PR（base 可配；multi 模式逐仓库）并经合并确认门放行（产出 pr-info）",
   "phases": [
     {
       "id": "01",
-      "summary": "推送分支并创建正式 ready PR",
+      "summary": "推送分支并创建正式 ready PR（multi 逐仓库）",
       "type": "action",
       "output": "pr-info.md"
     },
     {
       "id": "02",
-      "summary": "合并确认门（已合并 / 未合并）",
+      "summary": "合并确认门（已合并 / 未合并；multi 须逐仓库全部合并）",
       "type": "human",
       "output": {
         "updates": [
@@ -22,7 +22,7 @@
         "options": [
           {
             "name": "已合并",
-            "desc": "确认 PR 已合并，本相位完成并放行后续清理阶段",
+            "desc": "确认全部 PR 已合并（multi run 为逐仓库全部），本相位完成并放行后续清理阶段",
             "action": "next --decision 已合并"
           },
           {
@@ -37,7 +37,7 @@
   "configurable": [
     {
       "key": "baseBranch",
-      "desc": "PR 合并目标分支（缺省取 state.git.mainBranch）"
+      "desc": "PR 合并目标分支（缺省取 state.git.mainBranch；multi run 缺省逐仓库取 repos[i].mainBranch，显式配置时全局覆盖）"
     }
   ],
   "defaults": {

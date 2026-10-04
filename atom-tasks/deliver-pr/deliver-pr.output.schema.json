@@ -1,5 +1,5 @@
 {
-  "description": "pr-info.md 输出规范（deliver-pr）",
+  "description": "pr-info.md 输出规范（deliver-pr）：单仓库为单节；多仓库隔离 run 的 `## PR 信息` 为逐仓库汇总，并可另设 `## PR 信息（<仓库名>）` 明细节。",
   "outputFormat": "markdown",
   "document": {
     "title": "PR 信息",
@@ -13,12 +13,12 @@
       "level": 2,
       "required": true,
       "format": "list",
-      "description": "PR 编号、URL、源分支、base 分支、状态（ready）、创建时间"
+      "description": "PR 编号、URL、源分支、base 分支、状态（ready）、创建时间；multi 模式为逐仓库汇总（每仓库一行：仓库/编号/URL/源分支/base/状态），各仓库明细可另设 `## PR 信息（<仓库名>）` 节"
     }
   ],
   "rules": [
-    "必须包含 PR 编号和 URL",
-    "必须包含源分支与 base 分支（实际生效值）",
+    "必须包含 PR 编号和 URL（multi 模式逐仓库齐备）",
+    "必须包含源分支与 base 分支（实际生效值；multi 模式逐仓库记录）",
     "状态必须为 ready（非 draft）",
     "git push 必须在 PR 创建前完成（先 push，再 create PR）",
     "worktree 清理不在本任务中执行，由后续 cleanup-worktree 阶段负责"

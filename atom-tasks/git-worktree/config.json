@@ -1,7 +1,7 @@
 {
   "name": "git-worktree",
-  "version": "2.2.0",
-  "desc": "启动前置动作：冷启动问得 title 后、run start 之前创建 Git 分支与隔离工作树（注册收敛进 state.git，本任务不产出文件）",
+  "version": "2.3.0",
+  "desc": "启动前置动作：冷启动问得 title 后、run start 之前创建 Git 分支与隔离工作树/多仓库隔离容器（注册收敛进 state.git，本任务不产出文件）",
   "defaults": {
     "extra_ctx": "",
     "rules": [
@@ -12,7 +12,7 @@
   "configurable": [
     {
       "key": "mode",
-      "desc": "worktree 场景：none=不使用（缺省，主检出/当前目录直接启动）/ single=单分支（基线=仓库主分支）/ release-dev=发布+开发（基线=base_branch）",
+      "desc": "worktree 场景：none=不使用（缺省，主检出/当前目录直接启动）/ single=单分支（基线=仓库主分支）/ release-dev=发布+开发（基线=base_branch）/ multi=多仓库隔离（先建容器目录（根含 .ddo），再逐仓库建分支与工作树，run start --project <容器> --multi-repos <主检出列表>，首位=主仓库）",
       "default": "none"
     },
     {

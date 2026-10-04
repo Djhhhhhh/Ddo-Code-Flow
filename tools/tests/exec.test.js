@@ -296,6 +296,33 @@ test('exec coding 工作目录：worktreePath 缺失 / 空串 / git 对象缺失
   }
 });
 
+test('exec coding 工作目录：multiRepo → multi 分支（锚=主仓库工作树，ctx 列全部仓库映射）', () => {
+  const sb = sandbox();
+  try {
+    const container = path.join(sb.dir, 'container');
+    const repos = [
+      { role: 'primary', name: 'app', repoPath: path.join(sb.dir, 'app'), worktreePath: path.join(container, 'app'), branch: 'feat/multi', mainBranch: 'main' },
+      { role: 'member', name: 'web', repoPath: path.join(sb.dir, 'web'), worktreePath: path.join(container, 'web'), branch: 'feat/multi', mainBranch: 'develop' },
+    ];
+    writeState(sb, {
+      ...WORKDIR_CODING,
+      git: { mainBranch: 'main', branch: 'feat/multi', worktreePath: repos[0].worktreePath, multiRepo: true, container, repos },
+      dirs: { projectRoot: container, runDir: path.join(container, '.ddo', 'runs', 'feat', 'r1'), projects: repos.map((x) => x.worktreePath) },
+    });
+    put(sb, 'spec.md', '# Spec');
+    put(sb, 'plan.md', '# Plan');
+    const r = cli(['exec', '--state', sb.statePath, '--task', 'coding'], sb);
+    assert.equal(r.status, 0);
+    assert.match(r.stdout, /## Context: 工作目录/);
+    assert.match(r.stdout, /主仓库锚点/);
+    assert.match(r.stdout, /app（主仓库）/);
+    assert.match(r.stdout, /web（成员仓库）/);
+    assert.match(r.stdout, /限定在其对应工作目录内/);
+  } finally {
+    cleanup(sb);
+  }
+});
+
 test('exec verification：工作目录 ctx 与 coding 同源（共享判定，AC-5）', () => {
   const sb = sandbox();
   try {

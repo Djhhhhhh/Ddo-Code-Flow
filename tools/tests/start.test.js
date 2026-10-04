@@ -271,3 +271,77 @@ test('run start 缺省（无 --ephemeral）：现状回归——项目内 runId 
     cleanup(sb);
   }
 });
+
+// ---------------------------------------------------------------- 多仓库隔离（--multi-repos）
+
+// 沙箱造两仓库 + 容器 + 各自 worktree（等价于 git-worktree multi 前置动作的产物）。
+function setupMultiRepos(sb) {
+  const g = (...a) => spawnSync('git', a, { encoding: 'utf8' });
+  const mk = (dir, branch) => {
+    fs.mkdirSync(dir, { recursive: true });
+    g('init', '-q', '-b', branch, dir);
+    g('-C', dir, 'config', 'init.defaultBranch', branch); // -b 不落 config，推断链第二档需要显式配置
+    g('-C', dir, '-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'init');
+  };
+  const primary = path.join(sb.dir, 'app');
+  const member = path.join(sb.dir, 'web');
+  mk(primary, 'main');
+  mk(member, 'develop');
+  const container = path.join(sb.dir, 'app-feat-multi');
+  fs.mkdirSync(container, { recursive: true });
+  g('-C', primary, 'worktree', 'add', '-q', path.join(container, 'app'), '-b', 'feat/multi-demo');
+  g('-C', member, 'worktree', 'add', '-q', path.join(container, 'web'), '-b', 'feat/multi-demo');
+  return { primary, member, container };
+}
+
+test('run start --multi-repos：逐仓库注册 state.git 多仓库形态 + dirs.projects（AC-1/AC-5 state 面）', () => {
+  const sb = sandbox();
+  try {
+    const { primary, member, container } = setupMultiRepos(sb);
+    const r = cli(['run', 'start', '--title', '多仓库', '--project', container, '--multi-repos', `${primary},${member}`], sb);
+    assert.equal(r.status, 0, r.stderr);
+    const out = JSON.parse(r.stdout);
+    assert.equal(out.statePath, path.join(container, '.ddo', 'runs', 'feat', out.runId, '.state.json')); // runDir 在容器 .ddo
+    const state = JSON.parse(fs.readFileSync(out.statePath, 'utf8'));
+    assert.strictEqual(state.git.multiRepo, true);
+    assert.equal(state.git.container, container);
+    assert.equal(state.git.worktreePath, path.join(container, 'app'));       // 主仓库首位
+    assert.equal(state.git.branch, 'feat/multi-demo');
+    assert.equal(state.git.mainBranch, 'main');
+    assert.deepStrictEqual(state.git.repos.map((x) => x.role), ['primary', 'member']);
+    assert.deepStrictEqual(state.git.repos.map((x) => x.name), ['app', 'web']);
+    assert.equal(state.git.repos[0].repoPath, primary);
+    assert.equal(state.git.repos[1].mainBranch, 'develop');                  // 成员仓库独立推断
+    assert.deepStrictEqual(state.dirs.projects, [path.join(container, 'app'), path.join(container, 'web')]);
+    assert.ok(state.dirs.runDir.startsWith(container + path.sep), 'runDir 落在容器内');
+  } finally {
+    cleanup(sb);
+  }
+});
+
+test('run start --multi-repos：worktree 缺失 → exit 1 全或无，不写 state 不注册 index', () => {
+  const sb = sandbox();
+  try {
+    const { primary, member, container } = setupMultiRepos(sb);
+    fs.rmSync(path.join(container, 'web'), { recursive: true, force: true }); // 成员 worktree 缺失
+    const r = cli(['run', 'start', '--title', 't', '--project', container, '--multi-repos', `${primary},${member}`], sb);
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /多仓库校验失败/);
+    assert.match(r.stderr, /web/);
+    assert.ok(!fs.existsSync(path.join(container, '.ddo')), '不得产生半截 run');
+    assert.ok(!fs.existsSync(path.join(sb.ddoHome, 'index.json')));
+  } finally {
+    cleanup(sb);
+  }
+});
+
+test('run start --multi-repos：缺 --project → exit 2（用法错误）', () => {
+  const sb = sandbox();
+  try {
+    const r = cli(['run', 'start', '--title', 't', '--multi-repos', sb.project], sb);
+    assert.equal(r.status, 2);
+    assert.match(r.stderr, /--multi-repos 需与 --project/);
+  } finally {
+    cleanup(sb);
+  }
+});

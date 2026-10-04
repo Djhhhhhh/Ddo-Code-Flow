@@ -16,7 +16,8 @@ const { assemble, mergeConfig } = require('./lib/assemble');
 const { loadTaskSchema, validateArtifact } = require('./lib/output-schema');
 const { loadWorkflow, expandStages, phaseType, nextPhase, readyStages, statusForPhase, standardOptions, buildGate, isAdvancing } = require('./lib/workflow');
 const { openGates, presentPayload, renderGateOptions, fillState, isPresentationValid } = require('./lib/gate');
-const { gitInfo } = require('./lib/git-info');
+const { gitInfo, inferMainBranch } = require('./lib/git-info');
+const { spawnSync } = require('node:child_process');
 
 const ATOM_TASKS_DIR = path.join(__dirname, '..', 'atom-tasks');
 const WORKFLOWS_DIR = path.join(__dirname, '..', 'workflows');
@@ -372,6 +373,66 @@ function runValidate(f) {
   return { validated: true };
 }
 
+/** 多仓库注册（--multi-repos，DEC-3）：创建动作归 git-worktree 前置任务（WTT 同构），
+ *  本命令只校验并组装 state.git 多仓库形态。成员目录名 = basename(repoPath)，冲突 -2 递增
+ *  （与前置动作同规则）；逐仓库校验全或无：主检出为 git 工作树、容器内 worktree 存在且
+ *  归属该仓库（common-dir 一致）、分支非空。任一失败整体报错，不写 state。 */
+function buildMultiGit(list, container) {
+  const repoPaths = String(list).split(',').map((s) => s.trim()).filter(Boolean);
+  if (!repoPaths.length) throw new UsageError('--multi-repos 至少需要一个主检出路径（首位=主仓库）');
+  const git = (args, cwd) => spawnSync('git', args, { cwd, encoding: 'utf8' });
+  const norm = (r) => String((r && r.stdout) || '').trim().replace(/\/+$/, '');
+  const taken = new Set();
+  const entries = repoPaths.map((repoPath, i) => {
+    const base = path.basename(repoPath);
+    let name = base;
+    for (let n = 2; taken.has(name); n++) name = `${base}-${n}`;
+    taken.add(name);
+    return {
+      role: i === 0 ? 'primary' : 'member',
+      name,
+      repoPath: path.resolve(repoPath),
+      worktreePath: path.join(container, name),
+    };
+  });
+  const errors = [];
+  const enriched = entries.map((e) => {
+    const inside = git(['rev-parse', '--is-inside-work-tree'], e.repoPath);
+    if (inside.status !== 0 || String(inside.stdout).trim() !== 'true') {
+      errors.push(`${e.repoPath}: 不是 git 工作树（rev-parse 失败）`);
+      return e;
+    }
+    if (!fs.existsSync(e.worktreePath) || !fs.statSync(e.worktreePath).isDirectory()) {
+      errors.push(`${e.worktreePath}: 容器内 worktree 不存在（先按 git-worktree multi 前置创建）`);
+      return e;
+    }
+    const cdRepo = git(['rev-parse', '--path-format=absolute', '--git-common-dir'], e.repoPath);
+    const cdWt = git(['rev-parse', '--path-format=absolute', '--git-common-dir'], e.worktreePath);
+    if (cdRepo.status !== 0 || cdWt.status !== 0 || norm(cdRepo) !== norm(cdWt)) {
+      errors.push(`${e.worktreePath}: 不属于仓库 ${e.repoPath}（git-common-dir 不一致）`);
+      return e;
+    }
+    const br = git(['branch', '--show-current'], e.worktreePath);
+    const branch = br.status === 0 ? String(br.stdout).trim() : '';
+    if (!branch) {
+      errors.push(`${e.worktreePath}: 分支为空（detached HEAD？）`);
+      return e;
+    }
+    return { ...e, branch, mainBranch: inferMainBranch((args) => git(args, e.repoPath)) };
+  });
+  if (errors.length) {
+    throw new Error(`多仓库校验失败（--multi-repos，全或无，未写 state）:\n  ${errors.join('\n  ')}`);
+  }
+  return {
+    multiRepo: true,
+    container,
+    repos: enriched,
+    mainBranch: enriched[0].mainBranch,
+    branch: enriched[0].branch,
+    worktreePath: enriched[0].worktreePath,
+  };
+}
+
 function runStart(f) {
   const workflowName = f.workflow === undefined ? 'basic' : f.workflow;
   const type = f.type === undefined ? 'feat' : f.type;
@@ -387,6 +448,12 @@ function runStart(f) {
   const ephemeral = f.ephemeral === true;
   if (ephemeral && f['dir-name'] !== undefined) {
     throw new UsageError('--dir-name 与 --ephemeral 互斥：临时模式运行材料即删，语义目录名无意义');
+  }
+  // 多仓库隔离（DEC-3）：--project 即容器根；注册校验见 buildMultiGit（fail fast 于 state 之前）
+  let multiGit = null;
+  if (f['multi-repos'] !== undefined) {
+    if (!f.project) throw new UsageError('--multi-repos 需与 --project <容器绝对路径> 同用（容器即 projectRoot）');
+    multiGit = buildMultiGit(f['multi-repos'], project);
   }
 
   const preset = loadWorkflow(workflowsDir, workflowName); // fail fast（06 §2.2），不产生半截 run
@@ -440,8 +507,13 @@ function runStart(f) {
     title: f.title,
     startedAt,
     ...(ephemeral ? { ephemeral: true } : {}), // 临时模式标记（DEC-5）：finish 据此走删除分支
-    git: gitInfo(project), // D5 推断链：仓库推断或置空；worktree 场景归 git-worktree 任务
-    dirs: { projectRoot: project, runDir, tasksDir }, // 目录定版（11 §1.2 + 12 D1）：产物居所 + 任务目录，run 自包含
+    git: multiGit || gitInfo(project), // D5 推断链：单仓库=仓库推断或置空；multi=逐仓库注册（DEC-3）
+    dirs: {
+      projectRoot: project,
+      runDir,
+      tasksDir,
+      ...(multiGit ? { projects: multiGit.repos.map((r) => r.worktreePath) } : {}), // 多仓库工作目录清单（I2 同序）
+    },
     currentStage,
     stages,
     atomTasks,
@@ -680,9 +752,11 @@ function gateInteract(f) {
   return { recorded: { stage: g.stage, phase: g.phase, option: f.option, at: now } };
 }
 
-/** guide 的 worktree 场景问（WTT 旋钮）：选项 name 固定三场景（机制名稳定），缺省值与机制
+/** guide 的 worktree 场景问（WTT 旋钮）：选项 name 固定四场景（机制名稳定），缺省值与机制
  * 权威说明源自 git-worktree 任务 configurable 现算——--tasks-dir 定制传导至本问；config
- * 缺失/损坏时退化为固定文案，不阻断引导。release-dev 的基线分支追问以 followUp 声明。 */
+ * 缺失/损坏时退化为固定文案，不阻断引导。条件追问以 followUps 数组声明（release-dev→基线
+ * 分支；multi→仓库清单，agent 依需求提候选、用户确认/修订）；followUp 字段保留旧单值形态
+ * （release-dev 首条）供既有消费方，二者同源不冲突。 */
 function guideWorktreeQuestion(tasksDir) {
   let modeNote = '';
   let def = 'none';
@@ -695,6 +769,12 @@ function guideWorktreeQuestion(tasksDir) {
     }
   } catch { /* 任务 config 不可读 → 固定文案兜底（启动引导不得因此阻断） */ }
   const mark = (name) => (name === def ? '（缺省）' : '');
+  const releaseDevFollowUp = { whenOption: 'release-dev', question: '基线（发布）分支名？（对应 base_branch 旋钮）', freeText: true };
+  const multiFollowUp = {
+    whenOption: 'multi',
+    question: '涉及哪些仓库？（主检出绝对路径，逗号分隔，首位=主仓库；agent 依需求分析提出候选清单，经用户确认/修订后生效）',
+    freeText: true,
+  };
   return {
     id: 'worktree',
     question: 'worktree 场景？（决定启动形态与分支基线）',
@@ -703,8 +783,10 @@ function guideWorktreeQuestion(tasksDir) {
       { name: 'none', desc: `不使用：主检出/当前目录直接 run start${mark('none')}` },
       { name: 'single', desc: `单分支：前置建分支与工作树（基线=仓库主分支）→ run start --project <工作树>${mark('single')}` },
       { name: 'release-dev', desc: `发布+开发：同 single，基线=发布分支（追问基线名）${mark('release-dev')}` },
+      { name: 'multi', desc: `多仓库隔离：前置建隔离容器目录（根含 .ddo，内并列各仓库 worktree）→ run start --project <容器> --multi-repos <主检出列表>${mark('multi')}` },
     ],
-    followUp: { whenOption: 'release-dev', question: '基线（发布）分支名？（对应 base_branch 旋钮）', freeText: true },
+    followUp: releaseDevFollowUp,
+    followUps: [releaseDevFollowUp, multiFollowUp],
   };
 }
 
@@ -932,15 +1014,16 @@ const REGISTRY = [
   },
   {
     name: 'run start',
-    summary: '按预设装配启动 run：物化 .state.json + 注册 index（06）；--ephemeral 临时模式材料落 ~/.ddo/tmp',
-    usage: 'run start --title <text> [--workflow basic] [--type feat] [--dir-name <name>] [--ephemeral] [--project <path>] [--workflows-dir <path>] [--tasks-dir <path>]',
+    summary: '按预设装配启动 run：物化 .state.json + 注册 index（06）；--ephemeral 临时模式材料落 ~/.ddo/tmp；--multi-repos 多仓库隔离注册',
+    usage: 'run start --title <text> [--workflow basic] [--type feat] [--dir-name <name>] [--ephemeral] [--project <path>] [--multi-repos <path[,path...]>] [--workflows-dir <path>] [--tasks-dir <path>]',
     options: [
       { flag: '--title', desc: 'run 标题（一句话描述，进 state 与 history）', required: true },
       { flag: '--workflow', desc: 'workflow 预设名（workflows/<name>.json，缺省 basic）' },
       { flag: '--type', desc: 'run 类型（目录第一段，缺省 feat）' },
       { flag: '--dir-name', desc: '运行目录名（目录第二段，缺省 runId；与 --ephemeral 互斥）' },
       { flag: '--ephemeral', desc: '布尔旗标：临时模式——项目内不创建 runId 目录，运行材料（含 .state.json）落 ~/.ddo/tmp/<type>/<runId>/，run finish 后直接删除（蕴含免归档；适合过程信息无需保留的流程型 run）' },
-      { flag: '--project', desc: '项目根（缺省 cwd）' },
+      { flag: '--project', desc: '项目根（缺省 cwd）；multi 模式下为隔离容器根' },
+      { flag: '--multi-repos', desc: '多仓库隔离注册：主检出路径逗号分隔（首位=主仓库），须与 --project <容器> 同用；逐仓库校验全或无，state.git 物化为 multiRepo/container/repos' },
       { flag: '--workflows-dir', desc: '预设根目录（缺省仓库 workflows/；测试用）' },
       { flag: '--tasks-dir', desc: '原子任务根目录（缺省仓库 atom-tasks/；测试用）' },
     ],

@@ -8,7 +8,7 @@ description: |
 metadata:
   authors:
     - "djhhhhhh"
-  version: "2.0.3"
+  version: "2.1.0"
 ---
 
 # ddo-code-flow
@@ -23,7 +23,9 @@ metadata:
 
 - `skillRoot`：本 SKILL.md 所在目录（atom-tasks / workflows / tools）。运行期只读，不得写入。
 - `projectRoot`（项目根）：用户调用时的项目根，版控根。
-- `代码工作目录`：代码改动发生地——`git.worktreePath` 非空 → worktree，否则 projectRoot
+- `代码工作目录`：代码改动发生地——`git.multiRepo` 为 true → 多仓库隔离（各仓库改动落
+  `state.git.repos` 对应工作树，任务 ctx 注入仓库↔工作目录全映射，容器根见 `git.container`）；
+  否则 `git.worktreePath` 非空 → worktree，否则 projectRoot
   （worktree 何时/如何创建见下节「worktree 创建时机」）。
 - `runDir`（run 工作目录 = 流水线产物目录，同址不分家）：`<projectRoot>/.ddo/runs/<type>/<dirName>/`。
   `.state.json` 与全部流水线文档产物（spec.md / plan.md…）的唯一合法居所，state 的 `dirs` 字段显式携带。
@@ -62,6 +64,7 @@ runId 目录整目录 zip 归档到 `~/.ddo/history/<runId>.zip`（原目录不�
 | none（缺省） | — | 主检出/当前目录 `run start` |
 | single（单分支） | 仓库主分支 | 前置创建 → `run start --project <worktree>` |
 | release-dev（发布+开发） | `base_branch` 旋钮 | 同上，基线换为发布分支 |
+| multi（多仓库隔离） | 各仓库同名分支 | 前置建容器目录（根含 `.ddo`，内并列各仓库 worktree；分支名同规则逐仓库同名）→ `run start --project <容器> --multi-repos <主检出列表>`（首位=主仓库）；注册校验逐仓库全或无，state.git 物化 `multiRepo`/`container`/`repos`，`dirs.projects` 列全部工作树（同序） |
 
 **旋钮与消费时序**：`mode` / `base_branch` / `worktree_dir` 声明于 git-worktree 任务
 configurable。**消费时点在启动引导问询**——选项数据由 `guide` payload 从该 config 现算呈现，
@@ -107,8 +110,11 @@ flowchart TD
     S0 -->|"running 为空"| S1["S1 引导问询：payload.questions 五问定版<br/>goal → worktree → mode → type → home"]
     S1 -->|worktree = none| S3
     S1 -->|worktree = single/release-dev| S2["S2 worktree 前置：分支名取自 goal 答案<br/>→ 建分支与工作树（git-worktree 前置动作）"]
+    S1 -->|worktree = multi| S2M["S2 multi 前置：追问仓库清单（agent 提候选<br/>用户确认）→ 建容器 → 逐仓库建分支与工作树"]
     S2 --> S3["S3 run start（worktree 形态加 --project 工作树绝对路径；居所选临时加 --ephemeral）"]
+    S2M --> S3M["S3 run start --project <容器> --multi-repos <主检出列表>（首位=主仓库）"]
     S3 --> S4["S4 告知 atomTasks 预填可配置项 → 进入驱动循环"]
+    S3M --> S4
 ```
 
 **各状态行为**：
@@ -120,7 +126,9 @@ flowchart TD
 2. **S1 引导问询**：按 `payload.questions` 顺序逐问原样呈现（宿主提问工具）：
    **goal**（freeText 一句话，同时是 worktree 分支名的语义来源）→ **worktree 场景**
    （WTT 旋钮；选项与缺省由 payload 从 git-worktree 任务 configurable 现算，`--tasks-dir`
-   定制自动传导；选 release-dev 时按 followUp 追问基线分支名）→ **mode** → **type** →
+   定制自动传导；选 release-dev 时按 followUp 追问基线分支名；选 **multi** 时按 followUps
+   追问仓库清单——agent 依需求分析提出候选主检出清单，经用户确认/修订后生效，
+   首位=主仓库）→ **mode** → **type** →
    **home**（选「临时」→ 启动附加 `--ephemeral`，运行材料落 `~/.ddo/tmp`，项目内不建
    runId 目录，finish 后即删——适合流程型 run）。mode 选**自定义**时：`node tools/cli.js
    list tasks` → 呈现任务清单（desc / 相位与人审位 / 可配置项），与用户商定阶段链（顺序与
@@ -128,8 +136,11 @@ flowchart TD
    --workflows-dir <临时目录> --workflow <名>`（物化进 .state.json 后临时文件即弃）。
 3. **S2 worktree 前置**（场景 single / release-dev）：按 git-worktree 前置动作执行——
    title 提取分支名 → 建分支与工作树（机制详见「worktree 创建时机」节）→ S3。
+   场景 **multi** 走 S2M：先建隔离容器目录（根含 `.ddo`），再按确认清单逐仓库建同名分支与
+   工作树（先容器后 worktree 的顺序不变量；任一仓库 git 失败即暂停报告）→ S3M。
 4. **S3 run start**：按答案组装参数启动（`--title` / `--workflow` / `--type`；worktree
-   形态 `--project <工作树绝对路径>`；居所临时 `--ephemeral`）。报错自带指路：未知预设
+   形态 `--project <工作树绝对路径>`；multi 形态 `--project <容器绝对路径> --multi-repos
+   <主检出列表>`（首位=主仓库，CLI 逐仓库校验全或无）；居所临时 `--ephemeral`）。报错自带指路：未知预设
    列出现有预设；未知任务指向 list tasks——按提示回到 S1 对应问重问。
 5. **S4 启动后告知**：把 `state.atomTasks` 中**预填的可配置项**告知用户（有 default 的已
    填入，如 test-plan 的 tdd；其余可配置项见 list tasks 输出的 configurable）——用户可改
@@ -142,6 +153,9 @@ flowchart TD
 node tools/cli.js run start --title "<一句话描述>"
 #    worktree 形态（WTT）：启动状态机问场景后先建分支与工作树，再 run start --project <工作树绝对路径>
 #    ——state.git 自动捕获 branch/worktreePath，state 与产物全部落在 worktree 分支
+#    multi 形态（多仓库隔离）：先建容器（根含 .ddo）→ 逐仓库建同名分支与工作树 →
+#    run start --project <容器绝对路径> --multi-repos <主检出列表>（首位=主仓库）；
+#    state.git 物化 multiRepo/container/repos，任务 ctx 注入仓库↔工作目录全映射
 #    临时模式（可选 --ephemeral）：运行材料落 ~/.ddo/tmp/<type>/<runId>/，项目内不建
 #    runId 目录；run 期间全部命令照常（state 唯一事实源），finish 后材料直接删除
 
