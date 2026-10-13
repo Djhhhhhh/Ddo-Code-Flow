@@ -8,6 +8,9 @@ const path = require('path');
 const { validate } = require('./jsonschema');
 
 const NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+// 旋钮引用（DEC-B）：`<task>.<key>`，task 段允许点号（NAME_RE 同源），key 段不允许——
+// 解析按「最后一个点」切分（任务名本身含点时唯一确定性切法）
+const CONFIG_REF_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*\.[A-Za-z][A-Za-z0-9_-]*$/;
 
 /**
  * 任务 config 结构校验（07 v1.4）：`atom-tasks/_schema/task-config.schema.json` 驱动。
@@ -39,9 +42,73 @@ function safeOutputFiles(decl, where) {
   }
 }
 
+/** DAG 无环校验（Kahn）：loadWorkflow 与 pruneStages 共用（测试工作流 DEC-B：裁剪后复检）。 */
+function assertAcyclic(stages, where) {
+  const indeg = new Map(stages.map((s) => [s.task, 0]));
+  for (const s of stages) indeg.set(s.task, s.dependOn.length);
+  const queue = [...indeg.entries()].filter(([, n]) => n === 0).map(([t]) => t);
+  let popped = 0;
+  while (queue.length) {
+    const t = queue.shift();
+    popped++;
+    for (const s of stages) {
+      if (!s.dependOn.includes(t)) continue;
+      indeg.set(s.task, indeg.get(s.task) - 1);
+      if (indeg.get(s.task) === 0) queue.push(s.task);
+    }
+  }
+  if (popped !== stages.length) throw new Error(`${where} 的 DAG 存在环`);
+}
+
+/** when 条件声明校验（DEC-B）：{config, includes}；config 引用的 stage 须在预设内。 */
+function validateWhen(when, stageNames, where) {
+  if (!when || typeof when !== 'object' || Array.isArray(when)) {
+    throw new Error(`${where} 非法: ${JSON.stringify(when)}（须为对象 {config, includes}）`);
+  }
+  if (typeof when.config !== 'string' || !CONFIG_REF_RE.test(when.config)) {
+    throw new Error(`${where}.config 非法: ${JSON.stringify(when && when.config)}（须为 <task>.<key> 旋钮引用）`);
+  }
+  if (when.includes === undefined || when.includes === null || typeof when.includes === 'object') {
+    throw new Error(`${where}.includes 非法: ${JSON.stringify(when && when.includes)}（须为标量）`);
+  }
+  const refTask = when.config.slice(0, when.config.lastIndexOf('.'));
+  if (!stageNames.has(refTask)) throw new Error(`${where}.config 引用不存在的 stage: ${refTask}`);
+  return true;
+}
+
+/** startup 启动追问声明校验（DEC-D）：{question, multiSelect?, options[], mapToConfig}。 */
+function validateStartup(startup, stageNames, where) {
+  if (!startup || typeof startup !== 'object' || Array.isArray(startup)) {
+    throw new Error(`${where} 非法: ${JSON.stringify(startup)}（须为对象 {question, options, mapToConfig}）`);
+  }
+  if (typeof startup.question !== 'string' || !startup.question) {
+    throw new Error(`${where}.question 缺失或为空`);
+  }
+  if (startup.multiSelect !== undefined && typeof startup.multiSelect !== 'boolean') {
+    throw new Error(`${where}.multiSelect 须为布尔`);
+  }
+  if (!Array.isArray(startup.options) || !startup.options.length) {
+    throw new Error(`${where}.options 须为非空数组`);
+  }
+  const seen = new Set();
+  for (const o of startup.options) {
+    if (!o || typeof o.name !== 'string' || !NAME_RE.test(o.name)) throw new Error(`${where}.options[].name 非法: ${JSON.stringify(o && o.name)}`);
+    if (seen.has(o.name)) throw new Error(`${where}.options[] 选项重名: ${o.name}`);
+    seen.add(o.name);
+    if (typeof o.desc !== 'string' || !o.desc) throw new Error(`${where}.options[${o.name}] 缺少 desc`);
+  }
+  if (typeof startup.mapToConfig !== 'string' || !CONFIG_REF_RE.test(startup.mapToConfig)) {
+    throw new Error(`${where}.mapToConfig 非法: ${JSON.stringify(startup.mapToConfig)}（须为 <task>.<key> 旋钮引用）`);
+  }
+  const refTask = startup.mapToConfig.slice(0, startup.mapToConfig.lastIndexOf('.'));
+  if (!stageNames.has(refTask)) throw new Error(`${where}.mapToConfig 引用不存在的 stage: ${refTask}`);
+  return true;
+}
+
 /**
  * 加载并校验预设（fail fast，02 §7——启动报错不产生半截 run）：
- * 结构完整 / name 与文件名一致 / 无重复任务 / dependOn 引用存在 / DAG 无环（Kahn）。
+ * 结构完整 / name 与文件名一致 / 无重复任务 / dependOn 引用存在 / DAG 无环（Kahn）/
+ * when·startup 声明合法（测试工作流 DEC-B/D）。
  */
 function loadWorkflow(workflowsDir, name) {
   if (!NAME_RE.test(name)) throw new Error(`预设名非法: ${name}`);
@@ -72,27 +139,64 @@ function loadWorkflow(workflowsDir, name) {
     seen.add(s.task);
   }
   for (const s of preset.stages) {
+    if (s.when !== undefined) validateWhen(s.when, seen, `stages[${s.task}].when`);
     for (const d of s.dependOn) {
       if (!seen.has(d)) throw new Error(`stages[${s.task}].dependOn 引用不存在的 stage: ${d}`);
     }
   }
+  if (preset.startup !== undefined) validateStartup(preset.startup, seen, `预设 ${name} 的 startup`);
 
-  const indeg = new Map(preset.stages.map((s) => [s.task, 0]));
-  for (const s of preset.stages) indeg.set(s.task, s.dependOn.length);
-  const queue = [...indeg.entries()].filter(([, n]) => n === 0).map(([t]) => t);
-  let popped = 0;
-  while (queue.length) {
-    const t = queue.shift();
-    popped++;
-    for (const s of preset.stages) {
-      if (!s.dependOn.includes(t)) continue;
-      indeg.set(s.task, indeg.get(s.task) - 1);
-      if (indeg.get(s.task) === 0) queue.push(s.task);
-    }
-  }
-  if (popped !== preset.stages.length) throw new Error(`预设 ${name} 的 DAG 存在环`);
+  assertAcyclic(preset.stages, `预设 ${name}`);
 
   return preset;
+}
+
+/**
+ * 条件裁剪 + 依赖重接（DEC-B，run start 物化前调用）：
+ * - when 求值：旋钮值数组→判 includes，标量→判相等；引用的旋钮未生效（预填/覆盖后仍缺失）→ 抛错 fail fast；
+ * - 重接：保留阶段 dependOn 中被裁者递归解析为其「最近存活祖先」（紧替换，保持偏序与链形态）；
+ * - 复检：裁剪后 Kahn 无环。返回保留 when/startup 等原字段的预设 + prunedStages 清单。
+ */
+function pruneStages(preset, atomTasks) {
+  const depsOf = Object.fromEntries(preset.stages.map((s) => [s.task, [...s.dependOn]]));
+  const keptNames = new Set(preset.stages.filter((s) => {
+    if (!s.when) return true;
+    const ref = s.when.config;
+    const task = ref.slice(0, ref.lastIndexOf('.'));
+    const key = ref.slice(ref.lastIndexOf('.') + 1);
+    const val = atomTasks && atomTasks[task] && atomTasks[task][key];
+    if (val === undefined) {
+      throw new Error(`when 引用的旋钮未生效: ${ref}（run start 预填/覆盖后仍缺失——给该 configurable 配 default 或用 --config 提供）`);
+    }
+    return Array.isArray(val) ? val.includes(s.when.includes) : val === s.when.includes;
+  }).map((s) => s.task));
+
+  // resolve(name)：name 若保留则为其自身；被裁则为其存活依赖集（递归至最近存活祖先，memo 防重复展开）
+  const memo = new Map();
+  const resolve = (name) => {
+    if (keptNames.has(name)) return [name];
+    if (memo.has(name)) return memo.get(name);
+    memo.set(name, []); // 先占位防环（预设已校验无环，双保险）
+    const out = [];
+    for (const d of depsOf[name] || []) {
+      for (const r of resolve(d)) if (!out.includes(r)) out.push(r);
+    }
+    memo.set(name, out);
+    return out;
+  };
+
+  const stages = preset.stages.filter((s) => keptNames.has(s.task)).map((s) => {
+    if (s.dependOn.every((d) => keptNames.has(d))) return { ...s };
+    const deps = [];
+    for (const d of s.dependOn) for (const r of resolve(d)) if (r !== s.task && !deps.includes(r)) deps.push(r);
+    return { ...s, dependOn: deps };
+  });
+  assertAcyclic(stages, `预设 ${preset.name} 裁剪后`);
+  return {
+    ...preset,
+    stages,
+    prunedStages: preset.stages.filter((s) => !keptNames.has(s.task)).map((s) => s.task),
+  };
 }
 
 /**
@@ -223,5 +327,5 @@ function buildGate(stages, stageId, phase, tasksDir, at) {
 
 module.exports = {
   loadWorkflow, expandStages, validateTaskConfig, phaseType, nextPhase, readyStages, statusForPhase,
-  standardOptions, buildGate, isAdvancing, DECISION_RE,
+  standardOptions, buildGate, isAdvancing, DECISION_RE, pruneStages,
 };

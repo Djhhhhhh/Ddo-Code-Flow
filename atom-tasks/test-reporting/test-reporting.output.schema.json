@@ -1,0 +1,37 @@
+{
+  "description": "test-reporting.md（测试总结）的结构规范：总览、各层结果汇总、遗留项与建议",
+  "outputFormat": "markdown",
+  "document": {
+    "title": "测试总结",
+    "titleFormat": "固定文本",
+    "separators": true
+  },
+  "sections": [
+    {
+      "heading": "测试总览",
+      "level": 2,
+      "required": true,
+      "format": "text",
+      "description": "范围回顾、启用能力、各层执行形态摘要"
+    },
+    {
+      "heading": "各层结果汇总",
+      "level": 2,
+      "required": true,
+      "format": "table",
+      "columns": ["层级", "用例数", "通过", "失败", "遗留"],
+      "description": "逐层汇总；未启用层标注「未启用」；全部未启用时如实呈现「仅计划、无执行」"
+    },
+    {
+      "heading": "遗留项与建议",
+      "level": 2,
+      "required": true,
+      "format": "list",
+      "description": "失败项、人工执行待办、依赖缺失记录，逐条注明来源报告（无遗留则明确说明）"
+    }
+  ],
+  "rules": [
+    "汇总数据必须取自各层报告原文，不重新统计执行",
+    "未启用层级标注「未启用」，不得编造用例数或结果"
+  ]
+}

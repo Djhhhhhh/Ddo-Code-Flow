@@ -1,0 +1,31 @@
+{
+  "name": "test-e2e",
+  "version": "1.0.0",
+  "desc": "e2e 测试执行：按计划形态产出人工 e2e 测试指南或通过工具能力自动化执行（自动化依赖本机前置检查通过）",
+  "phases": [
+    {
+      "id": "01",
+      "summary": "按 e2e 计划形态执行并产出报告",
+      "type": "action",
+      "output": "e2e-test-report.md"
+    }
+  ],
+  "defaults": {
+    "extra_ctx": "",
+    "rules": [
+      "执行形态必须与计划所选一致；偏差须经用户确认并在报告中记录原因",
+      "人工指南形态：产出可直接人工执行的完整指南（前置、步骤、每步预期），状态=待人工执行",
+      "自动化形态：执行前重跑依赖检查，缺失依赖按问询协议处理，不得跳过检查直接执行",
+      "失败项如实记录，不得粉饰为通过"
+    ]
+  },
+  "dependencies": [
+    {
+      "id": "browser-automation",
+      "desc": "宿主浏览器自动化能力（Playwright CLI 可用；自动化 e2e 形态所需）",
+      "required": false,
+      "check": "checks/browser-automation.sh",
+      "install": "npm install -D playwright && npx playwright install chromium（或全局 npm i -g playwright）"
+    }
+  ]
+}

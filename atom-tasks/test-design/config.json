@@ -1,0 +1,63 @@
+{
+  "name": "test-design",
+  "version": "1.0.0",
+  "desc": "测试工作流计划阶段：总测试设计 + 按启用能力生成单元/接口/e2e 分层测试计划（经用户确认）",
+  "phases": [
+    {
+      "id": "01",
+      "summary": "生成分层测试计划",
+      "type": "action",
+      "output": "test-design.md"
+    },
+    {
+      "id": "02",
+      "summary": "计划确认门",
+      "type": "human",
+      "output": {
+        "updates": [
+          "test-design.md"
+        ]
+      },
+      "gate": {
+        "options": [
+          {
+            "name": "同意",
+            "desc": "批准测试计划，进入分级执行",
+            "action": "next --decision 同意"
+          },
+          {
+            "name": "驳回",
+            "desc": "回滚 test-design 阶段，按意见重新制定计划",
+            "action": "rollback --stage test-design"
+          },
+          {
+            "name": "修改",
+            "desc": "按反馈更新受影响计划条目，展示变化后重新送审",
+            "action": "in-phase"
+          },
+          {
+            "name": "提问",
+            "desc": "只答疑，不修改产物与确认状态",
+            "action": "in-phase"
+          }
+        ]
+      }
+    }
+  ],
+  "defaults": {
+    "extra_ctx": "",
+    "rules": [
+      "职责边界：单测保证代码基础能力，接口测试保证 req、resp 符合预期并能调通，e2e 保证功能",
+      "单个测试的能力范围不过大；不把跨层验证塞进单一层级",
+      "启用能力清单所列层级必须产出对应分层计划 section（未启用层级不得出现对应 section）",
+      "计划条目须可对应到范围条目，不扩写范围"
+    ]
+  },
+  "configurable": [
+    {
+      "key": "capabilities",
+      "desc": "启用的测试能力计划（unit/api/e2e 子集；启动追问映射，run start --config 可覆盖；决定链中执行阶段裁剪）",
+      "default": ["unit", "api", "e2e"]
+    }
+  ]
+}

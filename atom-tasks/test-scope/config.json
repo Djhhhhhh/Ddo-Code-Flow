@@ -1,0 +1,55 @@
+{
+  "name": "test-scope",
+  "version": "1.0.0",
+  "desc": "测试工作流首阶段：设定测试范围（用户输入或读取既有 .state.json）并产出范围确认文档（不多也不少）",
+  "phases": [
+    {
+      "id": "01",
+      "summary": "问询范围来源并生成范围确认文档",
+      "type": "action",
+      "output": "test-scope.md"
+    },
+    {
+      "id": "02",
+      "summary": "范围确认门",
+      "type": "human",
+      "output": {
+        "updates": [
+          "test-scope.md"
+        ]
+      },
+      "gate": {
+        "options": [
+          {
+            "name": "同意",
+            "desc": "批准测试范围，进入计划制定",
+            "action": "next --decision 同意"
+          },
+          {
+            "name": "驳回",
+            "desc": "回滚 test-scope 阶段，按意见重新设定范围",
+            "action": "rollback --stage test-scope"
+          },
+          {
+            "name": "修改",
+            "desc": "按反馈更新范围条目，展示变化后重新送审",
+            "action": "in-phase"
+          },
+          {
+            "name": "提问",
+            "desc": "只答疑，不修改产物与确认状态",
+            "action": "in-phase"
+          }
+        ]
+      }
+    }
+  ],
+  "defaults": {
+    "extra_ctx": "",
+    "rules": [
+      "范围条目必须与所设定范围严格一致：无缺失项、无自行新增项（不多也不少）",
+      ".state.json 来源时须含目标、阶段、关联代码变更三类条目；变更不可得时如实标注，不得编造",
+      "来源问询必须经宿主提问工具完成，不得代用户选择"
+    ]
+  }
+}

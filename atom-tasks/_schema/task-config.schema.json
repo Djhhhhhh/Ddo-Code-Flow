@@ -156,6 +156,45 @@
           }
         }
       }
+    },
+    "dependencies": {
+      "type": "array",
+      "description": "任务依赖声明（测试工作流 DEC-E）：本任务能力所需的本机依赖与检查脚本；deps check 枚举执行，结果驱动动态问询",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "desc",
+          "required",
+          "check"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]*$",
+            "description": "依赖标识（kebab-case）"
+          },
+          "desc": {
+            "type": "string",
+            "minLength": 1,
+            "description": "依赖能力说明（呈现给用户）"
+          },
+          "required": {
+            "type": "boolean",
+            "description": "是否强制：true=缺失须询问用户是否按 install 指引安装后启用；false=缺失可提示使用基础能力/降级形态"
+          },
+          "check": {
+            "type": "string",
+            "pattern": "^checks/[A-Za-z0-9._-]+$",
+            "description": "检查脚本相对任务目录路径（bash 执行，exit 0=支持）"
+          },
+          "install": {
+            "type": "string",
+            "description": "安装指引（可选）：缺失且用户同意安装时呈现/执行"
+          }
+        }
+      }
     }
   },
   "$defs": {

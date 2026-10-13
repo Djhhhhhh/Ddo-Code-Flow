@@ -259,3 +259,65 @@ test('占位符通配不误伤：缺 G 分组仍 exit 1；字面 heading（spec 
     cleanup(sb);
   }
 });
+
+// ---------------------------------------------------------------- 测试工作流新任务契约（VA-5）
+
+test('test-scope 契约：合规文档通过；缺范围条目被拦', () => {
+  const sb = sandbox();
+  try {
+    writeState(sb, { currentStage: ['test-scope:01'], stages: { 'test-scope': { status: 'running', dependOn: [], at: 'x' } } });
+    fs.writeFileSync(path.join(sb.runDir, 'test-scope.md'), [
+      '# 测试范围确认',
+      '## 范围来源',
+      '- 类型：用户输入',
+      '- 原文：登录模块的回归测试',
+      '## 范围条目',
+      '- 登录表单校验',
+      '- 会话建立',
+      '## 确认记录',
+      '2026-10-13 问询来源，用户选择输入范围。',
+    ].join('\n'));
+    const ok = cli(['validate', '--state', sb.statePath, '--task', 'test-scope'], sb);
+    assert.equal(ok.status, 0, ok.stderr);
+    fs.writeFileSync(path.join(sb.runDir, 'test-scope.md'), '# 测试范围确认\n\n## 范围来源\n\n- 用户输入\n'); // 缺条目与记录
+    const bad = cli(['validate', '--state', sb.statePath, '--task', 'test-scope'], sb);
+    assert.equal(bad.status, 1);
+    assert.match(bad.stderr, /缺少必需 section "## 范围条目"/);
+  } finally {
+    cleanup(sb);
+  }
+});
+
+test('test-design 契约：仅必需 section（裁剪形态合法省略分层计划）；unit 报告缺表格列被拦', () => {
+  const sb = sandbox();
+  try {
+    writeState(sb, { currentStage: ['test-design:01'], stages: { 'test-design': { status: 'running', dependOn: [], at: 'x' } } });
+    fs.writeFileSync(path.join(sb.runDir, 'test-design.md'), [
+      '# 测试计划',
+      '## 总测试设计',
+      '单测覆盖基础能力，接口覆盖 req/resp。',
+      '## 启用能力',
+      '- unit',
+    ].join('\n'));
+    const ok = cli(['validate', '--state', sb.statePath, '--task', 'test-design'], sb);
+    assert.equal(ok.status, 0, ok.stderr);
+
+    writeState(sb, { currentStage: ['test-unit:01'], stages: { 'test-unit': { status: 'running', dependOn: [], at: 'x' } } });
+    fs.writeFileSync(path.join(sb.runDir, 'unit-test-report.md'), [
+      '# 单元测试报告',
+      '## 执行模式',
+      '- 效率优先（并行），与计划一致',
+      '## 用例结果',
+      '| 用例 | 结果 |',
+      '|---|---|',
+      '| U1 | 通过 |',
+      '## 结论与失败项',
+      '全部通过，无失败项。',
+    ].join('\n')); // 表格缺「证据」列
+    const bad = cli(['validate', '--state', sb.statePath, '--task', 'test-unit'], sb);
+    assert.equal(bad.status, 1);
+    assert.match(bad.stderr, /表格缺少列 "证据"/);
+  } finally {
+    cleanup(sb);
+  }
+});

@@ -1,0 +1,37 @@
+{
+  "description": "e2e-test-report.md（e2e 测试报告，双形态骨架）的结构规范：执行形态、用例与结果（指南或自动化结果）、结论",
+  "outputFormat": "markdown",
+  "document": {
+    "title": "e2e 测试报告",
+    "titleFormat": "固定文本",
+    "separators": true
+  },
+  "sections": [
+    {
+      "heading": "执行形态",
+      "level": 2,
+      "required": true,
+      "format": "text",
+      "description": "人工 e2e 测试指南 或 通过工具能力自动化测试；标注与计划所选是否一致（偏差须记录原因与用户确认）"
+    },
+    {
+      "heading": "e2e 用例与结果",
+      "level": 2,
+      "required": true,
+      "format": "list",
+      "description": "人工形态=逐用例的步骤与每步预期（状态=待人工执行）；自动形态=逐用例的操作、结果与证据"
+    },
+    {
+      "heading": "结论",
+      "level": 2,
+      "required": true,
+      "format": "text",
+      "description": "功能验证结论与遗留项（含依赖检查结论、人工执行待办）"
+    }
+  ],
+  "rules": [
+    "形态必须与计划一致；偏差须记录原因与用户确认过程",
+    "人工形态须含可执行步骤与预期且整体状态为待人工执行；自动形态须逐用例记录结果证据",
+    "自动化形态须记录执行前依赖复查结论"
+  ]
+}

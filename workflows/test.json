@@ -1,0 +1,23 @@
+{
+  "name": "test",
+  "version": "1.0.0",
+  "description": "测试链路：测试范围设定 → 分层计划制定 → 单测/接口/e2e 分级执行（按能力裁剪）→ 测试总结",
+  "stages": [
+    { "task": "test-scope", "dependOn": [] },
+    { "task": "test-design", "dependOn": ["test-scope"] },
+    { "task": "test-unit", "dependOn": ["test-design"], "when": { "config": "test-design.capabilities", "includes": "unit" } },
+    { "task": "test-api", "dependOn": ["test-unit"], "when": { "config": "test-design.capabilities", "includes": "api" } },
+    { "task": "test-e2e", "dependOn": ["test-api"], "when": { "config": "test-design.capabilities", "includes": "e2e" } },
+    { "task": "test-reporting", "dependOn": ["test-e2e"] }
+  ],
+  "startup": {
+    "question": "启用哪些测试能力计划？（未启用的计划及执行阶段不进入本次流程，多选）",
+    "multiSelect": true,
+    "options": [
+      { "name": "unit", "desc": "单元测试计划与执行（计划时将问询：测试性能优先[串行每次执行 1-3 条]或效率优先[并行]）" },
+      { "name": "api", "desc": "接口测试计划与执行（req/resp 符合预期并能调通）" },
+      { "name": "e2e", "desc": "e2e 测试计划与执行（计划时将选择：人工 e2e 测试指南，或工具能力自动化[需本机依赖前置检查]）" }
+    ],
+    "mapToConfig": "test-design.capabilities"
+  }
+}

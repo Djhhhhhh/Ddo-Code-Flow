@@ -114,10 +114,13 @@ agent   （加载状态，重新获取当前步骤指令，从选定位置接续
 
 - **basic**：轻量开发链，requirement → spec → plan → coding → reporting。
 - **standard**：完整开发链，增加测试计划、任务拆分、验证、复审和复盘。
+- **test**：测试链路，test-scope（范围设定）→ test-design（分层计划）→ test-unit / test-api / test-e2e（按能力裁剪的分级执行）→ test-reporting（测试总结）。
 - **pr-delivery**：PR 交付收尾链，deliver-pr → closeout-worktree。
 - **pr-delivery-issue**：交付链的 issue 关联变体，增加 link-issue。
 
 实际预设清单和任务链以 `list workflows` 为准。启动时也可以选择自定义流程：列出任务，与代理确定阶段及依赖，再通过临时预设启动。
+
+预设可声明两类可选扩展：阶段级 `when` 条件（引用 `<task>.<key>` 旋钮值，run start 物化前裁剪并重接依赖，未启用阶段不进入本次流程）与 `startup` 启动追问（guide 的模式问题为该预设附加条件追问，答案按 `mapToConfig` 以 `--config` 传入）。原子任务可在 config.json 声明 `dependencies`（依赖说明 + 检查脚本 + 安装指引），由 `deps check` 逐项检查本机支持情况，结果驱动问询：强制缺失询问是否安装三方依赖，非强制缺失提示可使用基础能力。
 
 当前阶段链支持 DAG 依赖，但状态推进有以下边界：
 
@@ -174,7 +177,7 @@ skill 运行在宿主代理中，不是独立的开发代理。几个核心概�
 | 命令 | 作用 |
 |---|---|
 | `guide` | 返回运行清单、完整启动问题、选项和参数映射；启动分支由 SKILL.md 根据显式调用是否附带描述决定，不机械执行旧的 resume 优先提示 |
-| `run start` | 按预设创建 state 并注册运行；支持正常或 `--ephemeral` 临时存储，后者与 `--dir-name` 互斥 |
+| `run start` | 按预设创建 state 并注册运行；支持正常或 `--ephemeral` 临时存储（与 `--dir-name` 互斥）；`--config <task>.<key>=<JSON>` 运行级旋钮覆盖（可重复，校验任务在链、键已声明） |
 | `exec` | 返回当前相位的组装指令；校验执行位置，但不完成实际任务 |
 | `validate` | 检查当前任务声明的产物、必填结构和输出 schema |
 | `next` | 推进全部当前位置、激活后继阶段；不自动 validate；有确认门时须有合法决议和有效呈现 |
@@ -186,6 +189,7 @@ skill 运行在宿主代理中，不是独立的开发代理。几个核心概�
 | `resume` | 无参列出运行中 run；`--run-id` 加载选定运行的完整状态视图 |
 | `list tasks` | 列出任务、相位、审核位置和可配置项 |
 | `list workflows` | 列出预设、描述和阶段链 |
+| `deps check` | 枚举任务声明的 dependencies 并逐项本机执行（exit 0=支持）；结果型报告，不写 state；`--task` 可指定链外任务预检 |
 
 命令 stdout 通常为 JSON，exec 为裸文本指令；stderr 是人类可读提示。退出码 0 表示成功，1 表示执行失败或被拦截，2 表示用法错误。命令错误不能当成已完成。
 
@@ -266,6 +270,7 @@ SKILL.md                         # 代理执行入口：显式调用、启动分
 README.md                        # 用户与维护者说明
 workflows/basic.json             # 轻量开发链
 workflows/standard.json          # 完整开发链
+workflows/test.json              # 测试链路（when 条件裁剪 + startup 启动追问）
 workflows/pr-delivery.json       # PR 交付收尾链
 workflows/pr-delivery-issue.json # issue 关联交付链
 atom-tasks/<name>/               # 任务指令、配置、上下文钩子与输出契约

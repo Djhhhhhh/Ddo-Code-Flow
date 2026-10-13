@@ -158,3 +158,42 @@ test('确定性：同环境两次 guide 输出逐字节等值（AC 一致性的�
     cleanup(sb);
   }
 });
+
+// ---------------------------------------------------------------- mode 问 startup 追问（测试工作流 DEC-D）
+
+test('mode 问：声明 startup 的预设附条件追问（数据驱动，含 mapToConfig 映射）', () => {
+  const sb = sandbox();
+  try {
+    const r = cli(['guide'], sb); // 读仓库 workflows/：test.json 声明了 startup
+    assert.equal(r.status, 0, r.stderr);
+    const out = JSON.parse(r.stdout);
+    const mode = out.questions.find((q) => q.id === 'mode');
+    assert.ok(mode.options.some((o) => o.name === 'test'), 'test 预设应出现在 mode 选项');
+    const fu = (mode.followUps || []).find((f) => f.whenOption === 'test');
+    assert.ok(fu, 'test 选项应附 startup 追问');
+    assert.equal(fu.mapToConfig, 'test-design.capabilities');
+    assert.equal(fu.multiSelect, true);
+    assert.ok(fu.options.length >= 3);
+    assert.match(out.hint, /mapToConfig/); // hint 含 --config 组装指引
+  } finally {
+    cleanup(sb);
+  }
+});
+
+test('mode 问：无 startup 声明的预设目录不附 followUps（载荷不膨胀）', () => {
+  const sb = sandbox();
+  try {
+    const wf = path.join(sb.dir, 'wf');
+    fs.mkdirSync(wf, { recursive: true });
+    fs.writeFileSync(path.join(wf, 'plain.json'), JSON.stringify({
+      name: 'plain', version: '1.0.0', description: '无 startup 预设',
+      stages: [{ task: 'requirement', dependOn: [] }],
+    }));
+    const r = cli(['guide', '--workflows-dir', wf], sb);
+    assert.equal(r.status, 0, r.stderr);
+    const mode = JSON.parse(r.stdout).questions.find((q) => q.id === 'mode');
+    assert.ok(!('followUps' in mode), '无 startup 声明时不得出现 followUps 键');
+  } finally {
+    cleanup(sb);
+  }
+});
