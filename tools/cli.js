@@ -14,9 +14,10 @@ const registry = require('./lib/index-registry');
 const history = require('./lib/history');
 const { assemble, mergeConfig } = require('./lib/assemble');
 const { loadTaskSchema, validateArtifact } = require('./lib/output-schema');
-const { loadWorkflow, expandStages, phaseType, nextPhase, readyStages, statusForPhase, standardOptions, buildGate, isAdvancing } = require('./lib/workflow');
+const { loadWorkflow, expandStages, phaseType, nextPhase, readyStages, statusForPhase, standardOptions, buildGate, isAdvancing, pruneStages } = require('./lib/workflow');
 const { openGates, presentPayload, renderGateOptions, fillState, isPresentationValid } = require('./lib/gate');
 const { gitInfo, inferMainBranch } = require('./lib/git-info');
+const { readDependencies, checkDependencies } = require('./lib/deps');
 const { spawnSync } = require('node:child_process');
 
 const ATOM_TASKS_DIR = path.join(__dirname, '..', 'atom-tasks');
@@ -373,6 +374,83 @@ function runValidate(f) {
   return { validated: true };
 }
 
+/** --config 运行级旋钮覆盖（测试工作流 DEC-C）：解析 `<task>.<key>=<JSON>` 并写入 atomTasks。
+ *  JSON 字面解析失败回退字符串；task 不在链 / key 未在 configurable 声明 → UsageError（exit 2）。 */
+function applyConfigOverrides(flagVal, preset, tasksDir, atomTasks) {
+  const list = Array.isArray(flagVal) ? flagVal : [flagVal];
+  const stageNames = new Set(preset.stages.map((s) => s.task));
+  for (const raw of list) {
+    const s = String(raw);
+    const eq = s.indexOf('=');
+    if (eq <= 0) throw new UsageError(`--config 非法: ${s}（须为 <task>.<key>=<JSON>）`);
+    const left = s.slice(0, eq);
+    const dot = left.lastIndexOf('.');
+    if (dot <= 0 || dot === left.length - 1) {
+      throw new UsageError(`--config 非法: ${s}（<task>.<key> 的 task 段须为链内任务名）`);
+    }
+    const task = left.slice(0, dot);
+    const key = left.slice(dot + 1);
+    if (!stageNames.has(task)) {
+      throw new UsageError(`--config 任务不在链内: ${task}（链: ${[...stageNames].join(', ')}）`);
+    }
+    let cfg;
+    try {
+      cfg = JSON.parse(fs.readFileSync(path.join(tasksDir, task, 'config.json'), 'utf8'));
+    } catch (e) {
+      throw new Error(`--config 目标任务的 config.json 不可读: ${task}（${e.message}）`);
+    }
+    const knob = (Array.isArray(cfg.configurable) ? cfg.configurable : []).find((c) => c && c.key === key);
+    if (!knob) {
+      throw new UsageError(`--config 键未声明: ${task}.${key}（可配置项见该任务 config.json 的 configurable）`);
+    }
+    let value;
+    try {
+      value = JSON.parse(s.slice(eq + 1));
+    } catch {
+      value = s.slice(eq + 1); // 非法 JSON 按字符串字面（布尔/数字请写 true / 42）
+    }
+    atomTasks[task] = { ...(atomTasks[task] || {}), [key]: value };
+  }
+}
+
+/** deps check：枚举原子任务 dependencies 声明并逐项本机执行（测试工作流 DEC-E）。
+ *  目标集：--task 指定单任务（可为链外任务，启用前预检）；缺省 = 当前链全部任务。
+ *  结果型命令：检查失败计 supported:false，不设命令 exitCode；state/任务级错误才 exit 1。 */
+function depsCheck(f) {
+  const state = readState(f.state);
+  assertState(state);
+  const tasksDir = tasksDirFor(f, state);
+  let taskNames;
+  if (f.task !== undefined) {
+    if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(f.task)) throw new UsageError(`--task 非法: ${f.task}`);
+    if (!fs.existsSync(path.join(tasksDir, f.task, 'config.json'))) {
+      throw new Error(`原子任务不存在: ${f.task}（目录 ${tasksDir}/${f.task}；可用任务见 list tasks）`);
+    }
+    taskNames = [f.task];
+  } else {
+    taskNames = Object.keys(state.stages); // 当前链全部（被裁剪任务不在 state.stages，天然排除）
+  }
+  const checks = [];
+  for (const t of taskNames) {
+    const deps = readDependencies(tasksDir, t);
+    if (deps === null) continue;
+    checks.push(...checkDependencies(tasksDir, t, deps));
+  }
+  const missing = checks.filter((c) => !c.supported);
+  return {
+    checks,
+    summary: {
+      total: checks.length,
+      supported: checks.length - missing.length,
+      missing: missing.length,
+      missingRequired: missing.filter((c) => c.required).length,
+    },
+    hint: missing.length
+      ? '存在不支持项：required 缺失 → 经宿主提问工具询问用户是否按 install 指引安装三方依赖后启用该能力；非强制缺失 → 提示用户可不安装、使用基础能力（或降级形态）'
+      : '全部依赖检查通过',
+  };
+}
+
 /** 多仓库注册（--multi-repos，DEC-3）：创建动作归 git-worktree 前置任务（WTT 同构），
  *  本命令只校验并组装 state.git 多仓库形态。成员目录名 = basename(repoPath)，冲突 -2 递增
  *  （与前置动作同规则）；逐仓库校验全或无：主检出为 git 工作树、容器内 worktree 存在且
@@ -459,7 +537,35 @@ function runStart(f) {
   const preset = loadWorkflow(workflowsDir, workflowName); // fail fast（06 §2.2），不产生半截 run
   const startedAt = nowIso();
   const runId = registry.freshRunId();
-  const stages = expandStages(preset, tasksDir, startedAt);
+
+  // configurable 预填（10 D3）：workflow 内任务声明的可配置项，带 default 的预填进
+  // state.atomTasks——用户打开 state 即知本次 run 可改哪些旋钮（无 default 的仅在 list tasks 呈现）
+  const atomTasks = {};
+  for (const s of preset.stages) {
+    try {
+      const cfg = JSON.parse(fs.readFileSync(path.join(tasksDir, s.task, 'config.json'), 'utf8'));
+      for (const c of Array.isArray(cfg.configurable) ? cfg.configurable : []) {
+        if (c && c.key && c.default !== undefined) {
+          atomTasks[s.task] = { ...(atomTasks[s.task] || {}), [c.key]: c.default };
+        }
+      }
+    } catch {
+      // 任务 config 已在 expandStages 校验过，此处容错不阻断
+    }
+  }
+  // --config 运行级覆盖（测试工作流 DEC-C）：defaults 预填后应用（同键后者胜）
+  if (f.config !== undefined) applyConfigOverrides(f.config, preset, tasksDir, atomTasks);
+
+  // 条件裁剪（测试工作流 DEC-B）：预设含 when 声明时按生效旋钮值裁剪并重接依赖；
+  // 物化前执行，state.stages 依旧自包含（D11 不变量保持）
+  let effectivePreset = preset;
+  let prunedStages;
+  if (preset.stages.some((s) => s.when)) {
+    effectivePreset = pruneStages(preset, atomTasks);
+    prunedStages = effectivePreset.prunedStages;
+  }
+
+  const stages = expandStages(effectivePreset, tasksDir, startedAt);
 
   // 起点：dependOn 为空的阶段全部点亮，status 按各自首相位类型（P2 数据先行）；
   // 首相位为 human → 开门（07 §4.3，机制对称支持）
@@ -486,22 +592,6 @@ function runStart(f) {
   if (fs.existsSync(statePath)) throw new Error(`运行目录已存在: ${runDir}`);
   fs.mkdirSync(runDir, { recursive: true });
 
-  // configurable 预填（10 D3）：workflow 内任务声明的可配置项，带 default 的预填进
-  // state.atomTasks——用户打开 state 即知本次 run 可改哪些旋钮（无 default 的仅在 list tasks 呈现）
-  const atomTasks = {};
-  for (const s of preset.stages) {
-    try {
-      const cfg = JSON.parse(fs.readFileSync(path.join(tasksDir, s.task, 'config.json'), 'utf8'));
-      for (const c of Array.isArray(cfg.configurable) ? cfg.configurable : []) {
-        if (c && c.key && c.default !== undefined) {
-          atomTasks[s.task] = { ...(atomTasks[s.task] || {}), [c.key]: c.default };
-        }
-      }
-    } catch {
-      // 任务 config 已在 expandStages 校验过，此处容错不阻断
-    }
-  }
-
   const state = {
     runId,
     title: f.title,
@@ -521,7 +611,11 @@ function runStart(f) {
   assertState(state);
   writeState(statePath, state);
   registry.register(runId, { statePath, startedAt });
-  return { runId, title: state.title, statePath, workflow: preset.name, currentStage, openedGates };
+  return {
+    runId, title: state.title, statePath, workflow: preset.name, currentStage, openedGates,
+    atomTasks, // 生效旋钮（defaults 预填 + --config 覆盖后的最终值）
+    ...(prunedStages && prunedStages.length ? { prunedStages } : {}), // when 裁剪掉的阶段（可观察性）
+  };
 }
 
 function runNext(f) {
@@ -796,6 +890,16 @@ function guideWorktreeQuestion(tasksDir) {
 function runGuide(f) {
   const wf = listWorkflows(f);
   const tasksDir = f['tasks-dir'] ? path.resolve(f['tasks-dir']) : ATOM_TASKS_DIR;
+  // 预设 startup 启动追问（测试工作流 DEC-D）：声明了 startup 的预设，mode 问附条件追问
+  // （数据驱动，同 worktree 问 followUps 先例）；答案集合由 agent 按 mapToConfig 组装
+  // --config <task>.<key>='<JSON 数组>' 传入 run start（见 hint）
+  const startupFollowUps = wf.workflows.filter((w) => w.startup).map((w) => ({
+    whenOption: w.name,
+    question: w.startup.question,
+    multiSelect: w.startup.multiSelect !== false,
+    options: w.startup.options.map((o) => ({ name: o.name, desc: o.desc })),
+    mapToConfig: w.startup.mapToConfig,
+  }));
   const discovered = runResume(f); // 只读发现层（无 --run-id 即清单分支；guide 无 --project flag → 全局清单）
   const running = discovered.runs.map((r) => ({ ...r, resumeCommand: `resume --run-id ${r.runId}` }));
   return {
@@ -816,6 +920,7 @@ function runGuide(f) {
           ...wf.workflows.map((w) => ({ name: w.name, desc: `${w.description}（阶段链: ${w.stages.join(' → ')}）` })),
           { name: '自定义', desc: '与用户商定阶段链：先跑 list tasks 看任务清单，写临时预设 JSON 后 run start --workflows-dir <临时目录> --workflow <名>' },
         ],
+        ...(startupFollowUps.length ? { followUps: startupFollowUps } : {}),
       },
       {
         id: 'type',
@@ -837,7 +942,7 @@ function runGuide(f) {
         ],
       },
     ],
-    hint: '逐问呈现给用户（宿主提问工具），答案依次对应：--title / worktree 前置动作（single·release-dev 先建分支与工作树，分支名取自 goal 答案，再 run start --project <工作树绝对路径>）/ --workflow（或自定义流程）/ --type；居所选「临时」时附加 --ephemeral',
+    hint: '逐问呈现给用户（宿主提问工具），答案依次对应：--title / worktree 前置动作（single·release-dev 先建分支与工作树，分支名取自 goal 答案，再 run start --project <工作树绝对路径>）/ --workflow（或自定义流程）/ --type；居所选「临时」时附加 --ephemeral；mode 问带 followUps[].mapToConfig 时，所选答案集合以 --config <task>.<key>=\'<JSON 数组>\' 传入 run start',
   };
 }
 
@@ -982,6 +1087,7 @@ function listWorkflows(f) {
           version: wf.version,
           ...(wf.description ? { description: wf.description } : {}),
           stages: (Array.isArray(wf.stages) ? wf.stages : []).map((s) => s.task),
+          ...(wf.startup ? { startup: wf.startup } : {}), // 启动追问声明（guide 消费；结构由 loadWorkflow 校验）
         });
       } catch {
         // 解析失败的预设不在发现层报错——run start 加载时 fail fast
@@ -1015,12 +1121,13 @@ const REGISTRY = [
   {
     name: 'run start',
     summary: '按预设装配启动 run：物化 .state.json + 注册 index（06）；--ephemeral 临时模式材料落 ~/.ddo/tmp；--multi-repos 多仓库隔离注册',
-    usage: 'run start --title <text> [--workflow basic] [--type feat] [--dir-name <name>] [--ephemeral] [--project <path>] [--multi-repos <path[,path...]>] [--workflows-dir <path>] [--tasks-dir <path>]',
+    usage: 'run start --title <text> [--workflow basic] [--type feat] [--dir-name <name>] [--ephemeral] [--project <path>] [--multi-repos <path[,path...]>] [--config <task>.<key>=<JSON>] [--workflows-dir <path>] [--tasks-dir <path>]',
     options: [
       { flag: '--title', desc: 'run 标题（一句话描述，进 state 与 history）', required: true },
       { flag: '--workflow', desc: 'workflow 预设名（workflows/<name>.json，缺省 basic）' },
       { flag: '--type', desc: 'run 类型（目录第一段，缺省 feat）' },
       { flag: '--dir-name', desc: '运行目录名（目录第二段，缺省 runId；与 --ephemeral 互斥）' },
+      { flag: '--config', desc: '运行级旋钮覆盖：<task>.<key>=<JSON>，可重复（如 --config test-design.capabilities=\'["unit"]\'）；校验任务在链、键已声明，defaults 预填后应用（同键后者胜）' },
       { flag: '--ephemeral', desc: '布尔旗标：临时模式——项目内不创建 runId 目录，运行材料（含 .state.json）落 ~/.ddo/tmp/<type>/<runId>/，run finish 后直接删除（蕴含免归档；适合过程信息无需保留的流程型 run）' },
       { flag: '--project', desc: '项目根（缺省 cwd）；multi 模式下为隔离容器根' },
       { flag: '--multi-repos', desc: '多仓库隔离注册：主检出路径逗号分隔（首位=主仓库），须与 --project <容器> 同用；逐仓库校验全或无，state.git 物化为 multiRepo/container/repos' },
@@ -1133,6 +1240,17 @@ const REGISTRY = [
     run: gateInteract,
   },
   {
+    name: 'deps check',
+    summary: '依赖检查：枚举原子任务声明的 dependencies 并逐项本机执行（exit 0=支持），输出支持情况报告（结果型，不写 state）',
+    usage: 'deps check --state <path> [--task <name>] [--tasks-dir <path>]',
+    options: [
+      { flag: '--state', desc: '.state.json 绝对路径', required: true },
+      { flag: '--task', desc: '指定检查的任务名（可为链外任务，如启用前预检）；缺省检查当前链全部声明了 dependencies 的任务' },
+      { flag: '--tasks-dir', desc: '原子任务根目录（缺省仓库 atom-tasks/；测试用）' },
+    ],
+    run: depsCheck,
+  },
+  {
     name: 'guide',
     summary: '启动检查唯一数据源：startupCheck（运行中 run 清单 + resume 指引）+ 五问引导 payload（goal/worktree/mode/type/home，顺序定版）；无 state、无副作用',
     usage: 'guide [--workflows-dir <path>] [--tasks-dir <path>]',
@@ -1151,6 +1269,8 @@ const domains = () => [...new Set(REGISTRY.filter((c) => c.name.includes(' ')).m
 
 // 布尔旗标集：bare 形式合法（置 true、不吞下一个 token）；= 形式仅接受 true|false
 const BOOLEAN_FLAGS = new Set(['no-archive', 'ephemeral']);
+// 多值旗标集：可重复出现，收集为数组（--config <task>.<key>=<JSON>，测试工作流 DEC-C）
+const MULTI_FLAGS = new Set(['config']);
 
 function parseArgv(argv) {
   const positional = [];
@@ -1166,11 +1286,16 @@ function parseArgv(argv) {
         if (BOOLEAN_FLAGS.has(key)) {
           if (val !== 'true' && val !== 'false') throw new UsageError(`布尔旗标 ${tok} 取值须为 true|false`);
           flags[key] = val === 'true';
+        } else if (MULTI_FLAGS.has(key)) {
+          (flags[key] = flags[key] || []).push(val);
         } else {
           flags[key] = val;
         }
       } else if (BOOLEAN_FLAGS.has(tok.slice(2))) {
         flags[tok.slice(2)] = true;
+      } else if (MULTI_FLAGS.has(tok.slice(2))) {
+        if (i + 1 >= argv.length) throw new UsageError(`flag 缺少取值: ${tok}`);
+        (flags[tok.slice(2)] = flags[tok.slice(2)] || []).push(argv[++i]);
       } else if (i + 1 < argv.length) {
         flags[tok.slice(2)] = argv[++i];
       } else {

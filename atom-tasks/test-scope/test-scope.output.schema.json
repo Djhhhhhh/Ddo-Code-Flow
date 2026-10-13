@@ -1,0 +1,37 @@
+{
+  "description": "test-scope.md（测试范围确认文档）的结构规范：范围来源、范围条目（不多也不少）、确认记录",
+  "outputFormat": "markdown",
+  "document": {
+    "title": "测试范围确认",
+    "titleFormat": "固定文本",
+    "separators": true
+  },
+  "sections": [
+    {
+      "heading": "范围来源",
+      "level": 2,
+      "required": true,
+      "format": "list",
+      "description": "来源类型与定位：用户输入（含原文）或既有 run（runId + statePath）；多份候选时的选定过程"
+    },
+    {
+      "heading": "范围条目",
+      "level": 2,
+      "required": true,
+      "format": "list",
+      "description": "目标 / 阶段 / 关联代码变更，或用户输入范围条目；逐项列出，与设定内容严格一致"
+    },
+    {
+      "heading": "确认记录",
+      "level": 2,
+      "required": true,
+      "format": "text",
+      "description": "来源问询与用户回答摘要（含选择时间点）"
+    }
+  ],
+  "rules": [
+    "范围条目必须与所设定范围严格一致：无缺失项、无自行新增项（不多也不少）",
+    ".state.json 来源时范围条目须含目标、阶段、关联代码变更三类；变更不可得时如实标注，不得编造"
+  ],
+  "example": "# 测试范围确认\n\n## 范围来源\n\n- 类型：既有 run 的 .state.json\n- runId：20261013-225913-4df9\n- statePath：/path/to/.ddo/runs/feat/20261013-225913-4df9/.state.json\n\n## 范围条目\n\n- 目标：新增测试工作流与原子任务依赖检查能力\n- 阶段：requirement（done）→ spec（done）→ plan（done）→ coding（running）→ reporting（pending）\n- 关联代码变更：tools/cli.js、tools/lib/workflow.js、atom-tasks/_schema/task-config.schema.json、workflows/test.json\n\n## 确认记录\n\n2026-10-13 问询来源（用户输入 / 选定 run），用户选定上述 run 作为范围来源。"
+}

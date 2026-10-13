@@ -1,0 +1,37 @@
+{
+  "description": "api-test-report.md（接口测试报告）的结构规范：执行说明、逐接口结果、结论与失败项",
+  "outputFormat": "markdown",
+  "document": {
+    "title": "接口测试报告",
+    "titleFormat": "固定文本",
+    "separators": true
+  },
+  "sections": [
+    {
+      "heading": "执行说明",
+      "level": 2,
+      "required": true,
+      "format": "text",
+      "description": "请求工具与前置条件（如服务启动方式、环境变量）"
+    },
+    {
+      "heading": "接口结果",
+      "level": 2,
+      "required": true,
+      "format": "table",
+      "columns": ["接口", "请求摘要", "resp 断言", "调通"],
+      "description": "逐项对应接口测试计划；每项覆盖 req 发出、resp 断言、链路调通"
+    },
+    {
+      "heading": "结论与失败项",
+      "level": 2,
+      "required": true,
+      "format": "text",
+      "description": "通过情况汇总与失败项清单（无失败则明确说明）"
+    }
+  ],
+  "rules": [
+    "计划中每项接口必须有对应结果行，不得遗漏",
+    "失败项如实记录（含状态码/响应体摘要），不得粉饰为通过"
+  ]
+}

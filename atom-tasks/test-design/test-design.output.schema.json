@@ -1,0 +1,53 @@
+{
+  "description": "test-design.md（分层测试计划）的结构规范：总测试设计 + 启用能力 + 各启用层级的计划",
+  "outputFormat": "markdown",
+  "document": {
+    "title": "测试计划",
+    "titleFormat": "固定文本",
+    "separators": true
+  },
+  "sections": [
+    {
+      "heading": "总测试设计",
+      "level": 2,
+      "required": true,
+      "format": "text",
+      "description": "整体说明：范围概览、分层策略、各层职责边界（单测=代码基础能力、接口=req/resp 且能调通、e2e=功能）"
+    },
+    {
+      "heading": "启用能力",
+      "level": 2,
+      "required": true,
+      "format": "list",
+      "description": "本次启用的测试能力计划清单（unit/api/e2e 子集，与链裁剪一致）"
+    },
+    {
+      "heading": "单元测试计划",
+      "level": 2,
+      "required": false,
+      "format": "group",
+      "description": "启用 unit 时必须存在（可选声明仅适配裁剪形态，生成侧不得缺省）；含执行模式与用例清单"
+    },
+    {
+      "heading": "接口测试计划",
+      "level": 2,
+      "required": false,
+      "format": "group",
+      "description": "启用 api 时必须存在；含接口清单与 req/resp 断言、调通目标"
+    },
+    {
+      "heading": "e2e 测试计划",
+      "level": 2,
+      "required": false,
+      "format": "group",
+      "description": "启用 e2e 时必须存在；含形态（人工指南/自动化）与依赖检查结论"
+    }
+  ],
+  "rules": [
+    "启用能力清单所列层级必须有对应计划 section；未启用层级不得出现对应 section",
+    "单元测试计划必须记录所选执行模式（测试性能优先[串行每次执行 1-3 条] / 效率优先[并行]）",
+    "e2e 测试计划必须记录所选产出形态；自动化形态必须记录 deps check 结论与问询结果",
+    "单个测试的能力范围不过大；计划条目须可对应到范围条目"
+  ],
+  "example": "# 测试计划\n\n## 总测试设计\n\n本次测试覆盖 CLI 引擎扩展与测试工作流装配……单测覆盖纯函数行为，接口层覆盖 CLI 命令的 req/resp 契约，e2e 验证完整链路可用。\n\n## 启用能力\n\n- unit\n- api\n- e2e\n\n## 单元测试计划\n\n执行模式：效率优先（并行）\n\n- U1 pruneStages 保留偏序（trim 中段阶段后 dependOn 重接到最近存活祖先）\n- U2 --config 值解析：JSON 数组 / 布尔 / 字符串回退\n\n## 接口测试计划\n\n- I1 deps check：缺 --state → exit 2 且 stderr 指引\n- I2 deps check --task test-e2e → 200 + 逐项 supported\n\n## e2e 测试计划\n\n形态：通过工具能力自动化测试\n依赖检查：browser-automation supported（2026-10-13）\n- E1 全能力链冒烟：run start --workflow test → 6 阶段物化\n- E2 裁剪链冒烟：--config capabilities=[\"unit\"] → 链仅 scope/design/unit/reporting"
+}
