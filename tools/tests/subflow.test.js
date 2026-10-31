@@ -316,29 +316,26 @@ test('assertState：subflows 非法形态硬失败（id 重复 / statePath 越�
     writeState(childPath, childState(sb));
     const dup = parentState(sb, { subflows: [activeEntry(sb, { statePath: childPath }), activeEntry(sb, { id: 'sf-1', statePath: childPath })] });
     writeState(sb.statePath, dup);
-    assert.ok(cli(['subflow', 'list', '--state', sb.statePath], sb).status === 1);
+    assert.ok(cli(['status', '--state', sb.statePath], sb).status === 1);
 
     const escape = parentState(sb, { subflows: [activeEntry(sb, { statePath: path.join(sb.dir, 'elsewhere', '.state.json') })] });
     writeState(sb.statePath, escape);
-    assert.ok(cli(['subflow', 'list', '--state', sb.statePath], sb).status === 1);
+    assert.ok(cli(['status', '--state', sb.statePath], sb).status === 1);
 
     const staleClosed = parentState(sb, { subflows: [{ ...activeEntry(sb, { statePath: childPath }), closedAt: ISO }] });
     writeState(sb.statePath, staleClosed);
-    assert.ok(cli(['subflow', 'list', '--state', sb.statePath], sb).status === 1);
+    assert.ok(cli(['status', '--state', sb.statePath], sb).status === 1);
   } finally {
     cleanup(sb);
   }
 });
 
-// ---------------------------------------------------------------- list / status 可观察性
+// ---------------------------------------------------------------- status 可观察性（吸收原 subflow list，CS-1）
 
-test('subflow list 与 status：子流程可观察（无 subflows → 空清单不报错）', () => {
+test('status：子流程可观察（无 subflows → 不带字段不报错；有 → 注册条目全字段清单视图）', () => {
   const sb = sandbox();
   try {
     writeState(sb.statePath, parentState(sb));
-    const ls = cli(['subflow', 'list', '--state', sb.statePath], sb);
-    assert.strictEqual(ls.status, 0, ls.stderr);
-    assert.deepStrictEqual(JSON.parse(ls.stdout).subflows, []);
     const st = cli(['status', '--state', sb.statePath], sb);
     assert.strictEqual(st.status, 0, st.stderr);
     assert.ok(!st.stdout.includes('subflows')); // 无子流程时 status 不带该字段（可选段语义）
@@ -346,11 +343,13 @@ test('subflow list 与 status：子流程可观察（无 subflows → 空清单�
     const childPath = path.join(sb.runDir, 'subflows', 'sf-1', '.state.json');
     writeState(childPath, childState(sb, { currentStage: ['requirement:01'] }));
     writeState(sb.statePath, parentState(sb, { subflows: [activeEntry(sb, { statePath: childPath })] }));
-    const ls2 = cli(['subflow', 'list', '--state', sb.statePath], sb);
-    assert.strictEqual(JSON.parse(ls2.stdout).subflows[0].id, 'sf-1');
     const st2 = cli(['status', '--state', sb.statePath], sb);
     const so = JSON.parse(st2.stdout);
+    assert.strictEqual(so.subflows[0].id, 'sf-1');
     assert.strictEqual(so.subflows[0].status, 'active');
+    // 吸收 subflow list：视图为注册条目信息超集（workflow/startedAt 等原清单字段齐全）
+    assert.strictEqual(so.subflows[0].workflow, 'basic');
+    assert.strictEqual(so.subflows[0].startedAt, ISO);
     assert.ok(so.availableCommands.some((c) => c.cmd.includes(childPath)));
   } finally {
     cleanup(sb);

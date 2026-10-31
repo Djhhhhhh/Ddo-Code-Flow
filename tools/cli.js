@@ -5,7 +5,8 @@
 // （stdout=JSON / stderr=人话 / exit 0·1·2 / 状态文件现读不缓存）。
 // 命令在归属的设计轮次登记（03 plan §3.4 命名空间政策）；
 // 当前登记：run start（06）、run finish、rollback（04）、exec、validate（05）、next（06）、status（07）、resume（08）、list tasks / list workflows（10）、
-// gate present / gate interact、guide（交互协议结构闭环）、subflow start / list / close（子流程编排）。
+// gate present / gate interact、guide（交互协议结构闭环）、subflow start / close（子流程编排）。
+// （工具链精简 run：subflow list 并入 status 的 subflows 视图——重叠观测面合并，见 runDir evaluation.md CS-1）
 
 const path = require('path');
 const fs = require('fs');
@@ -15,7 +16,7 @@ const history = require('./lib/history');
 const { assemble, mergeConfig, applyConfigOverrides } = require('./lib/assemble');
 const { loadTaskSchema, validateArtifact } = require('./lib/output-schema');
 const { loadWorkflow, expandStages, phaseType, nextPhase, readyStages, statusForPhase, standardOptions, buildGate, isAdvancing, pruneStages, activateStarts } = require('./lib/workflow');
-const { subflowStart, subflowList, subflowClose, activeSubflows } = require('./lib/subflow');
+const { subflowStart, subflowClose, activeSubflows } = require('./lib/subflow');
 const { openGates, presentPayload, renderGateOptions, fillState, isPresentationValid } = require('./lib/gate');
 const { gitInfo, inferMainBranch } = require('./lib/git-info');
 const { readDependencies, checkDependencies } = require('./lib/deps');
@@ -283,16 +284,16 @@ function runRollback(f) {
   };
 }
 
-function runExec(f) {
-  const statePath = f.state;
+/**
+ * exec/validate 共享前置（07 §4.1 位置协议，工具链精简 CS-2 去重）：--task 合法性、
+ * 位置校验（--task 须 ∈ currentStage）、--phase 缺省=当前相位（显式须一致）、任务目录存在性。
+ * 两命令同一协议单一实现，防双份漂移；verb 仅用于相位不一致时的错误文案（exec / 校验）。
+ */
+function phaseContext(f, state, verb) {
   const taskName = f.task;
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(taskName)) {
     throw new UsageError(`--task 非法: ${taskName}`);
   }
-  const state = readState(statePath);
-  assertState(state);
-
-  // 位置校验（07 §4.1）：--task 须 ∈ currentStage；--phase 缺省 = 当前相位，显式须一致
   const cur = currentPosition(state, taskName);
   if (!cur) {
     throw new Error(
@@ -303,14 +304,22 @@ function runExec(f) {
   if (f.phase === undefined) phase = cur;
   else {
     phase = String(f.phase).padStart(2, '0');
-    if (phase !== cur) throw new Error(`执行位置不符：当前位置 ${taskName}:${cur}，不能 exec ${taskName}:${phase}`);
+    if (phase !== cur) throw new Error(`执行位置不符：当前位置 ${taskName}:${cur}，不能${verb} ${taskName}:${phase}`);
   }
 
   const taskDir = path.join(tasksDirFor(f, state), taskName);
-  const promptFile = path.join(taskDir, 'prompt.md');
-  if (!fs.existsSync(promptFile) || !fs.existsSync(path.join(taskDir, 'config.json'))) {
+  if (!fs.existsSync(path.join(taskDir, 'prompt.md')) || !fs.existsSync(path.join(taskDir, 'config.json'))) {
     throw new Error(`原子任务不存在或结构不完整: ${taskDir}（需含 prompt.md + config.json；可用任务见 list tasks）`);
   }
+  return { taskName, phase, taskDir };
+}
+
+function runExec(f) {
+  const statePath = f.state;
+  const state = readState(statePath);
+  assertState(state);
+
+  const { taskName, phase, taskDir } = phaseContext(f, state, 'exec');
   const { cfg } = mergeConfig(taskDir, state, registry.ddoHome());
   if (cfg.phases) {
     const ids = cfg.phases.map((p) => String(p.id).padStart(2, '0'));
@@ -326,35 +335,12 @@ function runExec(f) {
 
 function runValidate(f) {
   const statePath = f.state;
-  const taskName = f.task;
-  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(taskName)) {
-    throw new UsageError(`--task 非法: ${taskName}`);
-  }
   const state = readState(statePath);
   assertState(state);
 
-  // 位置校验（07 §4.1）：与 exec 同一协议（缺省 = 当前相位，显式须一致）
-  const cur = currentPosition(state, taskName);
-  if (!cur) {
-    throw new Error(
-      `执行位置不符：${taskName} 不在 currentStage [${state.currentStage.join(', ')}]（run 已结束、未启动或位置未对齐；用 status 查看）`
-    );
-  }
-  let phase;
-  if (f.phase === undefined) phase = cur;
-  else {
-    phase = String(f.phase).padStart(2, '0');
-    if (phase !== cur) throw new Error(`执行位置不符：当前位置 ${taskName}:${cur}，不能校验 ${taskName}:${phase}`);
-  }
-
-  const path = require('path');
-  const fs = require('fs');
-  const tasksDir = tasksDirFor(f, state);
-  const taskDir = path.join(tasksDir, taskName);
+  // 前置与 exec 同一协议（07 §4.1，共享 phaseContext——CS-2；缺省 = 当前相位，显式须一致）
+  const { taskName, phase, taskDir } = phaseContext(f, state, '校验');
   const cfgFile = path.join(taskDir, 'config.json');
-  if (!fs.existsSync(path.join(taskDir, 'prompt.md')) || !fs.existsSync(cfgFile)) {
-    throw new Error(`原子任务不存在或结构不完整: ${taskDir}（需含 prompt.md + config.json；可用任务见 list tasks）`);
-  }
   const cfg = JSON.parse(fs.readFileSync(cfgFile, 'utf8'));
 
   // 定位 output 声明：多相位挂 phases[]，单相位挂顶层；字符串 = 产出文件，{updates} = 只写回
@@ -763,9 +749,13 @@ function statusView(state, statePath, tasksDir) {
     availableCommands.push({ cmd: `run finish --state ${statePath} --status aborted`, desc: '中止本次 run' });
   }
   // 子流程视图（子流程编排，DEC-5）：active 子流程给定位提示（阻塞中，父 next/finish 均拦截）；
-  // 本 state 为子流程时给出溯源信息（断点恢复双向可寻）
+  // 本 state 为子流程时给出溯源信息（断点恢复双向可寻）。
+  // 视图=注册条目全字段（id/title/workflow/status/atStage/statePath/startedAt/closedAt/abandoned）——
+  // 原 subflow list 只读清单并入此处（信息超集，工具链精简 CS-1）
   const subflowViews = (state.subflows || []).map((s) => ({
-    id: s.id, title: s.title, status: s.status, atStage: s.atStage, statePath: s.statePath,
+    id: s.id, title: s.title, workflow: s.workflow, status: s.status, atStage: s.atStage,
+    statePath: s.statePath, startedAt: s.startedAt,
+    ...(s.closedAt ? { closedAt: s.closedAt } : {}),
     ...(s.abandoned ? { abandoned: true } : {}),
   }));
   for (const s of subflowViews.filter((x) => x.status === 'active')) {
@@ -796,11 +786,6 @@ function subflowStartCmd(f) {
     tasksDir: tasksDirFor(f, parent),
     workflowsDir: f['workflows-dir'] ? path.resolve(f['workflows-dir']) : WORKFLOWS_DIR,
   });
-}
-
-/** subflow list：只读清单。 */
-function subflowListCmd(f) {
-  return subflowList({ parentStatePath: path.resolve(f.state) });
 }
 
 /** subflow close：终态校验收口；--abandon 放弃留痕。 */
@@ -1280,21 +1265,12 @@ const REGISTRY = [
     run: subflowStartCmd,
   },
   {
-    name: 'subflow list',
-    summary: '子流程清单：id / 状态 / 挂靠 stage / 子 statePath（只读，父 state 的 subflows 视图）',
-    usage: 'subflow list --state <path>',
-    options: [
-      { flag: '--state', desc: '父 .state.json 绝对路径', required: true },
-    ],
-    run: subflowListCmd,
-  },
-  {
     name: 'subflow close',
     summary: '子流程收口留痕：校验子 state 终态（currentStage 空）后置 closed + closedAt；--abandon 放弃收口（跳过终态校验，标 abandoned）',
     usage: 'subflow close --state <父path> --id <sf-n> [--abandon]',
     options: [
       { flag: '--state', desc: '父 .state.json 绝对路径', required: true },
-      { flag: '--id', desc: '子流程 id（sf-<n>，见 subflow list）', required: true },
+      { flag: '--id', desc: '子流程 id（sf-<n>，见 status 的 subflows 视图）', required: true },
       { flag: '--abandon', desc: '布尔旗标：放弃收口——跳过子 state 终态校验，条目标 abandoned（用户决议放弃的留痕，父流程可继续）' },
     ],
     run: subflowCloseCmd,
