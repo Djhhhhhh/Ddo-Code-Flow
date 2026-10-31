@@ -1159,7 +1159,7 @@ const REGISTRY = [
   },
   {
     name: 'rollback',
-    summary: '回滚指定的一个阶段：DAG 路径重置 + currentStage 回退（文档归档待产物机制）',
+    summary: '回滚指定的一个阶段：DAG 路径重置 + currentStage 回退；重置阶段已声明的旧产物归档至 <runDir>/_del/rollback-<n>/',
     usage: 'rollback --state <path> --stage <stageId> [--reason <text>]',
     options: [
       { flag: '--state', desc: '.state.json 绝对路径', required: true },
@@ -1251,7 +1251,7 @@ const REGISTRY = [
   },
   {
     name: 'subflow start',
-    summary: '运行期创建子流程：在指定 stage 下沉，物化嵌套子 state（<runDir>/subflows/sf-n/.state.json）并注册父 subflows；depth 超三层拒绝',
+    summary: '运行期创建子流程：在指定 stage 下沉，物化嵌套子 state（<runDir>/subflows/sf-n/.state.json）并注册父 subflows；depth 超三层拒绝；存在 active 子流程时父流程 next/run finish 被拦截',
     usage: 'subflow start --state <父path> --at <stageId> --title <text> [--workflow basic] [--config <task>.<key>=<JSON>] [--workflows-dir <path>] [--tasks-dir <path>]',
     options: [
       { flag: '--state', desc: '父 .state.json 绝对路径', required: true },
@@ -1266,7 +1266,7 @@ const REGISTRY = [
   },
   {
     name: 'subflow close',
-    summary: '子流程收口留痕：校验子 state 终态（currentStage 空）后置 closed + closedAt；--abandon 放弃收口（跳过终态校验，标 abandoned）',
+    summary: '子流程收口留痕：校验子 state 终态（currentStage 空）后置 closed + closedAt；--abandon 放弃收口（跳过终态校验，标 abandoned）；全部子流程 closed 后父流程恢复推进',
     usage: 'subflow close --state <父path> --id <sf-n> [--abandon]',
     options: [
       { flag: '--state', desc: '父 .state.json 绝对路径', required: true },
@@ -1365,6 +1365,7 @@ for (const cmd of REGISTRY) {
 function renderGlobalHelp() {
   const lines = [
     'ddo-tools — v2 确定性执行内核',
+    '（SKILL.md 是调用入口；命令与参数细节以本 help 及各命令 --help 为权威）',
     '',
     '用法: node cli.js <命令> [--flag value | --flag=value]',
     '      node cli.js --help              本总览',
