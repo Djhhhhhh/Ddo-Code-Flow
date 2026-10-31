@@ -52,7 +52,7 @@
 
 ## 子流程编排的归属
 
-- **引擎层提供机制**：`subflow start/list/close` 命令、嵌套子 state（`<runDir>/subflows/sf-n/`）、阻塞式拦截（active 子流程存在时父 `next`/`run finish` exit 1）、三层总深度上限（创建点校验）、`--abandon` 放弃留痕。子 state 是普通 state——exec/validate/next/gate 对其零差别复用。
+- **引擎层提供机制**：`subflow start/close` 命令、嵌套子 state（`<runDir>/subflows/sf-n/`）、阻塞式拦截（active 子流程存在时父 `next`/`run finish` exit 1）、三层总深度上限（创建点校验）、`--abandon` 放弃留痕。子 state 是普通 state——exec/validate/next/gate 对其零差别复用。子流程清单走 `status` 的 `subflows` 视图（注册条目全字段，吸收原 `subflow list`）。
 - **引导层提供协议**：SKILL.md 执行循环定义何时下沉（任务执行中发现需要补充调研等子目标时）、如何驱动子流程循环、如何收口回到父流程。
 
 ## 版本与演进

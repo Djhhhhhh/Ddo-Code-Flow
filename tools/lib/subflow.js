@@ -159,16 +159,10 @@ function subflowStart({ parentStatePath, atStage, title, workflow = 'basic', con
   };
 }
 
-/** 子流程清单（只读）。 */
-function subflowList({ parentStatePath }) {
-  const state = readState(parentStatePath);
-  assertState(state);
-  return { subflows: state.subflows || [] };
-}
-
 /**
  * 子流程收口（subflow close）：校验子 state 终态（currentStage 空）后置 closed + closedAt；
  * --abandon 放弃收口（跳过终态校验，标 abandoned——用户决议放弃的留痕，父流程可继续）。
+ * 子流程清单走父 state 的 status 视图（cli.js statusView 渲染注册条目全字段，工具链精简 CS-1）。
  */
 function subflowClose({ parentStatePath, id, abandon = false, at }) {
   const parent = readState(parentStatePath);
@@ -203,4 +197,4 @@ function subflowClose({ parentStatePath, id, abandon = false, at }) {
   return { closed: { id, abandoned: abandon === true, closedAt: at, statePath: entry.statePath }, subflows: parent.subflows };
 }
 
-module.exports = { MAX_DEPTH, SUBFLOWS_DIR, depthOf, activeSubflows, nextSubflowId, subflowStart, subflowList, subflowClose };
+module.exports = { MAX_DEPTH, SUBFLOWS_DIR, depthOf, activeSubflows, nextSubflowId, subflowStart, subflowClose };

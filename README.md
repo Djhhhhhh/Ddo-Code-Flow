@@ -187,13 +187,12 @@ skill 运行在宿主代理中，不是独立的开发代理。几个核心概�
 | `validate` | 检查当前任务声明的产物、必填结构和输出 schema |
 | `next` | 推进全部当前位置、激活后继阶段；不自动 validate；有确认门时须有合法决议和有效呈现；存在 active 子流程时拦截（阻塞式） |
 | `subflow start` | 运行期创建子流程：`--at <stageId>` 挂靠当前 stage，物化嵌套子 state 于 `<runDir>/subflows/sf-n/`；深度超三层拒绝 |
-| `subflow list` | 只读列出子流程（id/状态/挂靠 stage/子 statePath） |
 | `subflow close` | 子流程收口留痕：校验子 state 终态后置 closed；`--abandon` 放弃收口（标 abandoned） |
 | `gate present` | 返回当前审核选项及 dispatch，记录呈现时间；选项来自静态声明与动态钩子 |
 | `gate interact` | 记录相位内交互，使既有呈现过期；处理后必须重新呈现，多门时用 `--stage` 指定目标 |
 | `rollback` | 重置指定阶段及相关依赖路径，清除相关确认门，将已声明旧产物移到 `_del/rollback-<n>/` |
 | `run finish` | 结束运行并移出运行索引；正常模式默认归档且保留原目录，`--no-archive` 跳过归档和结束历史；临时模式删除运行材料 |
-| `status` | 已知 statePath 时，返回当前位置、确认门选项及可用命令 |
+| `status` | 已知 statePath 时，返回当前位置、确认门选项及可用命令；`subflows` 字段为子流程清单视图（id/状态/挂靠 stage/子 statePath 等注册条目全字段，吸收原 `subflow list`） |
 | `resume` | 无参列出运行中 run；`--run-id` 加载选定运行的完整状态视图 |
 | `list tasks` | 列出任务、相位、审核位置和可配置项 |
 | `list workflows` | 列出预设、描述和阶段链 |
