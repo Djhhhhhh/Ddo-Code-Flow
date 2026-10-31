@@ -128,4 +128,58 @@ function assemble({ taskDir, taskName, phase, state, statePath, ddoHome }) {
   return typeof out === 'string' ? out : defaultTemplate(sections);
 }
 
-module.exports = { mergeConfig, slicePrompt, hardenInteraction, defaultTemplate, assemble, L2_BLOCK };
+/**
+ * --config 运行级旋钮覆盖（测试工作流 DEC-C；子流程编排起为 run start / subflow start 共用）：
+ * 解析 `<task>.<key>=<JSON>` 并写入 atomTasks。JSON 字面解析失败回退字符串；
+ * task 不在链 / key 未在 configurable 声明 → 用法错误（usage=true，cli 按 exit 2 处理）。
+ */
+function applyConfigOverrides(flagVal, preset, tasksDir, atomTasks) {
+  const list = Array.isArray(flagVal) ? flagVal : [flagVal];
+  const stageNames = new Set(preset.stages.map((s) => s.task));
+  for (const raw of list) {
+    const s = String(raw);
+    const eq = s.indexOf('=');
+    if (eq <= 0) {
+      const e = new Error(`--config 非法: ${s}（须为 <task>.<key>=<JSON>）`);
+      e.usage = true;
+      throw e;
+    }
+    const left = s.slice(0, eq);
+    const dot = left.lastIndexOf('.');
+    if (dot <= 0 || dot === left.length - 1) {
+      const e = new Error(`--config 非法: ${s}（<task>.<key> 的 task 段须为链内任务名）`);
+      e.usage = true;
+      throw e;
+    }
+    const task = left.slice(0, dot);
+    const key = left.slice(dot + 1);
+    if (!stageNames.has(task)) {
+      const e = new Error(`--config 任务不在链内: ${task}（链: ${[...stageNames].join(', ')}）`);
+      e.usage = true;
+      throw e;
+    }
+    let cfg;
+    try {
+      cfg = JSON.parse(fs.readFileSync(path.join(tasksDir, task, 'config.json'), 'utf8'));
+    } catch (err) {
+      throw new Error(`--config 目标任务的 config.json 不可读: ${task}（${err.message}）`);
+    }
+    const knob = (Array.isArray(cfg.configurable) ? cfg.configurable : []).find((c) => c && c.key === key);
+    if (!knob) {
+      const e = new Error(`--config 键未声明: ${task}.${key}（可配置项见该任务 config.json 的 configurable）`);
+      e.usage = true;
+      throw e;
+    }
+    let value;
+    try {
+      value = JSON.parse(s.slice(eq + 1));
+    } catch {
+      value = s.slice(eq + 1); // 非法 JSON 按字符串字面（布尔/数字请写 true / 42）
+    }
+    atomTasks[task] = { ...(atomTasks[task] || {}), [key]: value };
+  }
+}
+
+module.exports = {
+  mergeConfig, slicePrompt, hardenInteraction, defaultTemplate, assemble, L2_BLOCK, applyConfigOverrides,
+};

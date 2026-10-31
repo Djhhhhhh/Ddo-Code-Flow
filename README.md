@@ -141,6 +141,7 @@ skill 运行在宿主代理中，不是独立的开发代理。几个核心概�
 | run | 一次运行，包含所选任务链、状态和流程产物 |
 | 相位 | 一个任务中的步骤，当前位置以 `spec:01` 等形式表示 |
 | 确认门 | 人工审核位置，先呈现选项，获得用户明确决议后才能推进 |
+| 子流程 | 任务执行中运行期下沉的嵌套流水（如 plan 阶段发现调研需求），阻塞式、总深度最多三层，经 `subflow start/close` 编排 |
 
 三方分工：
 
@@ -159,6 +160,10 @@ skill 运行在宿主代理中，不是独立的开发代理。几个核心概�
 5. 每次状态改变后重新读取位置；普通流程全部完成后执行 run finish，不把 completed 当成已经收口。
 
 相位内修改、提问或回答问题不等于批准。交互先通过 gate interact 留痕，处理后重新 gate present，再取得用户选择。多门交互使用 `--stage` 指定目标。
+
+### 子流程下沉
+
+任务执行中发现需要补充调研等子目标时，可从当前 stage 运行期创建子流程（`subflow start --at <stageId>`）。子流程是嵌套在 `<runDir>/subflows/sf-n/` 的普通 state，复用同一套执行循环；存在未收口（active）子流程时父流程的 `next` 与 `run finish` 被拦截（阻塞式），子流程完成后 `subflow close` 留痕、父流程恢复推进。多层下沉最多三层（总深度，父=1），第四层创建即拒绝；放弃子流程用 `close --abandon`。
 
 ### 交付链的特殊收尾
 
@@ -180,7 +185,10 @@ skill 运行在宿主代理中，不是独立的开发代理。几个核心概�
 | `run start` | 按预设创建 state 并注册运行；支持正常或 `--ephemeral` 临时存储（与 `--dir-name` 互斥）；`--config <task>.<key>=<JSON>` 运行级旋钮覆盖（可重复，校验任务在链、键已声明） |
 | `exec` | 返回当前相位的组装指令；校验执行位置，但不完成实际任务 |
 | `validate` | 检查当前任务声明的产物、必填结构和输出 schema |
-| `next` | 推进全部当前位置、激活后继阶段；不自动 validate；有确认门时须有合法决议和有效呈现 |
+| `next` | 推进全部当前位置、激活后继阶段；不自动 validate；有确认门时须有合法决议和有效呈现；存在 active 子流程时拦截（阻塞式） |
+| `subflow start` | 运行期创建子流程：`--at <stageId>` 挂靠当前 stage，物化嵌套子 state 于 `<runDir>/subflows/sf-n/`；深度超三层拒绝 |
+| `subflow list` | 只读列出子流程（id/状态/挂靠 stage/子 statePath） |
+| `subflow close` | 子流程收口留痕：校验子 state 终态后置 closed；`--abandon` 放弃收口（标 abandoned） |
 | `gate present` | 返回当前审核选项及 dispatch，记录呈现时间；选项来自静态声明与动态钩子 |
 | `gate interact` | 记录相位内交互，使既有呈现过期；处理后必须重新呈现，多门时用 `--stage` 指定目标 |
 | `rollback` | 重置指定阶段及相关依赖路径，清除相关确认门，将已声明旧产物移到 `_del/rollback-<n>/` |

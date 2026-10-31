@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ddo-Code-Flow · 流水编排引擎升级 架构概念图</title>
+<style>
+  .viz-root {
+    color-scheme: light;
+    --page:        #f9f9f7;
+    --surface-1:   #fcfcfb;
+    --ink:         #0b0b0b;
+    --ink-2:       #52514e;
+    --muted:       #898781;
+    --hairline:    #e1e0d9;
+    --border:      rgba(11,11,11,0.10);
+    --layer1:      #2a78d6;  /* 引导执行层（categorical slot 1） */
+    --layer1-wash: rgba(42,120,214,0.08);
+    --layer2:      #eb6834;  /* 引擎层（categorical slot 2） */
+    --layer2-wash: rgba(235,104,52,0.08);
+    --ord1:        #86b6ef;  /* 流水深度 序数蓝 250/450/650（light） */
+    --ord2:        #2a78d6;
+    --ord3:        #104281;
+    --ord1-wash:   rgba(134,182,239,0.16);
+    --ord2-wash:   rgba(42,120,214,0.12);
+    --ord3-wash:   rgba(16,66,129,0.14);
+    --critical:    #d03b3b;  /* 状态色：仅用于「上限拒绝」，配 ✕ + 文字 */
+    background: var(--page);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    padding: 28px 20px 40px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .viz-root {
+      color-scheme: dark;
+      --page:      #0d0d0d;
+      --surface-1: #1a1a19;
+      --ink:       #f0efec;
+      --ink-2:     #c3c2b7;
+      --hairline:  #2c2c2a;
+      --border:    rgba(255,255,255,0.10);
+      --layer1:    #3987e5;
+      --layer2:    #d95926;
+      --ord2:      #3987e5;
+      --ord3:      #184f95;
+      --ord1-wash: rgba(134,182,239,0.14);
+      --ord2-wash: rgba(57,135,229,0.12);
+      --ord3-wash: rgba(24,79,149,0.20);
+    }
+  }
+  :root[data-theme="dark"] .viz-root {
+    color-scheme: dark;
+    --page:      #0d0d0d;
+    --surface-1: #1a1a19;
+    --ink:       #f0efec;
+    --ink-2:     #c3c2b7;
+    --hairline:  #2c2c2a;
+    --border:    rgba(255,255,255,0.10);
+    --layer1:    #3987e5;
+    --layer2:    #d95926;
+    --ord2:      #3987e5;
+    --ord3:      #184f95;
+    --ord1-wash: rgba(134,182,239,0.14);
+    --ord2-wash: rgba(57,135,229,0.12);
+    --ord3-wash: rgba(24,79,149,0.20);
+  }
+  .viz-root { max-width: 1120px; margin: 0 auto; }
+  h1 { font-size: 19px; margin: 0 0 4px; }
+  .sub { font-size: 12.5px; color: var(--ink-2); margin: 0 0 22px; }
+  .panel-title { font-size: 14px; font-weight: 650; margin: 26px 0 10px; color: var(--ink); }
+  svg { width: 100%; height: auto; display: block; }
+  svg text { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .t-title { font-size: 12.5px; font-weight: 650; fill: var(--ink); }
+  .t-body  { font-size: 10.5px; fill: var(--ink-2); }
+  .t-mono  { font-size: 10.5px; fill: var(--ink-2); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .t-chip  { font-size: 10px; font-weight: 600; fill: #ffffff; }
+  .t-chipD { font-size: 10px; font-weight: 600; fill: #0b0b0b; }
+  .t-note  { font-size: 11px; fill: var(--muted); }
+  .t-nodeT { font-size: 13px; font-weight: 700; }
+  .t-nodeS { font-size: 10.5px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px 18px; margin-top: 18px; font-size: 11.5px; color: var(--ink-2); align-items: center; }
+  .legend .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; border: 1px solid var(--border); }
+  .frame { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 18px 14px 10px; }
+
+  /* ② 动态编排示例 */
+  .flow-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 11px; color: var(--ink-2);
+    background: var(--page); border: 1px solid var(--hairline); border-radius: 8px; padding: 8px 12px; margin-bottom: 14px; }
+  .fs-label { font-weight: 650; color: var(--ink); margin-right: 2px; }
+  .fs-item { background: var(--surface-1); border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 10.5px; }
+  .fs-arrow { color: var(--muted); }
+  .fs-sep { width: 1px; height: 16px; background: var(--hairline); margin: 0 8px; }
+  .step { border-top: 1px solid var(--hairline); padding: 12px 2px 10px; }
+  .step:first-of-type { border-top: none; }
+  .step-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .step-no { width: 20px; height: 20px; border-radius: 50%; background: var(--layer2); color: #ffffff;
+    font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+  .step-title { font-size: 12.5px; font-weight: 650; color: var(--ink); }
+  .cmd { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 10.5px;
+    background: var(--page); border: 1px solid var(--border); border-left: 3px solid var(--layer2);
+    border-radius: 6px; padding: 3px 8px; color: var(--ink-2); }
+  .snap { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; }
+  @media (max-width: 760px) { .snap { grid-template-columns: 1fr; } }
+  .snap-card { background: var(--page); border: 1px solid var(--hairline); border-radius: 8px; padding: 8px 10px; min-width: 0; }
+  .snap-tag { font-size: 10.5px; font-weight: 650; color: var(--ink-2); margin-bottom: 6px; }
+  .snap-tag::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 2px;
+    margin-right: 6px; vertical-align: 0; background: var(--ord2); }
+  pre.js { margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 10.5px; line-height: 1.55; color: var(--ink-2); overflow-x: auto; white-space: pre; }
+  pre.js b { color: var(--ink); font-weight: 650; background: var(--ord2-wash); border-radius: 3px; padding: 0 2px; }
+  pre.js i { color: var(--ink); font-style: normal; background: var(--ord1-wash); border-radius: 3px; padding: 0 2px; }
+  .note-text { font-size: 11px; line-height: 1.6; color: var(--ink-2); }
+</style>
+</head>
+<body>
+<div class="viz-root">
+  <h1>Ddo-Code-Flow · 流水编排引擎升级 — 架构概念图</h1>
+  <p class="sub">两层拆分（引导执行层 / 引擎层）＋ 子流程分层编排（运行期创建 · 阻塞式 · 最多三层）· plan revision 1 审阅稿</p>
+
+  <div class="panel-title">① 两层架构 — 引导执行层 ⇄ 引擎层（解耦契约）</div>
+  <div class="frame">
+  <svg viewBox="0 0 1040 440" role="img" aria-label="两层架构图：引导执行层与引擎层经解耦契约交互">
+    <defs>
+      <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#898781"/>
+      </marker>
+    </defs>
+
+    <!-- 引导执行层 band -->
+    <rect x="32" y="40" width="976" height="140" rx="12" fill="var(--layer1-wash)" stroke="var(--layer1)" stroke-width="1.4"/>
+    <rect x="48" y="26" width="176" height="24" rx="12" fill="var(--layer1)"/>
+    <text x="136" y="42" text-anchor="middle" class="t-chip">引导执行层 · Guidance</text>
+
+    <!-- boxes -->
+    <g>
+      <rect x="56" y="78" width="296" height="94" rx="8" fill="var(--surface-1)" stroke="var(--border)"/>
+      <rect x="56" y="78" width="296" height="3" rx="1.5" fill="var(--layer1)"/>
+      <text x="72" y="102" class="t-title mono">SKILL.md</text>
+      <text x="72" y="120" class="t-body">调用契约 · 启动分流 · 执行循环协议</text>
+      <text x="72" y="136" class="t-body">宿主适配与问询（guide / gate present）</text>
+      <rect x="72" y="146" width="132" height="18" rx="9" fill="var(--ink)"/>
+      <text x="138" y="159" text-anchor="middle" class="t-chip" style="fill:var(--surface-1)">子流程下沉协议 · 新增</text>
+    </g>
+    <g>
+      <rect x="372" y="78" width="296" height="94" rx="8" fill="var(--surface-1)" stroke="var(--border)"/>
+      <rect x="372" y="78" width="296" height="3" rx="1.5" fill="var(--layer1)"/>
+      <text x="388" y="102" class="t-title mono">atom-tasks/*</text>
+      <text x="388" y="120" class="t-body">原子任务物料（原子任务接入能力）</text>
+      <text x="388" y="136" class="t-mono">prompt.md · config.json · present 钩子</text>
+      <text x="388" y="158" class="t-note">子流程复用同一套任务物料，零改动</text>
+    </g>
+    <g>
+      <rect x="688" y="78" width="296" height="94" rx="8" fill="var(--surface-1)" stroke="var(--border)"/>
+      <rect x="688" y="78" width="296" height="3" rx="1.5" fill="var(--layer1)"/>
+      <text x="704" y="102" class="t-title mono">workflows/*.json</text>
+      <text x="704" y="120" class="t-body">编排预设（物料就绪后的流程定义）</text>
+      <text x="704" y="136" class="t-mono">basic · standard · test · pr-delivery</text>
+      <text x="704" y="158" class="t-note">子流程运行期选预设，格式不变</text>
+    </g>
+
+    <!-- 解耦契约 boundary -->
+    <line x1="32" y1="246" x2="1008" y2="246" stroke="var(--muted)" stroke-width="1.2" stroke-dasharray="6 5"/>
+    <rect x="40" y="232" width="92" height="28" rx="14" fill="var(--surface-1)" stroke="var(--border)"/>
+    <text x="86" y="250" text-anchor="middle" class="t-body" style="font-weight:650; fill:var(--ink)">解耦契约</text>
+
+    <!-- 驱动 arrow（引导层 → 引擎层） -->
+    <line x1="250" y1="184" x2="250" y2="258" stroke="#898781" stroke-width="1.6" marker-end="url(#arr)"/>
+    <text x="240" y="204" text-anchor="end" class="t-body" style="font-weight:650">驱动 · CLI 命令</text>
+    <text x="260" y="222" class="t-mono">subflow start · exec · validate · next · gate</text>
+
+    <!-- 反馈 arrow（引擎层 → 引导层） -->
+    <line x1="880" y1="258" x2="880" y2="184" stroke="#898781" stroke-width="1.6" marker-end="url(#arr)"/>
+    <text x="870" y="204" text-anchor="end" class="t-body" style="font-weight:650">反馈 · 四通道</text>
+    <text x="870" y="222" text-anchor="end" class="t-mono">stdout=JSON · stderr 人话 · exit 0/1/2 · state</text>
+
+    <!-- 引擎层 band -->
+    <rect x="32" y="264" width="976" height="140" rx="12" fill="var(--layer2-wash)" stroke="var(--layer2)" stroke-width="1.4"/>
+    <rect x="48" y="250" width="150" height="24" rx="12" fill="var(--layer2)"/>
+    <text x="123" y="266" text-anchor="middle" class="t-chip">引擎层 · Engine</text>
+
+    <g>
+      <rect x="58" y="302" width="172" height="94" rx="8" fill="var(--surface-1)" stroke="var(--border)"/>
+      <rect x="58" y="302" width="172" height="3" rx="1.5" fill="var(--layer2)"/>
+      <text x="72" y="326" class="t-title mono">cli.js</text>
+      <text x="72" y="344" class="t-body">命令注册 · 分发</text>
+      <text x="72" y="360" class="t-body">四通道输出契约</text>
+      <text x="72" y="382" class="t-note">含 subflow 域命令</text>
+    </g>
+    <g>
+      <rect x="246" y="302" width="172" height="94" rx="8" fill="var(--surface-1)" stroke="var(--border)"/>
+      <rect x="246" y="302" width="172" height="3" rx="1.5" fill="var(--layer2)"/>
+      <text x="260" y="326" class="t-title mono">state.js</text>
+      <text x="260" y="344" class="t-body">状态契约 · 校验</text>
+      <text x="260" y="360" class="t-body">stages / gates / dirs</text>
+      <text x="260" y="382" class="t-note">＋subflows / subflow 段</text>
+    </g>
+    <g>
+      <rect x="434" y="302" width="172" height="94" rx="8" fill="var(--surface-1)" stroke="var(--border)"/>
+      <rect x="434" y="302" width="172" height="3" rx="1.5" fill="var(--layer2)"/>
+      <text x="448" y="326" class="t-title mono">workflow.js</text>
+      <text x="448" y="344" class="t-body">DAG · 相位推进 · 门构建</text>
+      <text x="448" y="360" class="t-body">预设加载与裁剪</text>
+      <text x="448" y="382" class="t-note">子流程不改父 DAG</text>
+    </g>
+    <g>
+      <rect x="622" y="302" width="172" height="94" rx="8" fill="var(--surface-1)" stroke="var(--border)"/>
+      <rect x="622" y="302" width="172" height="3" rx="1.5" fill="var(--layer2)"/>
+      <text x="636" y="326" class="t-title mono">gate.js</text>
+      <text x="636" y="344" class="t-body">确认门呈现 · 决议拦截</text>
+      <text x="636" y="360" class="t-body">交互留痕校验</text>
+      <text x="636" y="382" class="t-note">子 state 直接复用</text>
+    </g>
+    <g>
+      <rect x="810" y="302" width="172" height="94" rx="8" fill="var(--surface-1)" stroke="var(--border)"/>
+      <rect x="810" y="302" width="172" height="3" rx="1.5" fill="var(--layer2)"/>
+      <text x="824" y="326" class="t-title mono">subflow.js</text>
+      <text x="824" y="344" class="t-body">子流程编排 · 深度上限</text>
+      <text x="824" y="360" class="t-body">start / list / close</text>
+      <rect x="824" y="370" width="60" height="18" rx="9" fill="var(--ink)"/>
+      <text x="854" y="383" text-anchor="middle" class="t-chip" style="fill:var(--surface-1)">新增</text>
+    </g>
+
+    <text x="32" y="430" class="t-note">边界：引擎层不读 SKILL.md、不含宿主对话逻辑；引导层不含状态机——两层只经「解耦契约」交互（docs/architecture.md 固化）。</text>
+  </svg>
+  </div>
+
+  <div class="panel-title">② 动态编排示例 — 状态如何一步步转化（父 run · plan 相位下沉调研子流程；分层静态视图见 ③）</div>
+  <div class="frame" id="walkthrough">
+    <div class="flow-strip">
+      <span class="fs-label">任务相位状态机（每个 stage）</span>
+      <span class="fs-item">pending</span><span class="fs-arrow">→</span>
+      <span class="fs-item">running</span><span class="fs-arrow">⇄</span>
+      <span class="fs-item">waiting-human（门）</span><span class="fs-arrow">→</span>
+      <span class="fs-item">done</span>
+      <span class="fs-sep"></span>
+      <span class="fs-label">子流程生命周期</span>
+      <span class="fs-item">active</span><span class="fs-arrow">→</span>
+      <span class="fs-item">closed（终态校验 / --abandon）</span>
+    </div>
+
+    <div class="step">
+      <div class="step-head"><span class="step-no">1</span><span class="step-title">启动父 run A</span><code class="cmd">run start --workflow basic --title …</code></div>
+      <div class="snap two">
+        <div class="snap-card"><div class="snap-tag">父 .state.json（depth=1）</div>
+<pre class="js">{
+  "runId": "20261031-170400-b679",
+  "currentStage": [<i>"requirement:01"</i>],
+  "stages": { "requirement": { "status": <b>"running"</b> },
+              "spec": { "status": "pending" }, … },
+  "subflows": <b>（无——可选段缺省）</b>
+}</pre></div>
+        <div class="snap-card"><div class="snap-tag">说明</div><div class="note-text">物化 basic 链全部 pending；无依赖的 requirement 点亮。<br>此刻没有 subflows 段——旧语义，与升级前完全一致。</div></div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-head"><span class="step-no">2</span><span class="step-title">A 沿链推进到 plan（多轮 exec → validate → next / gate 同意）</span><code class="cmd">next --decision 同意（spec 门）…</code></div>
+      <div class="snap two">
+        <div class="snap-card"><div class="snap-tag">父 .state.json</div>
+<pre class="js">{
+  "currentStage": [<i>"plan:01"</i>],
+  "stages": { "requirement": { "status": "done" },
+              "spec": { "status": "done", "gate": { "decision": "同意" } },
+              "plan":    { "status": <b>"running"</b> } }
+}</pre></div>
+        <div class="snap-card"><div class="snap-tag">说明</div><div class="note-text">next 纯状态推进：相位内走相位号，相位耗尽则 stage=done 并按 DAG 点亮后继；human 相位开确认门，决议后留痕关闭。</div></div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-head"><span class="step-no">3</span><span class="step-title">plan 执行中发现调研细节 → 运行期创建子流程并下沉</span><code class="cmd">subflow start --state &lt;父&gt; --at plan --title 调研X</code></div>
+      <div class="snap two">
+        <div class="snap-card"><div class="snap-tag">父 .state.json</div>
+<pre class="js">{
+  "currentStage": ["plan:01"],
+  "subflows": [ <b>{ "id": "sf-1", "atStage": "plan",
+    "statePath": "&lt;runDir&gt;/subflows/sf-1/.state.json",
+    "status": "active", "startedAt": "…" }</b> ]
+}</pre></div>
+        <div class="snap-card"><div class="snap-tag">子 .state.json（新物化，depth=2）</div>
+<pre class="js">{
+  "runId": "20261031-170400-b679-sf1",
+  "currentStage": [<i>"requirement:01"</i>],
+  "dirs": { "runDir": "<b>&lt;父runDir&gt;/subflows/sf-1</b>" },
+  "subflow": { "depth": <b>2</b>, "parentStatePath": "…",
+               "atStage": "plan" }
+}</pre></div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-head"><span class="step-no">4</span><span class="step-title">阻塞式：active 子流程存在期间，父流程被拦截</span><code class="cmd">next --state &lt;父&gt; → exit 1</code></div>
+      <div class="snap two">
+        <div class="snap-card"><div class="snap-tag">父 .state.json（不变）</div>
+<pre class="js">{ "currentStage": ["plan:01"],  /* 原地不动 */
+  "subflows": [ { "id": "sf-1", "status": "active" } ] }</pre></div>
+        <div class="snap-card"><div class="snap-tag">CLI 响应（stdout JSON + stderr 人话）</div>
+<pre class="js">{ "blocked": <b>"subflow-active"</b>,
+  "subflows": [ { "id": "sf-1", "status": "active",
+                  "statePath": "…" } ] }
+stderr: [子流程未收口] sf-1 active——
+        先完成子流程并 subflow close</pre></div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-head"><span class="step-no">5</span><span class="step-title">子流程 B 按正常流水逻辑执行（与父完全同构的循环）</span><code class="cmd">exec / validate / next --state &lt;子&gt; …</code></div>
+      <div class="snap two">
+        <div class="snap-card"><div class="snap-tag">子 .state.json</div>
+<pre class="js">{ "currentStage": <b>[ ]</b>,
+  "stages": { … "reporting": { "status": "done" } } }
+/* next 返回 completed: true —— 子流程终态 */</pre></div>
+        <div class="snap-card"><div class="snap-tag">说明</div><div class="note-text">子流程内部照常经历 running / waiting-human（门）/ done；孙流程同理再下沉一层（depth=3，上限拒绝第 4 层）。</div></div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-head"><span class="step-no">6</span><span class="step-title">收口留痕：close 校验终态，父流程解除阻塞</span><code class="cmd">subflow close --state &lt;父&gt; --id sf-1</code></div>
+      <div class="snap two">
+        <div class="snap-card"><div class="snap-tag">父 .state.json</div>
+<pre class="js">{
+  "subflows": [ { "id": "sf-1",
+    "status": <b>"closed"</b>, "closedAt": <b>"…"</b> } ]
+}
+/* 之后 next --state 父 恢复正常推进 */</pre></div>
+        <div class="snap-card"><div class="snap-tag">说明</div><div class="note-text">close 读子 state 校验 currentStage 为空（或 --abandon 跳过校验并标 abandoned）；B、C 多子流程须全部 closed 后父才可推进。</div></div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-head"><span class="step-no">7</span><span class="step-title">链尾完成与归档</span><code class="cmd">run finish --state &lt;父&gt; --status done</code></div>
+      <div class="snap two">
+        <div class="snap-card"><div class="snap-tag">收口检查</div>
+<pre class="js">/* finish 前置校验：无 active 子流程
+   （否则 exit 1 提示先 close/abandon） */</pre></div>
+        <div class="snap-card"><div class="snap-tag">落盘</div>
+<div class="note-text">runDir 整目录 zip → ~/.ddo/history/&lt;runId&gt;.zip（天然包含 subflows/sf-1 及其产物）＋ runs.jsonl 记录；子流程不入全局 index、不单独归档。</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel-title">③ 子流程分层编排（静态视图）— A 下沉 B / C，最深三层，阻塞式</div>
+  <div class="frame">
+  <svg viewBox="0 0 1040 560" role="img" aria-label="子流程分层编排：父流程 A 下沉到子流程 B、C，B 再下沉到孙流程 D，第四层被拒绝；右侧为 runDir 嵌套结构">
+    <defs>
+      <marker id="arr2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#898781"/>
+      </marker>
+    </defs>
+
+    <!-- 深度背景带 -->
+    <rect x="32" y="44" width="588" height="118" rx="8" fill="var(--ord1-wash)"/>
+    <rect x="32" y="170" width="588" height="118" rx="8" fill="var(--ord2-wash)"/>
+    <rect x="32" y="296" width="588" height="118" rx="8" fill="var(--ord3-wash)"/>
+    <rect x="32" y="422" width="588" height="62" rx="8" fill="none" stroke="var(--critical)" stroke-width="1.2" stroke-dasharray="5 4"/>
+
+    <circle cx="52" cy="60" r="5" fill="var(--ord1)"/><text x="64" y="64" class="t-note" style="font-weight:650">第 1 层（depth=1）</text>
+    <circle cx="52" cy="186" r="5" fill="var(--ord2)"/><text x="64" y="190" class="t-note" style="font-weight:650">第 2 层（depth=2）</text>
+    <circle cx="52" cy="312" r="5" fill="var(--ord3)"/><text x="64" y="316" class="t-note" style="font-weight:650">第 3 层（depth=3）</text>
+    <text x="52" y="444" class="t-note" style="font-weight:650; fill:var(--critical)">✕ 第 4 层 — 创建即拒绝</text>
+
+    <!-- A 父 run -->
+    <g>
+      <rect x="196" y="62" width="320" height="86" rx="10" fill="var(--ord1)"/>
+      <text x="214" y="88" class="t-nodeT" fill="#0b0b0b">A · 父 run</text>
+      <text x="214" y="106" class="t-nodeS" fill="#0b0b0b">plan 相位发现调研细节 → 下沉子流程</text>
+      <text x="214" y="122" class="t-nodeS mono" fill="#0b0b0b">.state.json · depth=1</text>
+      <rect x="330" y="130" width="168" height="20" rx="10" fill="var(--ink)"/>
+      <text x="414" y="144" text-anchor="middle" class="t-chip" style="fill:var(--surface-1)">⏸ next 拦截（阻塞式）</text>
+    </g>
+
+    <!-- A → B / C -->
+    <path d="M300,148 C300,172 190,168 178,192" fill="none" stroke="#898781" stroke-width="1.6" marker-end="url(#arr2)"/>
+    <path d="M420,148 C420,172 520,168 528,192" fill="none" stroke="#898781" stroke-width="1.6" marker-end="url(#arr2)"/>
+    <text x="360" y="172" text-anchor="middle" class="t-mono">subflow start · 运行期创建</text>
+
+    <!-- B -->
+    <g>
+      <rect x="64" y="196" width="256" height="80" rx="10" fill="var(--ord2)"/>
+      <text x="80" y="222" class="t-nodeT" fill="#ffffff">B · 子流程 sf-1</text>
+      <text x="80" y="240" class="t-nodeS" fill="#ffffff">独立 .state.json · 正常流水逻辑</text>
+      <text x="80" y="256" class="t-nodeS mono" fill="#ffffff">exec · validate · next · gate</text>
+    </g>
+    <!-- C -->
+    <g>
+      <rect x="344" y="196" width="256" height="80" rx="10" fill="var(--ord2)"/>
+      <text x="360" y="222" class="t-nodeT" fill="#ffffff">C · 子流程 sf-2</text>
+      <text x="360" y="240" class="t-nodeS" fill="#ffffff">与 B 并列下沉 · 各自独立推进</text>
+      <text x="360" y="256" class="t-nodeS mono" fill="#ffffff">closed 前父流程持续阻塞</text>
+    </g>
+
+    <!-- B → D -->
+    <path d="M192,276 C192,296 176,300 172,318" fill="none" stroke="#898781" stroke-width="1.6" marker-end="url(#arr2)"/>
+    <text x="206" y="302" class="t-mono">B 内再下沉</text>
+
+    <!-- D -->
+    <g>
+      <rect x="64" y="322" width="256" height="78" rx="10" fill="var(--ord3)"/>
+      <text x="80" y="348" class="t-nodeT" fill="#ffffff">D · 孙流程 sf-3</text>
+      <text x="80" y="366" class="t-nodeS" fill="#ffffff">嵌套于 sf-1 · depth=3</text>
+      <text x="80" y="382" class="t-nodeS mono" fill="#ffffff">subflow close → sf-1 恢复</text>
+    </g>
+
+    <!-- D → E 拒绝 -->
+    <line x1="322" y1="361" x2="352" y2="361" stroke="var(--critical)" stroke-width="1.5" stroke-dasharray="4 4" marker-end="url(#arr2)"/>
+    <g>
+      <rect x="356" y="322" width="252" height="78" rx="10" fill="none" stroke="var(--critical)" stroke-width="1.5" stroke-dasharray="6 4"/>
+      <text x="372" y="348" class="t-nodeT" fill="var(--critical)">✕ 第 4 层 · 拒绝创建</text>
+      <text x="372" y="366" class="t-nodeS" fill="var(--ink-2)">subflow start → exit 1</text>
+      <text x="372" y="382" class="t-nodeS mono" fill="var(--ink-2)">错误信息：三层上限</text>
+    </g>
+
+    <text x="32" y="508" class="t-body" style="font-weight:650; fill:var(--ink)">阻塞式（FR-5）</text>
+    <text x="32" y="524" class="t-body">任一 active 子流程存在 → 父 next / run finish 拦截（exit 1，附 active 清单）；</text>
+    <text x="32" y="540" class="t-body">全部子流程 closed（或 --abandon 放弃留痕）后，父流程恢复正常推进。</text>
+
+    <!-- 右侧：runDir 嵌套 -->
+    <rect x="648" y="44" width="360" height="440" rx="10" fill="var(--surface-1)" stroke="var(--border)"/>
+    <text x="664" y="70" class="t-title mono">.ddo/runs/feat/&lt;runId&gt;/</text>
+
+    <rect x="664" y="82" width="328" height="24" rx="6" fill="var(--ord1-wash)"/>
+    <circle cx="678" cy="94" r="4" fill="var(--ord1)"/>
+    <text x="688" y="98" class="t-mono">.state.json（A · 父）＋ subflows[] 注册表</text>
+
+    <text x="664" y="126" class="t-mono">requirement.md · spec.md · plan.md …（父产物）</text>
+
+    <rect x="664" y="140" width="328" height="316" rx="8" fill="none" stroke="var(--hairline)" stroke-width="1.2"/>
+    <text x="676" y="160" class="t-body" style="font-weight:650">subflows/</text>
+
+    <rect x="676" y="172" width="304" height="136" rx="8" fill="var(--ord2-wash)" stroke="var(--ord2)" stroke-width="1" stroke-dasharray="0"/>
+    <text x="690" y="194" class="t-body mono" style="font-weight:650; fill:var(--ink)">sf-1 · B（第 2 层）</text>
+    <rect x="690" y="202" width="140" height="20" rx="6" fill="var(--surface-1)" stroke="var(--border)"/>
+    <text x="700" y="216" class="t-mono">.state.json · depth=2</text>
+    <text x="690" y="240" class="t-mono">requirement.md · spec.md …</text>
+
+    <rect x="690" y="250" width="276" height="46" rx="8" fill="var(--ord3-wash)" stroke="var(--ord3)" stroke-width="1"/>
+    <text x="702" y="270" class="t-body mono" style="font-weight:650; fill:var(--ink)">subflows/sf-3 · D（第 3 层）</text>
+    <text x="702" y="286" class="t-mono">.state.json · depth=3</text>
+
+    <rect x="676" y="318" width="304" height="56" rx="8" fill="var(--ord2-wash)" stroke="var(--ord2)" stroke-width="1"/>
+    <text x="690" y="340" class="t-body mono" style="font-weight:650; fill:var(--ink)">sf-2 · C（第 2 层）</text>
+    <text x="690" y="358" class="t-mono">.state.json · depth=2</text>
+
+    <text x="676" y="398" class="t-note">id 全 run 递增（sf-n）· 目录仅一层嵌套多级</text>
+    <text x="676" y="416" class="t-note">子流程不入全局 index · 不单独归档</text>
+    <text x="676" y="434" class="t-note">run finish 的 zip 天然包含 subflows/</text>
+
+    <text x="648" y="508" class="t-body" style="font-weight:650; fill:var(--ink)">状态与产物（PD-1）</text>
+    <text x="648" y="524" class="t-body">每条子流程一个嵌套 .state.json，</text>
+    <text x="648" y="540" class="t-body">产物随各自 runDir，防逃逸校验同源。</text>
+  </svg>
+  </div>
+
+  <div class="legend">
+    <span><span class="sw" style="background:var(--layer1)"></span>引导执行层（描述 · 适配 · 任务接入）</span>
+    <span><span class="sw" style="background:var(--layer2)"></span>引擎层（执行 · 约束 · 状态机）</span>
+    <span><span class="sw" style="background:var(--ord1)"></span><span class="sw" style="background:var(--ord2)"></span><span class="sw" style="background:var(--ord3)"></span>流水深度 第1→3层（序数）</span>
+    <span><span class="sw" style="background:var(--critical)"></span>✕ 状态：三层上限拒绝（图标＋文字，非仅色）</span>
+  </div>
+</div>
+</body>
+</html>

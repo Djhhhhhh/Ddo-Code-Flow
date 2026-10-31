@@ -37,6 +37,9 @@ function assertState(state) {
   }
   if (state.dirs !== undefined) assertDirs(state.dirs, state.ephemeral === true);
   if (state.git !== undefined) assertGit(state.git);
+  // 子流程编排（可选段模式，同 multiRepo 先例）：注册表在父侧，溯源段在子侧；缺失 = 旧语义零迁移
+  if (state.subflows !== undefined) assertSubflows(state.subflows, state.dirs);
+  if (state.subflow !== undefined) assertSubflowMeta(state.subflow);
   // 不变量 I2：multi 模式下 dirs.projects 与 git.repos 工作树同序一致（两侧都出现时校验）
   if (state.git && state.git.multiRepo === true && state.dirs && state.dirs.projects !== undefined) {
     const expected = state.git.repos.map((r) => r.worktreePath);
@@ -79,6 +82,72 @@ function assertGit(git) {
   if (git.repos[0].worktreePath !== git.worktreePath) {
     throw new Error('state.git.repos[0].worktreePath 须与 git.worktreePath 一致');
   }
+}
+
+/** 子流程注册表校验（子流程编排，可选段·父侧）：出现即非空数组。
+ *  不变量：id 匹配 sf-<n> 且不重复；statePath 绝对且位于本 runDir/subflows/ 之内（I-S1 防逃逸）；
+ *  closed 必附 closedAt（I-S3 留痕）；active 不得带 closedAt。 */
+function assertSubflows(entries, dirs) {
+  if (!Array.isArray(entries) || !entries.length) {
+    throw new Error('state.subflows must be a non-empty array');
+  }
+  const seen = new Set();
+  for (const [i, e] of entries.entries()) {
+    const where = `state.subflows[${i}]`;
+    if (!e || typeof e !== 'object') throw new Error(`${where} must be an object`);
+    if (typeof e.id !== 'string' || !/^sf-\d+$/.test(e.id)) {
+      throw new Error(`${where}.id must match sf-<n>`);
+    }
+    if (seen.has(e.id)) throw new Error(`${where}.id 重复: ${e.id}`);
+    seen.add(e.id);
+    for (const k of ['title', 'workflow', 'atStage']) {
+      if (typeof e[k] !== 'string' || !e[k]) throw new Error(`${where}.${k} must be a non-empty string`);
+    }
+    if (typeof e.statePath !== 'string' || !path.isAbsolute(e.statePath)) {
+      throw new Error(`${where}.statePath must be an absolute path`);
+    }
+    if (e.status !== 'active' && e.status !== 'closed') {
+      throw new Error(`${where}.status must be "active" | "closed"`);
+    }
+    if (typeof e.startedAt !== 'string' || !ISO_RE.test(e.startedAt)) {
+      throw new Error(`${where}.startedAt must be an ISO 8601 string`);
+    }
+    if (e.status === 'closed' && e.closedAt === undefined) {
+      throw new Error(`${where}.closedAt 必填（closed 必附收口时刻）`);
+    }
+    if (e.closedAt !== undefined && (typeof e.closedAt !== 'string' || !ISO_RE.test(e.closedAt))) {
+      throw new Error(`${where}.closedAt must be an ISO 8601 string`);
+    }
+    if (e.status === 'active' && e.closedAt !== undefined) {
+      throw new Error(`${where}.active 条目不得带 closedAt`);
+    }
+    if (e.abandoned !== undefined && typeof e.abandoned !== 'boolean') {
+      throw new Error(`${where}.abandoned must be a boolean`);
+    }
+    if (dirs && dirs.runDir) {
+      const base = path.join(dirs.runDir, 'subflows');
+      const rel = path.relative(base, e.statePath);
+      if (rel.startsWith('..') || path.isAbsolute(rel)) {
+        throw new Error(`${where}.statePath 须位于 ${base} 之内`);
+      }
+    }
+  }
+  return true;
+}
+
+/** 子流程溯源段校验（可选段·子侧）：顶层 run 无此段（depth 视为 1）；depth 合法域 [2,3]（I-S4）。 */
+function assertSubflowMeta(m) {
+  if (!m || typeof m !== 'object') throw new Error('state.subflow must be an object');
+  if (!Number.isInteger(m.depth) || m.depth < 2 || m.depth > 3) {
+    throw new Error('state.subflow.depth must be an integer in [2, 3]');
+  }
+  if (typeof m.parentStatePath !== 'string' || !path.isAbsolute(m.parentStatePath)) {
+    throw new Error('state.subflow.parentStatePath must be an absolute path');
+  }
+  for (const k of ['parentRunId', 'atStage', 'title']) {
+    if (typeof m[k] !== 'string' || !m[k]) throw new Error(`state.subflow.${k} must be a non-empty string`);
+  }
+  return true;
 }
 
 /** 目录声明校验（11 §1.2，可选字段）：两绝对路径，runDir 须位于 projectRoot 之内——
