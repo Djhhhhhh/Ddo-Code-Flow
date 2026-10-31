@@ -243,6 +243,27 @@ function readyStages(stages) {
 /** 相位类型 → 阶段状态（06 P2：数据先行；07 起配合 gate 拦截）。 */
 const statusForPhase = (type) => (type === 'human' ? 'waiting-human' : 'running');
 
+/**
+ * 起点点亮（run start 与 subflow start 共用，06 §4 / 子流程编排 DEC-2）：
+ * dependOn 为空的阶段全部激活，status 按各自首相位类型；首相位 human → 开门。
+ * 就地更新 stages，返回 { currentStage, openedGates }。
+ */
+function activateStarts(stages, tasksDir, at) {
+  const openedGates = [];
+  const currentStage = Object.keys(stages)
+    .filter((id) => !(stages[id].dependOn || []).length)
+    .map((id) => {
+      stages[id] = { ...stages[id], status: statusForPhase(phaseType(tasksDir, id, '01')) };
+      const gate = buildGate(stages, id, '01', tasksDir, at);
+      if (gate) {
+        stages[id] = { ...stages[id], gate };
+        openedGates.push({ stage: id, phase: '01', options: gate.options });
+      }
+      return `${id}:01`;
+    });
+  return { currentStage, openedGates };
+}
+
 // ---------------------------------------------------------------- 确认门（07 plan §3）
 
 // 决议名 = 用户词汇（07 v1.4）：ASCII 词字符 + CJK 基本区，无空格——名字即用户嘴里的词
@@ -327,5 +348,5 @@ function buildGate(stages, stageId, phase, tasksDir, at) {
 
 module.exports = {
   loadWorkflow, expandStages, validateTaskConfig, phaseType, nextPhase, readyStages, statusForPhase,
-  standardOptions, buildGate, isAdvancing, DECISION_RE, pruneStages,
+  standardOptions, buildGate, isAdvancing, DECISION_RE, pruneStages, activateStarts,
 };

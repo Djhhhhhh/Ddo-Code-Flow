@@ -5,16 +5,17 @@
 // （stdout=JSON / stderr=人话 / exit 0·1·2 / 状态文件现读不缓存）。
 // 命令在归属的设计轮次登记（03 plan §3.4 命名空间政策）；
 // 当前登记：run start（06）、run finish、rollback（04）、exec、validate（05）、next（06）、status（07）、resume（08）、list tasks / list workflows（10）、
-// gate present / gate interact、guide（交互协议结构闭环）。
+// gate present / gate interact、guide（交互协议结构闭环）、subflow start / list / close（子流程编排）。
 
 const path = require('path');
 const fs = require('fs');
 const { readState, writeState, assertState } = require('./lib/state');
 const registry = require('./lib/index-registry');
 const history = require('./lib/history');
-const { assemble, mergeConfig } = require('./lib/assemble');
+const { assemble, mergeConfig, applyConfigOverrides } = require('./lib/assemble');
 const { loadTaskSchema, validateArtifact } = require('./lib/output-schema');
-const { loadWorkflow, expandStages, phaseType, nextPhase, readyStages, statusForPhase, standardOptions, buildGate, isAdvancing, pruneStages } = require('./lib/workflow');
+const { loadWorkflow, expandStages, phaseType, nextPhase, readyStages, statusForPhase, standardOptions, buildGate, isAdvancing, pruneStages, activateStarts } = require('./lib/workflow');
+const { subflowStart, subflowList, subflowClose, activeSubflows } = require('./lib/subflow');
 const { openGates, presentPayload, renderGateOptions, fillState, isPresentationValid } = require('./lib/gate');
 const { gitInfo, inferMainBranch } = require('./lib/git-info');
 const { readDependencies, checkDependencies } = require('./lib/deps');
@@ -150,6 +151,24 @@ function runFinish(f) {
   }
   const state = readState(statePath);
   assertState(state);
+  // 子流程收口边界（DEC-5）：子 state 不单独 run finish（用 subflow close 随父收口）；
+  // 父 state 须无 active 子流程——收口完整性，先 close / --abandon 再 finish
+  if (state.subflow) {
+    throw new Error(
+      `这是子流程 state（depth=${state.subflow.depth}，父 run ${state.subflow.parentRunId}）——` +
+      `用 subflow close --state ${state.subflow.parentStatePath} --id <sf-n> 收口，不走 run finish`
+    );
+  }
+  const activeSf = activeSubflows(state);
+  if (activeSf.length) {
+    process.stderr.write(
+      `[子流程未收口] ${activeSf.map((s) => `${s.id}（挂靠 ${s.atStage}）active`).join('；')}——finish 前须全部收口\n` +
+      activeSf.map((s) => `  subflow close --state ${statePath} --id ${s.id}（放弃加 --abandon）`).join('\n') +
+      '\n'
+    );
+    process.exitCode = 1;
+    return { blocked: 'subflow-active', subflows: activeSf };
+  }
   // 免归档开关（--no-archive）：流程型 run（如交付链）不入用户级 history——跳过下方 ①②；
   // ③ index 移除与 ④ currentStage 清空照旧，state 原文件仍随项目版控走（追溯适用，不落 state）
   const noArchive = f['no-archive'] === true;
@@ -374,45 +393,6 @@ function runValidate(f) {
   return { validated: true };
 }
 
-/** --config 运行级旋钮覆盖（测试工作流 DEC-C）：解析 `<task>.<key>=<JSON>` 并写入 atomTasks。
- *  JSON 字面解析失败回退字符串；task 不在链 / key 未在 configurable 声明 → UsageError（exit 2）。 */
-function applyConfigOverrides(flagVal, preset, tasksDir, atomTasks) {
-  const list = Array.isArray(flagVal) ? flagVal : [flagVal];
-  const stageNames = new Set(preset.stages.map((s) => s.task));
-  for (const raw of list) {
-    const s = String(raw);
-    const eq = s.indexOf('=');
-    if (eq <= 0) throw new UsageError(`--config 非法: ${s}（须为 <task>.<key>=<JSON>）`);
-    const left = s.slice(0, eq);
-    const dot = left.lastIndexOf('.');
-    if (dot <= 0 || dot === left.length - 1) {
-      throw new UsageError(`--config 非法: ${s}（<task>.<key> 的 task 段须为链内任务名）`);
-    }
-    const task = left.slice(0, dot);
-    const key = left.slice(dot + 1);
-    if (!stageNames.has(task)) {
-      throw new UsageError(`--config 任务不在链内: ${task}（链: ${[...stageNames].join(', ')}）`);
-    }
-    let cfg;
-    try {
-      cfg = JSON.parse(fs.readFileSync(path.join(tasksDir, task, 'config.json'), 'utf8'));
-    } catch (e) {
-      throw new Error(`--config 目标任务的 config.json 不可读: ${task}（${e.message}）`);
-    }
-    const knob = (Array.isArray(cfg.configurable) ? cfg.configurable : []).find((c) => c && c.key === key);
-    if (!knob) {
-      throw new UsageError(`--config 键未声明: ${task}.${key}（可配置项见该任务 config.json 的 configurable）`);
-    }
-    let value;
-    try {
-      value = JSON.parse(s.slice(eq + 1));
-    } catch {
-      value = s.slice(eq + 1); // 非法 JSON 按字符串字面（布尔/数字请写 true / 42）
-    }
-    atomTasks[task] = { ...(atomTasks[task] || {}), [key]: value };
-  }
-}
-
 /** deps check：枚举原子任务 dependencies 声明并逐项本机执行（测试工作流 DEC-E）。
  *  目标集：--task 指定单任务（可为链外任务，启用前预检）；缺省 = 当前链全部任务。
  *  结果型命令：检查失败计 supported:false，不设命令 exitCode；state/任务级错误才 exit 1。 */
@@ -568,19 +548,8 @@ function runStart(f) {
   const stages = expandStages(effectivePreset, tasksDir, startedAt);
 
   // 起点：dependOn 为空的阶段全部点亮，status 按各自首相位类型（P2 数据先行）；
-  // 首相位为 human → 开门（07 §4.3，机制对称支持）
-  const openedGates = [];
-  const currentStage = Object.keys(stages)
-    .filter((id) => !(stages[id].dependOn || []).length)
-    .map((id) => {
-      stages[id] = { ...stages[id], status: statusForPhase(phaseType(tasksDir, id, '01')) };
-      const gate = buildGate(stages, id, '01', tasksDir, startedAt);
-      if (gate) {
-        stages[id] = { ...stages[id], gate };
-        openedGates.push({ stage: id, phase: '01', options: gate.options });
-      }
-      return `${id}:01`;
-    });
+  // 首相位为 human → 开门（07 §4.3，机制对称支持）——点亮逻辑与 subflow start 共用（activateStarts）
+  const { currentStage, openedGates } = activateStarts(stages, tasksDir, startedAt);
 
   // 居所分叉（DEC-2）：ephemeral → ~/.ddo/tmp/<type>/<runId>（与项目内布局同构）；正常 → 现状不动。
   // 两分支共用下方「statePath 已存在则抛错」防重检查（runId 唯一性由 freshRunId 保证）
@@ -625,6 +594,20 @@ function runNext(f) {
   const statePath = f.state;
   const tasksDir = tasksDirFor(f, state);
   const now = nowIso();
+
+  // 子流程阻塞（FR-5 阻塞式，DEC-3）：active 子流程存在时父流程暂停推进——
+  // 拦截先于门检查（active 子流程优先于一切推进；错误信息自含收口指引）
+  const activeSf = activeSubflows(state);
+  if (activeSf.length) {
+    process.stderr.write(
+      `[子流程未收口] ${activeSf.map((s) => `${s.id}（挂靠 ${s.atStage}）active`).join('；')}——父流程暂停推进\n` +
+      `先以子 statePath 驱动子流程循环至完成（currentStage 空），再收口：\n` +
+      activeSf.map((s) => `  subflow close --state ${statePath} --id ${s.id}（放弃加 --abandon）｜子 state: ${s.statePath}`).join('\n') +
+      '\n'
+    );
+    process.exitCode = 1;
+    return { blocked: 'subflow-active', subflows: activeSf };
+  }
 
   // 门检查（07 §4.2 + 交互协议结构闭环）：human 相位必须经用户决议才能推进——
   // 开门集自 lib/gate 同源派生（静态声明 ∪ present 钩子动态选项）；
@@ -779,9 +762,51 @@ function statusView(state, statePath, tasksDir) {
     }
     availableCommands.push({ cmd: `run finish --state ${statePath} --status aborted`, desc: '中止本次 run' });
   }
-  return { runId: state.runId, title: state.title, currentStage: positions, gateOptions, availableCommands };
+  // 子流程视图（子流程编排，DEC-5）：active 子流程给定位提示（阻塞中，父 next/finish 均拦截）；
+  // 本 state 为子流程时给出溯源信息（断点恢复双向可寻）
+  const subflowViews = (state.subflows || []).map((s) => ({
+    id: s.id, title: s.title, status: s.status, atStage: s.atStage, statePath: s.statePath,
+    ...(s.abandoned ? { abandoned: true } : {}),
+  }));
+  for (const s of subflowViews.filter((x) => x.status === 'active')) {
+    availableCommands.push({ cmd: `status --state ${s.statePath}`, desc: `查看 active 子流程 ${s.id} 当前相位（父流程阻塞中）` });
+  }
+  return {
+    runId: state.runId, title: state.title, currentStage: positions, gateOptions, availableCommands,
+    ...(subflowViews.length ? { subflows: subflowViews } : {}),
+    ...(state.subflow ? { subflowOf: { parentRunId: state.subflow.parentRunId, parentStatePath: state.subflow.parentStatePath, depth: state.subflow.depth } } : {}),
+  };
 }
 
+
+// ---------------------------------------------------------------- subflow 域（子流程编排，DEC-2/3）
+
+/** subflow start：运行期创建子流程。tasksDir 沿 tasksDirFor 三级取值（flag > 父 state.dirs.tasksDir > 缺省）。 */
+function subflowStartCmd(f) {
+  const statePath = path.resolve(f.state);
+  const parent = readState(statePath);
+  assertState(parent);
+  return subflowStart({
+    parentStatePath: statePath,
+    atStage: f.at,
+    title: f.title,
+    workflow: f.workflow === undefined ? 'basic' : f.workflow,
+    config: f.config,
+    at: nowIso(),
+    tasksDir: tasksDirFor(f, parent),
+    workflowsDir: f['workflows-dir'] ? path.resolve(f['workflows-dir']) : WORKFLOWS_DIR,
+  });
+}
+
+/** subflow list：只读清单。 */
+function subflowListCmd(f) {
+  return subflowList({ parentStatePath: path.resolve(f.state) });
+}
+
+/** subflow close：终态校验收口；--abandon 放弃留痕。 */
+function subflowCloseCmd(f) {
+  return subflowClose({ parentStatePath: path.resolve(f.state), id: f.id, abandon: f.abandon === true, at: nowIso() });
+}
 
 // ---------------------------------------------------------------- gate 域 / guide（交互协议结构闭环）
 
@@ -1240,6 +1265,41 @@ const REGISTRY = [
     run: gateInteract,
   },
   {
+    name: 'subflow start',
+    summary: '运行期创建子流程：在指定 stage 下沉，物化嵌套子 state（<runDir>/subflows/sf-n/.state.json）并注册父 subflows；depth 超三层拒绝',
+    usage: 'subflow start --state <父path> --at <stageId> --title <text> [--workflow basic] [--config <task>.<key>=<JSON>] [--workflows-dir <path>] [--tasks-dir <path>]',
+    options: [
+      { flag: '--state', desc: '父 .state.json 绝对路径', required: true },
+      { flag: '--at', desc: '下沉挂靠的 stageId（须在父 currentStage 内）', required: true },
+      { flag: '--title', desc: '子流程标题（一句话，进子 state 与父注册表）', required: true },
+      { flag: '--workflow', desc: '子流程预设名（缺省 basic；沿用既有预设格式，运行期选择）' },
+      { flag: '--config', desc: '子流程运行级旋钮覆盖：<task>.<key>=<JSON>，可重复（语义同 run start）' },
+      { flag: '--workflows-dir', desc: '预设根目录（缺省仓库 workflows/；测试用）' },
+      { flag: '--tasks-dir', desc: '原子任务根目录（缺省沿用父 state.dirs.tasksDir > 仓库 atom-tasks/）' },
+    ],
+    run: subflowStartCmd,
+  },
+  {
+    name: 'subflow list',
+    summary: '子流程清单：id / 状态 / 挂靠 stage / 子 statePath（只读，父 state 的 subflows 视图）',
+    usage: 'subflow list --state <path>',
+    options: [
+      { flag: '--state', desc: '父 .state.json 绝对路径', required: true },
+    ],
+    run: subflowListCmd,
+  },
+  {
+    name: 'subflow close',
+    summary: '子流程收口留痕：校验子 state 终态（currentStage 空）后置 closed + closedAt；--abandon 放弃收口（跳过终态校验，标 abandoned）',
+    usage: 'subflow close --state <父path> --id <sf-n> [--abandon]',
+    options: [
+      { flag: '--state', desc: '父 .state.json 绝对路径', required: true },
+      { flag: '--id', desc: '子流程 id（sf-<n>，见 subflow list）', required: true },
+      { flag: '--abandon', desc: '布尔旗标：放弃收口——跳过子 state 终态校验，条目标 abandoned（用户决议放弃的留痕，父流程可继续）' },
+    ],
+    run: subflowCloseCmd,
+  },
+  {
     name: 'deps check',
     summary: '依赖检查：枚举原子任务声明的 dependencies 并逐项本机执行（exit 0=支持），输出支持情况报告（结果型，不写 state）',
     usage: 'deps check --state <path> [--task <name>] [--tasks-dir <path>]',
@@ -1268,7 +1328,7 @@ const domains = () => [...new Set(REGISTRY.filter((c) => c.name.includes(' ')).m
 // ---------------------------------------------------------------- 参数解析
 
 // 布尔旗标集：bare 形式合法（置 true、不吞下一个 token）；= 形式仅接受 true|false
-const BOOLEAN_FLAGS = new Set(['no-archive', 'ephemeral']);
+const BOOLEAN_FLAGS = new Set(['no-archive', 'ephemeral', 'abandon']);
 // 多值旗标集：可重复出现，收集为数组（--config <task>.<key>=<JSON>，测试工作流 DEC-C）
 const MULTI_FLAGS = new Set(['config']);
 
@@ -1414,7 +1474,7 @@ function main() {
 try {
   process.exitCode = main();
 } catch (e) {
-  if (e instanceof UsageError) {
+  if (e instanceof UsageError || e.usage === true) {
     process.stderr.write(`[用法错误] ${e.message}\n`);
     process.exitCode = 2;
   } else {

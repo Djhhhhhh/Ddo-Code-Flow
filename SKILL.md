@@ -205,6 +205,30 @@ node "<skillRoot>/tools/cli.js" exec --state "<statePath>" --task "<stageId>"
 `next` 会推进所有当前位置，不是只推进刚校验的任务；
 有多个位置时，不能只完成其中一个就调用 next。
 
+### 子流程（下沉）
+
+任务执行中发现需要补充调研等子目标（如 plan 阶段发现细节待调研）时，可下沉子流程：
+
+1. 在当前执行位置所属 stage 上运行期创建子流程：
+
+   ```bash
+   node "<skillRoot>/tools/cli.js" subflow start --state "<statePath>" --at "<stageId>" --title "<子目标一句话>"
+   ```
+
+   子流程复用同一套 exec/validate/next/gate 循环，state 与产物落在
+   `<runDir>/subflows/sf-n/`；返回的 `statePath` 即子流程的驱动入口。
+2. 阻塞式：存在 active 子流程时，父流程的 `next` 与 `run finish` 会被拦截。
+   先以子 statePath 按上方执行循环驱动子流程至完成（currentStage 为空），再收口留痕：
+
+   ```bash
+   node "<skillRoot>/tools/cli.js" subflow close --state "<父statePath>" --id <sf-n>
+   ```
+
+   用户决议放弃时加 `--abandon`（跳过终态校验，标 abandoned）。全部子流程 closed 后父流程恢复推进。
+3. 多层下沉最多三层（总深度，父=1）：子流程内可再下沉孙流程，第四层创建即被拒绝。
+   子流程不单独 `run finish`、不进入 resume 全局清单；父 run finish 归档整目录（含 subflows/）。
+   断点恢复用 `status` 查看子流程清单与各自位置。
+
 ### 人工审核步骤
 
 1. 按当前 exec 指令展示待审内容，并获取审核选项：
