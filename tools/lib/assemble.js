@@ -8,7 +8,7 @@ const { loadTaskSchema, renderContract } = require('./output-schema');
 
 const PHASE_RE = /<!-- @phase:(\d{2}) -->\r?\n([\s\S]*?)<!-- \/phase:\1 -->/g;
 const INTERACT_RE = /<!-- @interact:required/;
-const L2_BLOCK = '> ⚠ 交互硬约束：本次执行包含必须完成的交互，未完成前禁止调用任何推进命令（next/rollback/run finish 等）。与用户交互必须使用宿主提问工具（如 AskUserQuestion）执行，不得以自由文本代替。';
+const L2_BLOCK = '> ⚠ 交互硬约束：本次执行包含必须完成的交互，未完成前禁止调用任何推进命令（next/rollback/run finish 等）。与用户交互优先使用宿主提问工具（如 AskUserQuestion）：先自查当前会话工具集，检测不到该工具能力时降级为文本一问一答——以普通文本原样呈现问题与全部选项，等待用户以文字答复选项名或编号，答复与工具选择同等效力、按同一 dispatch 执行；降级时不得停滞、不得要求更换宿主、不得以缺少该工具为由拒绝交互。';
 
 /**
  * 三层配置合并（P3）：任务默认 < 用户级（$DDO_HOME/atom-tasks.json）< run 级（state.atomTasks）。

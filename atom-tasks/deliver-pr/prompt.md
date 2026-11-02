@@ -72,12 +72,12 @@
 ## 合并确认门
 
 <!-- @interact:required tool=ask-user -->
-必须调用宿主提问工具（如 Claude Code 的 AskUserQuestion）向用户请求确认，不得以自由文本代替，未获得用户明确回复前不得调用任何推进命令。
+必须向用户请求确认：优先使用宿主提问工具（如 Claude Code 的 AskUserQuestion）；检测不到该工具能力时降级为文本一问一答——以普通文本原样呈现问题与选项、等待用户答复选项名或编号，答复与工具选择同等效力。未获得用户明确回复前不得调用任何推进命令，也不得以缺少该工具为由停滞。
 <!-- /interact -->
 
 向用户呈现 Context: PR 信息（pr-info.md）的摘要与 PR 链接（multi run 呈现全部仓库的 PR 状态；「已合并」须逐仓库全部合并）。
 
-**门选项从统一呈现入口获取**：跑 `node tools/cli.js gate present --state <statePath>` 取交互 payload（本门全部选项的 name/desc/dispatch），把各选项原样呈现给用户（宿主提问工具），不得在 payload 之外自造选项。用户选择后按 dispatch 处理：
+**门选项从统一呈现入口获取**：跑 `node tools/cli.js gate present --state <statePath>` 取交互 payload（本门全部选项的 name/desc/dispatch），把各选项原样呈现给用户（优先宿主提问工具；检测不到该工具能力时降级为文本一问一答，接受选项名或编号的文字答复，同等效力），不得在 payload 之外自造选项。用户选择后按 dispatch 处理：
 - 命令型（`next --decision 已合并`）→ agent 代跑 dispatch 命令；
 - 相位内交互（`in-phase`，即「未合并」）→ 先 `gate interact --state <statePath> --option 未合并 [--note <摘要>]` 记录交互，再按下方行为定义处理；处理完成后**重新 `gate present` 送审**——未重新呈现前的决议会被结构拦截（重新询问由结构强制，不靠自觉）。
 

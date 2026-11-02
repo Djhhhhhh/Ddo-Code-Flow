@@ -95,7 +95,7 @@ function presentPayload(gates, statePath) {
           : fillState(t.action, statePath),
       })),
     })),
-    hint: '把各门 options 原样呈现给用户（宿主提问工具）；用户选择后按 dispatch 执行；in-phase 交互处理完成后必须重新 gate present——未重新呈现前的决议会被结构拦截',
+    hint: '把各门 options 原样呈现给用户（优先宿主提问工具；检测不到该工具能力时降级为文本一问一答：文本列出选项、接受选项名或编号的文字答复，同等效力）；用户选择后按 dispatch 执行；in-phase 交互处理完成后必须重新 gate present——未重新呈现前的决议会被结构拦截',
   };
 }
 

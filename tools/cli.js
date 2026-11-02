@@ -412,7 +412,7 @@ function depsCheck(f) {
       missingRequired: missing.filter((c) => c.required).length,
     },
     hint: missing.length
-      ? '存在不支持项：required 缺失 → 经宿主提问工具询问用户是否按 install 指引安装三方依赖后启用该能力；非强制缺失 → 提示用户可不安装、使用基础能力（或降级形态）'
+      ? '存在不支持项：required 缺失 → 经宿主提问工具（检测不到该工具能力时降级为文本一问一答）询问用户是否按 install 指引安装三方依赖后启用该能力；非强制缺失 → 提示用户可不安装、使用基础能力（或降级形态）'
       : '全部依赖检查通过',
   };
 }
@@ -952,7 +952,7 @@ function runGuide(f) {
         ],
       },
     ],
-    hint: '逐问呈现给用户（宿主提问工具），答案依次对应：--title / worktree 前置动作（single·release-dev 先建分支与工作树，分支名取自 goal 答案，再 run start --project <工作树绝对路径>）/ --workflow（或自定义流程）/ --type；居所选「临时」时附加 --ephemeral；mode 问带 followUps[].mapToConfig 时，所选答案集合以 --config <task>.<key>=\'<JSON 数组>\' 传入 run start',
+    hint: '逐问呈现给用户（优先宿主提问工具；检测不到该工具能力时降级为文本一问一答，答复同等效力），答案依次对应：--title / worktree 前置动作（single·release-dev 先建分支与工作树，分支名取自 goal 答案，再 run start --project <工作树绝对路径>）/ --workflow（或自定义流程）/ --type；居所选「临时」时附加 --ephemeral；mode 问带 followUps[].mapToConfig 时，所选答案集合以 --config <task>.<key>=\'<JSON 数组>\' 传入 run start',
   };
 }
 
