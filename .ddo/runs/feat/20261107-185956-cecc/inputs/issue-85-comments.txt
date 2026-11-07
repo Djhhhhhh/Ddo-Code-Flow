@@ -1,0 +1,1320 @@
+===== COMMENT by Djhhhhhh at 2026-11-06T09:55:33Z =====
+# Ddo-Code-Flow
+
+<p align="center">
+  <img src="docs/header.svg" alt="Ddo-Code-Flow —— 显式调用的分阶段任务执行 skill" width="100%" />
+</p>
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
+  <img src="https://img.shields.io/badge/node-%E2%89%A518-blue" alt="Node ≥ 18">
+  <img src="https://img.shields.io/badge/dependencies-0-brightgreen" alt="零依赖">
+</p>
+
+> **Ddo-Code-Flow** 是一个**显式调用的分阶段任务执行 skill**：把用户交付的任务放入选定工作流，由代理依次完成，在人工审核点等待用户决议，全程保存执行状态、支持中断恢复。
+
+---
+
+## 这是什么
+
+直接让 AI 完成开发任务，容易出现「需求尚未对齐就开始实现」「方案没有审核」「过程缺少留档」「中断后无法接续」等问题。ddo-code-flow 把任务组织成**可审核、可恢复的流程**，并用一个零依赖的 Node CLI 检查执行位置、输出契约与确认门。
+
+它不替代理写代码，而是**组织和约束代理的工作过程**：
+
+- **CLI** 提供当前指令、校验产物、管理状态；
+- **代理** 完成实际工作；
+- **用户** 审核关键交付、作出决议。
+
+最终生成哪些文档和代码，由所选工作流决定。本 README 面向使用者和维护者；[SKILL.md](SKILL.md) 是代理的执行入口。
+
+## 特性
+
+| 需要解决的问题 | 提供的机制 |
+|---|---|
+| 需求和方案缺少审核 | 工作流中的人工审核点；呈现与用户决议留痕 |
+| 一次加载全部指令和历史 | 每个相位按当前状态组装指令、配置、上下文和输出契约 |
+| 代理只口头声称完成 | 通过 `validate` 检查声明的产物 |
+| 重做时新旧产物混在一起 | 阶段回滚，失效产物移动到 `_del/` |
+| 会话中断后失去执行位置 | `.state.json` 保存状态，`resume` 从当前位置接续 |
+
+> **Dogfooding**：本仓库 v2 的需求与定版方案保存在 `.ddo/runs/feat/ddo-code-flow-v2/`，开发过程也使用了这套流程。
+
+## 安装
+
+**前置要求**
+
+- 一个宿主 AI coding agent（Claude Code、Codex，或其他能加载 skill 指令并执行命令的工具）。
+- Node.js ≥ 18。流水线内核是零依赖的 Node CLI，无需 `npm install`。
+
+**作为 skill 安装**：把本仓库放入宿主的 skills 目录。Claude Code 通常使用 `~/.claude/skills/ddo-code-flow/` 或项目内 `.claude/skills/ddo-code-flow/`；其他宿主按其规范放置并显式加载。
+
+**clone 仓库用于开发与调试**
+
+```bash
+git clone https://github.com/Djhhhhhh/Ddo-Code-Flow.git
+```
+
+克隆后可在仓库根目录直接运行 CLI。手动调用 CLI 是调试方式，不等于允许代理在普通对话中自动启动 skill。
+
+## 调用契约
+
+**只接受显式调用，不按任务内容或关键词自动激活。** 普通对话中出现「使用工作流」「分阶段开发」等表达，不等于调用本 skill。
+
+| 调用方式 | 启动行为 |
+|---|---|
+| `/ddo-code-flow`（推荐） | 先询问「恢复已有 run 还是新开 run」，再进入所选分支 |
+| `/ddo-code-flow <需求或 bug 描述>` | 新开 run：已有目标，不询问恢复，继续询问其余启动配置；适合 AI 自动调用或 subflow 场景 |
+
+显式调用后，无论任务多简单都必须进入流程，不以问答、小改动或单文件修复为由绕过。带描述调用不因存在旧 run 而改变新建意图；不带描述调用不因没有旧 run 而跳过首次选择。
+
+## 快速开始
+
+### 推荐：裸调用（先选择恢复或新建）
+
+```text
+你      /ddo-code-flow
+agent   希望恢复已有 run，还是新开 run？
+你      新开 run
+agent   （询问目标：本次要完成什么？）
+你      修复导出函数的边界处理
+agent   （询问 worktree、工作流、run 类型、存储方式等配置）
+你      basic · fix · 正常存储
+agent   （启动 run，固化原始需求，生成 spec，在人工审核点展示待审内容）
+你      修改：验收标准里加上边界值说明
+agent   （记录交互，修改相关内容，再次呈现审核选项）
+你      同意
+agent   （继续 plan、coding、reporting，最后收口）
+```
+
+### 带描述：直接新开运行（AI 自动调用 / subflow 场景）
+
+```text
+你      /ddo-code-flow 修复导出函数的边界处理
+agent   （接收目标，询问 worktree、工作流、run 类型、存储方式等配置）
+你      basic · fix · 正常存储
+agent   （启动 run，固化原始需求，生成 spec，在人工审核点展示待审内容）
+```
+
+用户需要参与启动配置和人工审核，不需要手动记忆内部命令。确认配置前不会仅凭任务描述直接创建 run。
+
+## 工作流
+
+内置工作流：
+
+- **basic**：轻量开发链，requirement → spec → plan → coding → reporting。
+- **standard**：完整开发链，增加测试计划、任务拆分、验证、复审和复盘。
+- **test**：测试链路，test-scope → test-design → test-unit / test-api / test-e2e → test-reporting。
+- **pr-delivery**：PR 交付收尾链，deliver-pr → closeout-worktree。
+- **pr-delivery-issue**：交付链的 issue 关联变体，增加 link-issue。
+
+实际预设清单和任务链以 `list workflows` 为准。也可选择自定义流程：列出任务，与代理确定阶段及依赖，再通过临时预设启动。
+
+阶段链支持 DAG 依赖，状态推进有以下边界：
+
+- `next` 推进所有当前位置，不是只推进刚完成的任务。
+- 一轮出现多个普通执行位置时，必须全部执行并校验成功后再推进。
+- 一次 `next --decision` 将同一个决议用于所有当前确认门，不支持逐门独立推进。
+- 多门同时出现时，不能把某一个门的批准当成全部批准。
+
+## 工作原理
+
+skill 运行在宿主代理中，不是独立的开发代理。核心概念：
+
+| 概念 | 含义 |
+|---|---|
+| 原子任务 | `atom-tasks/<name>/` 中的任务单元，含指令、相位与产物声明 |
+| workflow 预设 | 声明阶段及 `dependOn` 依赖，启动时物化进 state |
+| run | 一次运行，包含所选任务链、状态和流程产物 |
+| 相位 | 任务中的步骤，当前位置以 `spec:01` 等形式表示 |
+| 确认门 | 人工审核位置，获得用户明确决议后才能推进 |
+| 子流程 | 任务执行中运行期下沉的嵌套流水，阻塞式、总深度最多三层 |
+
+三方分工：
+
+| 角色 | 职责 | 边界 |
+|---|---|---|
+| CLI | 提供指令、校验产物、检查位置与确认门、推进状态 | 不代替代理完成任务，不代替用户决议 |
+| 代理 | 完成当前指令要求的工作，校验产物，呈现选项并执行合法命令 | 不手改 state，不自造选项，不替用户批准 |
+| 用户 | 显式调用、选择配置、审核交付并作出决议 | 不需要手动操作内部状态文件 |
+
+### 普通执行循环
+
+1. 读取完整 `currentStage`，每个当前步骤先通过 `exec` 获取本次指令。
+2. 完成本轮所有普通执行位置的实际工作。
+3. 分别 `validate`；任一未完成或未通过校验，不调用推进命令。
+4. 没有人工审核时统一执行一次 `next`；有审核时按 gate payload 呈现内容，等待用户决议。
+5. 每次状态改变后重新读取位置；全部完成后执行 `run finish`。
+
+相位内修改、提问或回答问题不等于批准；交互先通过 `gate interact` 留痕，处理后重新 `gate present`。
+
+### 子流程下沉
+
+任务执行中发现需要补充调研等子目标时，可运行期创建子流程（`subflow start`）。子流程复用同一套执行循环；存在未收口的子流程时，父流程的 `next` 与 `run finish` 被拦截。多层下沉最多三层。
+
+### 交付链的特殊收尾
+
+`closeout-worktree` 是交付预设末段的专用收尾任务，进入时须为唯一当前位置，按 exec 指令自行完成产物入库、推进收口与 worktree 清理；外层不重复 validate、next、finish。
+
+## 命令参考
+
+代理统一使用 `node "<skillRoot>/tools/cli.js" <命令>` 的绝对入口。日常由 [SKILL.md](SKILL.md) 调用；以下供手动调试和维护参考。
+
+| 命令 | 作用 |
+|---|---|
+| `guide` | 返回运行清单、完整启动问题、选项和参数映射 |
+| `run start` | 按预设创建 state 并注册运行；支持 `--ephemeral` 临时存储 |
+| `exec` | 返回当前相位的组装指令 |
+| `validate` | 检查当前任务声明的产物、必填结构和输出 schema |
+| `next` | 推进全部当前位置、激活后继阶段 |
+| `subflow start` / `subflow close` | 创建 / 收口子流程 |
+| `gate present` / `gate interact` | 呈现审核选项 / 记录相位内交互 |
+| `rollback` | 重置指定阶段，旧产物移到 `_del/rollback-<n>/` |
+| `run finish` | 结束运行并移出运行索引 |
+| `status` / `resume` | 查看当前位置与可用命令 / 恢复运行 |
+| `list tasks` / `list workflows` | 列出任务与相位 / 预设与阶段链 |
+| `deps check` | 枚举任务依赖并本机检查 |
+
+命令 stdout 通常为 JSON，`exec` 为裸文本指令；退出码 0 成功、1 失败或被拦截、2 用法错误。
+
+## 目录与产物
+
+| 位置 | 用途 |
+|---|---|
+| skillRoot | 任务、预设和 CLI；运行期只读 |
+| projectRoot | 本次运行的项目位置（worktree 时为该工作树） |
+| runDir | `.state.json` 与流程文档产物的统一存放位置 |
+| DDO_HOME | 全局运行索引、临时材料和历史归档（默认 `~/.ddo`） |
+
+- **正常模式**：运行材料位于 `<projectRoot>/.ddo/runs/<type>/<dirName>/`，随项目版控。
+- **临时模式**：位于 `<DDO_HOME>/tmp/<type>/<runId>/`，`run finish` 后删除。
+- 回滚时，被重置阶段的旧产物移动到 `<runDir>/_del/rollback-<n>/`。
+
+## 配置与扩展
+
+原子任务配置按三层取值（标量覆盖，rules 数组逐层拼接）：
+
+```text
+任务默认 < 用户级（<DDO_HOME>/atom-tasks.json） < run 级（state.atomTasks）
+```
+
+新增原子任务时，在 `atom-tasks/<name>/` 下创建 `prompt.md`（指令）、`config.json`（配置），可选 `*.js` 上下文钩子与 `*.output.schema.json` 输出契约。自定义工作流用 JSON 的 `stages` 数组声明任务与 `dependOn` 依赖。
+
+## 仓库结构
+
+```text
+SKILL.md                         # 代理执行入口
+README.md                        # 用户与维护者说明
+workflows/*.json                 # 内置工作流预设
+atom-tasks/<name>/               # 任务指令、配置、上下文钩子与输出契约
+tools/cli.js                     # Node CLI
+tools/lib/                       # state、索引、归档、组装和 schema 校验
+tools/tests/                     # node:test 沙箱隔离测试
+.ddo/runs/                       # 正常模式运行材料
+```
+
+## 开发与测试
+
+```bash
+node --test tools/tests/*.test.js
+```
+
+测试在临时目录沙箱内隔离运行。CLI 测试不等于 skill 行为测试；入口修改后应在独立会话中核对调用契约、恢复、审核与推进行为。
+
+## 参与贡献
+
+欢迎 Issue 与 PR，模板位于 `.github/`。涉及流程语义的改动应先对齐需求与方案，再实现和验证；命令行为变化须同步 CLI 命令注册表、README 和 SKILL.md。
+
+## 许可证
+
+[MIT](LICENSE) © 2026 Djhhhhhh
+
+
+===== COMMENT by Djhhhhhh at 2026-11-07T10:00:47Z =====
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<title>Ddo-Code-Flow —— 项目介绍</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230A0F1C'/%3E%3Cg fill='%23E6F1FF'%3E%3Ccircle cx='32' cy='60' r='6.5'/%3E%3Ccircle cx='50' cy='44' r='6.5'/%3E%3Ccircle cx='66' cy='56' r='3.5' opacity='.8'/%3E%3Ccircle cx='23' cy='46' r='2' opacity='.4'/%3E%3Ccircle cx='72' cy='38' r='1.8' opacity='.35'/%3E%3C/g%3E%3Cg fill='none' stroke='%23E6F1FF' stroke-width='2' opacity='.5' stroke-linecap='round'%3E%3Cpath d='M37.5 56 C42 51 44 49 45.3 47.8'/%3E%3Cpath d='M54.5 48.5 C59 52 61.5 54 63 55'/%3E%3C/g%3E%3C/svg%3E">
+
+<!--
+  Ddo-Code-Flow 项目介绍页
+  形态：竖向全屏翻页（scroll-snap），每次滚动完整切换到下一个模块
+  分区：相邻模块背景色递变 + 底部青色→品红渐变分割线
+  亮点：第 7 模块左右两栏——左侧终端自动播放 basic SOP（含 AI 思考 / skill 加载 / CLI 调用，
+        明确标注 你/Claude/CLI/skill），右侧同步展示 .run 目录文件树
+  样式：frontend-slides · Neon Cyber 终端风（深海军蓝 + 青/品红霓虹 + 网格/辉光/扫描线）
+-->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+/* ===========================================
+   THEME TOKENS —— Neon Cyber 终端风
+   =========================================== */
+:root {
+    --bg-0: #070B14;
+    --bg-1: #0A0F1C;
+    --bg-2: #0D1424;
+    --bg-3: #101A2E;
+    --panel: #0B1322;
+    --panel-2: #111C33;
+    --code-bg: #081020;
+    --line: #1C2A45;
+    --line-soft: #15223A;
+    --ink: #E6F1FF;
+    --ink-2: #9FB3D1;
+    --ink-3: #5F7396;
+    --cyan: #00FFCC;
+    --cyan-dim: #00D9AE;
+    --magenta: #FF2EC4;
+    --magenta-dim: #FF6BD8;
+    --ok: #28C840;
+    --warn: #FEBC2E;
+    --danger: #FF5F57;
+    --glow-cyan: 0 0 22px rgba(0,255,204,.22);
+    --glow-magenta: 0 0 22px rgba(255,46,196,.20);
+    --font-display: 'Space Grotesk', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    --font-body: 'Space Grotesk', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Code', Consolas, monospace;
+    --r-sm: 6px; --r-md: 9px; --r-lg: 14px;
+    --ease: cubic-bezier(0.16,1,0.3,1);
+
+    /* 分区背景（海军蓝阶递变） */
+    --s1: #070B14;
+    --s2: #0A0F1C;
+    --s3: #0D1424;
+    --s4: #101A2E;
+    --s5: #0D1424;
+    --s6: #0A0F1C;
+    --s7: #070B14;
+    --s8: #0A0F1C;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+/* ===========================================
+   竖向全屏翻页（scroll-snap）+ 氛围背景
+   =========================================== */
+html {
+    scroll-snap-type: y mandatory;
+    scroll-behavior: smooth;
+}
+body {
+    font-family: var(--font-body);
+    color: var(--ink);
+    background:
+        radial-gradient(900px 600px at 12% -8%, rgba(0,255,204,.10), transparent 60%),
+        radial-gradient(900px 600px at 92% 108%, rgba(255,46,196,.10), transparent 60%),
+        var(--bg-0);
+    -webkit-font-smoothing: antialiased;
+}
+body::before {
+    content: "";
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background-image:
+        linear-gradient(rgba(0,255,204,.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,255,204,.04) 1px, transparent 1px);
+    background-size: 42px 42px;
+    mask-image: radial-gradient(ellipse at 50% 40%, #000 0%, transparent 78%);
+    -webkit-mask-image: radial-gradient(ellipse at 50% 40%, #000 0%, transparent 78%);
+}
+
+.page { position: relative; z-index: 1; }
+
+.page > .section {
+    min-height: 100vh;
+    scroll-snap-align: start;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 88px 24px;
+}
+.page > .section:nth-of-type(1) { background: var(--s1); }
+.page > .section:nth-of-type(2) { background: var(--s2); }
+.page > .section:nth-of-type(3) { background: var(--s3); }
+.page > .section:nth-of-type(4) { background: var(--s4); }
+.page > .section:nth-of-type(5) { background: var(--s5); }
+.page > .section:nth-of-type(6) { background: var(--s6); }
+.page > .section:nth-of-type(7) { background: var(--s7); }
+.page > .section:nth-of-type(8) { background: var(--s8); }
+.page > .section::after {
+    content: "";
+    position: absolute; left: 0; right: 0; bottom: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(0,255,204,.4), rgba(255,46,196,.4), transparent);
+    opacity: .55;
+}
+
+.wrap { width: 100%; max-width: 1080px; }
+
+/* ===========================================
+   排版
+   =========================================== */
+.eyebrow {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--cyan);
+    margin-bottom: 14px;
+}
+.title {
+    font-family: var(--font-display);
+    font-size: clamp(26px, 3vw, 38px);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    line-height: 1.12;
+    color: var(--ink);
+    margin-bottom: 16px;
+}
+.lead {
+    font-size: clamp(15px, 1.4vw, 17.5px);
+    line-height: 1.62;
+    color: var(--ink-2);
+    max-width: 820px;
+    margin-bottom: 28px;
+}
+.lead strong { color: var(--ink); font-weight: 600; }
+.accent { color: var(--cyan); }
+.accent-m { color: var(--magenta); }
+.mono { font-family: var(--font-mono); }
+.muted { color: var(--ink-3); }
+
+/* ===========================================
+   徽章（终端 chip）
+   =========================================== */
+.badge-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.badge {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1;
+    padding: 8px 13px;
+    border-radius: var(--r-sm);
+    color: var(--ink-2);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    white-space: nowrap;
+}
+.badge.badge-accent {
+    color: var(--cyan);
+    background: rgba(0,255,204,.08);
+    border-color: rgba(0,255,204,.32);
+    box-shadow: var(--glow-cyan);
+}
+
+/* ===========================================
+   卡片（终端面板）
+   =========================================== */
+.grid { display: grid; gap: 18px; }
+.grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+.grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+.card {
+    background: linear-gradient(180deg, var(--panel-2), var(--panel));
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    padding: 22px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color .25s var(--ease), box-shadow .25s var(--ease), transform .25s var(--ease);
+}
+.card::before {
+    content: "";
+    position: absolute; top: 0; left: 18px; right: 18px; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(0,255,204,.5), transparent);
+    opacity: 0; transition: opacity .25s var(--ease);
+}
+.card:hover { border-color: rgba(0,255,204,.4); box-shadow: var(--glow-cyan); transform: translateY(-2px); }
+.card:hover::before { opacity: 1; }
+.card .card-title { font-size: 17px; font-weight: 600; color: var(--ink); display: flex; align-items: center; gap: 10px; }
+.card .card-role {
+    font-family: var(--font-mono); font-size: 12px; font-weight: 500;
+    color: var(--cyan); background: rgba(0,255,204,.08);
+    border: 1px solid rgba(0,255,204,.3); border-radius: var(--r-sm); padding: 2px 8px;
+}
+.card .card-role.role-m { color: var(--magenta); background: rgba(255,46,196,.08); border-color: rgba(255,46,196,.3); }
+.card .card-body { font-size: 14.5px; line-height: 1.6; color: var(--ink-2); }
+.card .card-foot { font-size: 12.5px; line-height: 1.5; color: var(--ink-3); border-top: 1px solid var(--line-soft); padding-top: 10px; }
+
+/* ===========================================
+   密集表格（终端表）
+   =========================================== */
+.table-scroll { overflow-x: auto; border-radius: var(--r-lg); }
+.table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--line); }
+.table th {
+    font-family: var(--font-mono); font-size: 12px; font-weight: 500;
+    text-transform: uppercase; letter-spacing: .06em;
+    color: var(--cyan); text-align: left;
+    padding: 13px 18px; border-bottom: 1px solid var(--line);
+    background: var(--panel-2); white-space: nowrap;
+}
+.table td { font-size: 14.5px; line-height: 1.55; color: var(--ink-2); padding: 12px 18px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+.table td strong { color: var(--ink); font-weight: 600; }
+.table tr:last-child td { border-bottom: none; }
+.table tbody tr { transition: background .2s; }
+.table tbody tr:hover { background: rgba(0,255,204,.04); }
+.table .code-col { font-family: var(--font-mono); font-size: 13.5px; color: var(--cyan); white-space: nowrap; }
+
+/* ===========================================
+   阶段流（chip + 箭头）
+   =========================================== */
+.flow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.flow .chip {
+    font-family: var(--font-mono); font-size: 14px; font-weight: 500;
+    color: var(--ink-2); background: var(--panel);
+    border: 1px solid var(--line); border-radius: var(--r-md);
+    padding: 9px 16px; white-space: nowrap;
+    transition: border-color .2s, color .2s;
+}
+.flow .chip.current { color: var(--cyan); background: rgba(0,255,204,.08); border-color: rgba(0,255,204,.5); box-shadow: var(--glow-cyan); }
+.flow .arrow { color: var(--magenta); display: inline-flex; }
+
+/* ===========================================
+   有序步骤
+   =========================================== */
+.steps { display: flex; flex-direction: column; gap: 10px; }
+.step { display: flex; gap: 14px; padding: 12px 16px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-md); }
+.step .n { font-family: var(--font-mono); font-size: 15px; font-weight: 700; color: var(--cyan); min-width: 26px; }
+.step .t { font-size: 14.5px; line-height: 1.55; color: var(--ink-2); }
+.step .t strong { color: var(--ink); font-weight: 600; }
+
+/* ===========================================
+   HERO
+   =========================================== */
+.hero-brand { display: flex; align-items: center; gap: 22px; margin-bottom: 22px; }
+.hero-wordmark {
+    font-family: var(--font-display);
+    font-size: clamp(34px, 5vw, 58px);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    line-height: 1.03;
+    color: var(--ink);
+    text-shadow: 0 0 40px rgba(0,255,204,.18);
+}
+.cursor {
+    display: inline-block; width: 10px; height: .92em;
+    margin-left: 6px; vertical-align: -0.05em;
+    background: var(--cyan); box-shadow: 0 0 14px var(--cyan);
+    animation: blink 1s steps(2, start) infinite;
+}
+@keyframes blink { 0%,49% { opacity: 1; } 50%,100% { opacity: 0; } }
+.hero-tagline { font-size: clamp(15.5px, 1.5vw, 18px); line-height: 1.6; color: var(--ink-2); max-width: 820px; margin-bottom: 26px; }
+.hero-meta { margin-bottom: 26px; }
+
+/* ===========================================
+   HERO 双栏：左信息+锚点 / 右简化 cmd 模拟
+   =========================================== */
+.hero-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 44px; align-items: center; }
+.hero-grid .hero-wordmark { font-size: clamp(30px, 3.6vw, 46px); }
+.hero-anchors { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding-top: 12px; }
+.hero-anchors .sep { color: var(--ink-3); opacity: .55; font-size: 12px; }
+.hero-anchors a { font-size: 13.5px; color: var(--ink-2); text-decoration: none; transition: color .2s; }
+.hero-anchors a:hover { color: var(--cyan); }
+.hero-anchors a.ext:hover { color: var(--cyan); }
+
+/* 首屏简化 cmd 模拟（复用终端窗视觉，极简版） */
+.mini-win {
+    background: var(--code-bg);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    box-shadow: 0 8px 30px rgba(0,0,0,.35);
+    overflow: hidden;
+}
+.mini-win .mw-head {
+    display: flex; align-items: center; gap: 12px;
+    padding: 8px 14px; border-bottom: 1px solid var(--line-soft);
+    font-family: var(--font-mono); font-size: 11px; font-weight: 500; color: var(--ink-3);
+}
+.mini-win .mw-head .mw-dots { display: flex; gap: 6px; }
+.mini-win .mw-head .mw-dots i { width: 8px; height: 8px; border-radius: 99px; background: var(--line); }
+.mini-win .mw-body {
+    padding: 12px 14px; min-height: 282px;
+    font-family: var(--font-mono); font-size: 11.5px; line-height: 1.62;
+    display: flex; flex-direction: column; gap: 2px;
+}
+.mw-ln { display: flex; align-items: baseline; white-space: pre-wrap; word-break: break-word; animation: msgIn .3s ease-out; }
+.mw-ln .mw-tag { flex: 0 0 auto; font-size: 10.5px; font-weight: 500; margin-right: 6px; }
+.mw-tag.claude { color: var(--magenta-dim); }
+.mw-tag.cli { color: var(--ink-3); }
+.mw-ln .mw-tx { flex: 1 1 auto; }
+.mw-ln .mw-p { color: var(--cyan); font-weight: 700; margin-right: 8px; }
+.mw-ln.mw-think .mw-tx { color: #8AA2C4; }
+.mw-ln.mw-tool .mw-tx { color: var(--ink); }
+.mw-ln.mw-tool .mw-gear { color: var(--cyan); margin-right: 3px; }
+.mw-ln.mw-cli .mw-tx { color: var(--ink-3); }
+.mw-ln.mw-gate .mw-tx { color: var(--warn); }
+.mw-ln.mw-ok .mw-tx { color: var(--ok); }
+.mw-ln.mw-you { background: rgba(0,255,204,.06); border-left: 2px solid var(--cyan); border-radius: 0 var(--r-sm) var(--r-sm) 0; padding: 2px 8px 2px 7px; color: #FFFFFF; font-weight: 600; }
+.mw-caret { display: inline-block; width: 8px; height: .95em; vertical-align: -0.12em; background: var(--cyan); box-shadow: 0 0 10px var(--cyan); animation: blink 1s steps(2, start) infinite; }
+
+/* 全局焦点环（键盘可见性） */
+:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+
+/* ===========================================
+   CLAUDE 终端窗 + 左右两栏（SOP）
+   =========================================== */
+.sop-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 18px; height: min(64vh, 560px); align-items: stretch; }
+
+.claude-win {
+    display: flex; flex-direction: column;
+    background: var(--code-bg);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    box-shadow: 0 20px 60px rgba(0,0,0,.5), var(--glow-cyan);
+    overflow: hidden;
+    height: 100%;
+}
+.cw-head {
+    display: flex; align-items: center; gap: 16px;
+    padding: 13px 20px; background: var(--panel-2); border-bottom: 1px solid var(--line);
+}
+.cw-dots { display: flex; gap: 8px; flex-shrink: 0; }
+.cw-dots i { width: 12px; height: 12px; border-radius: 99px; }
+.cw-dots i:nth-child(1) { background: var(--danger); }
+.cw-dots i:nth-child(2) { background: var(--warn); }
+.cw-dots i:nth-child(3) { background: var(--ok); }
+.cw-head .cw-title { font-family: var(--font-mono); font-size: 13.5px; font-weight: 500; color: var(--ink-2); }
+.cw-head .cw-stage { font-family: var(--font-mono); font-size: 12.5px; font-weight: 500; color: var(--cyan); background: rgba(0,255,204,.08); border: 1px solid rgba(0,255,204,.3); border-radius: var(--r-sm); padding: 5px 11px; white-space: nowrap; margin-left: auto; }
+.cw-replay { margin-left: 2px; background: transparent; border: 1px solid var(--line); color: var(--ink-2); font-family: var(--font-mono); font-size: 12px; padding: 4px 10px; border-radius: var(--r-sm); cursor: pointer; transition: color .2s, border-color .2s; white-space: nowrap; }
+.cw-replay:hover { color: var(--cyan); border-color: rgba(0,255,204,.4); }
+
+.cw-body {
+    flex: 1; min-height: 0; overflow-y: auto; padding: 18px 20px;
+    display: flex; flex-direction: column; gap: 11px;
+    background-image: repeating-linear-gradient(0deg, rgba(255,255,255,.025) 0 1px, transparent 1px 4px);
+}
+
+/* ============ 终端日志行（明确标注 你/Claude/CLI/skill） ============ */
+.ln { font-family: var(--font-mono); font-size: 13px; line-height: 1.6; display: flex; align-items: baseline; gap: 9px; animation: msgIn .3s ease-out; }
+.ln .tag { flex: 0 0 auto; font-size: 10px; font-weight: 700; letter-spacing: .04em; padding: 1px 6px; border-radius: 4px; text-transform: uppercase; line-height: 1.5; }
+.ln .tag.user { color: #03130f; background: var(--cyan); }
+.ln .tag.claude { color: #1c0411; background: var(--magenta); }
+.ln .tag.cli { color: var(--ink-2); background: var(--panel-2); border: 1px solid var(--line); }
+.ln .tag.skill { color: var(--cyan); background: rgba(0,255,204,.1); border: 1px solid rgba(0,255,204,.32); }
+.ln .b { flex: 1 1 auto; white-space: pre-wrap; word-break: break-word; }
+.ln .p { color: var(--cyan); font-weight: 700; }
+.ln .t { color: var(--ink); }
+.ln .dollar { color: var(--cyan); font-weight: 700; }
+.ln .think { color: #8AA2C4; }
+.ln .act { color: var(--ink-2); }
+.ln .skill { color: var(--cyan); }
+.ln .cli-t { color: var(--ink-3); }
+.ln.ok .b { color: var(--ok); }
+.ln.user-row { background: rgba(0,255,204,.08); border-left: 2px solid var(--cyan); border-radius: 0 var(--r-sm) var(--r-sm) 0; padding: 5px 10px 5px 8px; }
+.ln.user-row .t { color: #FFFFFF; font-weight: 600; }
+
+/* 问询块（AskUserQuestion 终端样式） */
+.ask-box { font-family: var(--font-mono); font-size: 13px; line-height: 1.6; color: var(--ink-2); white-space: pre-wrap; word-break: break-word; animation: msgIn .3s ease-out; }
+.ask-box > div { min-height: 1.55em; }
+.ask-box .cb { color: var(--ink-3); }
+.ask-box .bar { color: var(--ink-3); }
+.ask-box .ab-head { color: var(--cyan); font-weight: 700; }
+.ask-box .ab-q { color: var(--ink); }
+.ask-box .ab-opt .n { color: var(--ink-3); }
+.ask-box .ab-opt .l { color: var(--ink-2); }
+.ask-box .ab-opt-d { color: var(--ink-3); }
+.ask-box .ab-pick .p { color: var(--cyan); font-weight: 700; }
+.ask-box .ab-pick .n { color: var(--magenta); font-weight: 700; }
+.ask-box .ab-pick .l { color: var(--ink); font-weight: 700; }
+.ask-box .ab-note { color: var(--ink-3); }
+.ask-box .ab-rule { color: var(--ink-3); }
+
+/* 右侧 .run 文件树 */
+.tree-panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-lg); display: flex; flex-direction: column; overflow: hidden; }
+.tree-head { padding: 13px 20px; background: var(--panel-2); border-bottom: 1px solid var(--line); font-family: var(--font-mono); font-size: 12px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--cyan); }
+.tree-head small { color: var(--ink-3); text-transform: none; letter-spacing: 0; font-weight: 400; }
+.tree-body { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 20px; font-family: var(--font-mono); font-size: 12.5px; line-height: 1.9; color: var(--ink-2); }
+.tree-body .dir { color: var(--cyan); }
+.tree-body .file { color: var(--ink); }
+.tree-body .dim { color: var(--ink-3); }
+.tree-body .tree-in { animation: msgIn .3s ease-out; }
+
+@keyframes msgIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ===========================================
+   滚动条
+   =========================================== */
+*{scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--ink-3) 35%,transparent) transparent}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--ink-3) 35%,transparent);border-radius:99px;border:2px solid transparent;background-clip:padding-box}
+::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb,var(--cyan) 45%,transparent)}
+::-webkit-scrollbar-corner{background:transparent}
+
+/* ===========================================
+   侧边圆点导航 + 计数（固定 chrome）
+   =========================================== */
+.dotnav { position: fixed; right: 22px; top: 50%; transform: translateY(-50%); z-index: 100; display: flex; flex-direction: column; gap: 12px; }
+.dotnav .dot { width: 10px; height: 10px; border-radius: 99px; background: var(--panel-2); border: 1px solid var(--line); cursor: pointer; padding: 0; transition: background .2s, border-color .2s, box-shadow .2s; }
+.dotnav .dot.active { background: var(--cyan); border-color: var(--cyan); box-shadow: var(--glow-cyan); }
+.counter { position: fixed; right: 26px; bottom: 22px; z-index: 100; font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 6px 10px; }
+
+/* ===========================================
+   REVEAL 动画（进入视口触发）
+   =========================================== */
+.reveal { opacity: 0; transform: translateY(18px); transition: opacity .55s var(--ease), transform .55s var(--ease); }
+.section.in-view .reveal { opacity: 1; transform: translateY(0); }
+.section.in-view .reveal:nth-child(1) { transition-delay: .05s; }
+.section.in-view .reveal:nth-child(2) { transition-delay: .12s; }
+.section.in-view .reveal:nth-child(3) { transition-delay: .19s; }
+.section.in-view .reveal:nth-child(4) { transition-delay: .26s; }
+.section.in-view .reveal:nth-child(5) { transition-delay: .33s; }
+.section.in-view .reveal:nth-child(6) { transition-delay: .40s; }
+
+@media (prefers-reduced-motion: reduce) {
+    * { animation-duration: .01ms !important; transition-duration: .2s !important; }
+    html { scroll-behavior: auto; }
+    .cursor { animation: none; opacity: 1; }
+    .mw-caret { animation: none; opacity: 1; }
+}
+
+/* ===========================================
+   响应式（移动端折叠）
+   =========================================== */
+@media (max-width: 900px) {
+    .hero-grid { grid-template-columns: 1fr; gap: 28px; }
+    .sop-grid { grid-template-columns: 1fr; height: auto; }
+    .claude-win { height: min(60vh, 520px); }
+    .tree-panel { height: 300px; }
+}
+@media (max-width: 720px) {
+    .grid.cols-3, .grid.cols-2 { grid-template-columns: 1fr; }
+    .dotnav { right: 12px; gap: 9px; }
+    .counter { right: 14px; bottom: 14px; }
+    .cw-head .cw-title { display: none; }
+    .mini-win .mw-body { min-height: 372px; }
+}
+</style>
+</head>
+<body>
+
+<!-- 侧边圆点导航 -->
+<nav class="dotnav" id="dotnav" aria-label="模块导航"></nav>
+<span class="counter" id="counter">1 / 8</span>
+
+<main class="page">
+
+    <!-- ============ 01 · HERO（左信息+锚点 / 右简化 cmd 模拟） ============ -->
+    <section class="section" id="hero">
+        <div class="wrap">
+            <div class="hero-grid">
+                <div class="hero-left">
+                    <div class="hero-brand reveal">
+                        <svg width="60" height="60" viewBox="0 0 100 100" role="img" aria-label="Ddo 产品族图标：节点链" style="color: var(--ink)">
+                            <g fill="currentColor">
+                                <circle cx="32" cy="60" r="6.5"/>
+                                <circle cx="50" cy="44" r="6.5"/>
+                                <circle cx="66" cy="56" r="3.5" opacity=".8"/>
+                                <circle cx="23" cy="46" r="2" opacity=".4"/>
+                                <circle cx="72" cy="38" r="1.8" opacity=".35"/>
+                            </g>
+                            <g fill="none" stroke="currentColor" stroke-width="2" opacity=".5" stroke-linecap="round">
+                                <path d="M37.5 56 C42 51 44 49 45.3 47.8"/>
+                                <path d="M54.5 48.5 C59 52 61.5 54 63 55"/>
+                            </g>
+                        </svg>
+                        <div class="hero-wordmark">Ddo-Code-Flow<span class="cursor"></span></div>
+                    </div>
+
+                    <div class="hero-tagline reveal">
+                        显式调用的分阶段任务执行 skill —— 把任务放入选定工作流，由代理依次完成，在人工审核点等待你的决议，全程保存状态、支持中断恢复。
+                    </div>
+
+                    <div class="badge-row hero-meta reveal">
+                        <span class="badge badge-accent">v2.2.1</span>
+                        <span class="badge">MIT</span>
+                        <span class="badge">零依赖 Node CLI</span>
+                        <span class="badge">Node ≥ 18</span>
+                    </div>
+
+                    <nav class="hero-anchors reveal" aria-label="页面锚点">
+                        <a href="#what">这是什么</a><span class="sep">/</span>
+                        <a href="#features">特性</a><span class="sep">/</span>
+                        <a href="#workflows">工作流</a><span class="sep">/</span>
+                        <a href="#how">工作原理</a><span class="sep">/</span>
+                        <a href="#commands">命令</a><span class="sep">/</span>
+                        <a href="#sop">SOP</a><span class="sep">/</span>
+                        <a href="#quickstart">快速开始</a><span class="sep">·</span>
+                        <a class="ext" href="https://github.com/Djhhhhhh/Ddo-Code-Flow" target="_blank" rel="noopener">GitHub ↗</a>
+                    </nav>
+                </div>
+
+                <div class="hero-right reveal">
+                    <div class="mini-win" id="miniWin">
+                        <div class="mw-head">
+                            <span class="mw-dots"><i></i><i></i><i></i></span>
+                            <span>Ddo-Code-Flow · 一次 run 的剪影</span>
+                        </div>
+                        <div class="mw-body" id="miniBody" role="log" aria-label="命令行演示：一次 run 的极简流程"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ 02 · 这是什么 ============ -->
+    <section class="section" id="what">
+        <div class="wrap">
+            <div class="eyebrow reveal">01 · 定位</div>
+            <h2 class="title reveal">这是什么</h2>
+            <p class="lead reveal">
+                直接让 AI 完成开发任务，容易出现「需求尚未对齐就开始实现」「方案没有审核」「过程缺少留档」「中断后无法接续」。
+                Ddo-Code-Flow 把任务组织成<strong class="accent">可审核、可恢复的流程</strong>，并用一个零依赖的 Node CLI 检查执行位置、输出契约与确认门。
+            </p>
+            <div class="grid cols-3 reveal">
+                <div class="card">
+                    <div class="card-title">CLI <span class="card-role">组织</span></div>
+                    <div class="card-body">提供当前指令、校验产物、检查位置与确认门、推进状态。</div>
+                    <div class="card-foot">不代替代理完成任务，不代替用户决议。</div>
+                </div>
+                <div class="card">
+                    <div class="card-title">代理 <span class="card-role role-m">执行</span></div>
+                    <div class="card-body">完成当前指令要求的工作，校验产物，呈现选项并执行合法命令。</div>
+                    <div class="card-foot">不手改 state，不自造选项，不替用户批准。</div>
+                </div>
+                <div class="card">
+                    <div class="card-title">用户 <span class="card-role">决议</span></div>
+                    <div class="card-body">显式调用、选择配置、审核关键交付并作出决议。</div>
+                    <div class="card-foot">不需要手动操作内部状态文件。</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ 03 · 特性 ============ -->
+    <section class="section" id="features">
+        <div class="wrap">
+            <div class="eyebrow reveal">02 · 特性</div>
+            <h2 class="title reveal">要解决的问题，与它给的机制</h2>
+            <div class="reveal" style="margin-bottom:16px;">
+                <div class="table-scroll">
+                    <table class="table">
+                        <thead><tr><th style="width:40%;">需要解决的问题</th><th>提供的机制</th></tr></thead>
+                        <tbody>
+                            <tr><td><strong>需求和方案缺少审核</strong></td><td>工作流中的人工审核点；呈现与用户决议留痕</td></tr>
+                            <tr><td><strong>一次加载全部指令和历史</strong></td><td>每个相位按当前状态组装指令、配置、上下文和输出契约</td></tr>
+                            <tr><td><strong>代理只口头声称完成</strong></td><td>通过 <span class="mono accent">validate</span> 检查声明的产物</td></tr>
+                            <tr><td><strong>重做时新旧产物混在一起</strong></td><td>阶段回滚，失效产物移动到 <span class="mono">_del/</span></td></tr>
+                            <tr><td><strong>会话中断后失去执行位置</strong></td><td><span class="mono">.state.json</span> 保存状态，<span class="mono accent">resume</span> 接续</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card reveal">
+                <div class="card-body" style="font-size:14px;">
+                    <strong style="color:var(--ink);">Dogfooding</strong> — 本仓库 v2 的需求与定版方案保存在 <span class="mono accent">.ddo/runs/feat/ddo-code-flow-v2/</span>，开发过程也使用了这套流程。
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ 04 · 工作流 ============ -->
+    <section class="section" id="workflows">
+        <div class="wrap">
+            <div class="eyebrow reveal">03 · 工作流</div>
+            <h2 class="title reveal">内置工作流与阶段链</h2>
+            <div class="reveal" style="margin-bottom:18px;">
+                <div class="flow">
+                    <span class="chip current">basic</span><span class="chip">standard</span><span class="chip">test</span><span class="chip">pr-delivery</span><span class="chip">pr-delivery-issue</span>
+                </div>
+            </div>
+            <div class="grid cols-3 reveal" style="margin-bottom:18px;">
+                <div class="card"><div class="card-title mono" style="font-size:15px;">basic</div><div class="card-body">轻量开发链：requirement → spec → plan → coding → reporting。</div></div>
+                <div class="card"><div class="card-title mono" style="font-size:15px;">standard</div><div class="card-body">完整开发链：增加测试计划、任务拆分、验证、复审和复盘。</div></div>
+                <div class="card"><div class="card-title mono" style="font-size:15px;">test</div><div class="card-body">测试链路：test-scope → test-design → test-unit / api / e2e → test-reporting。</div></div>
+                <div class="card"><div class="card-title mono" style="font-size:15px;">pr-delivery</div><div class="card-body">PR 交付收尾链：deliver-pr → closeout-worktree。</div></div>
+                <div class="card"><div class="card-title mono" style="font-size:15px;">pr-delivery-issue</div><div class="card-body">交付链的 issue 关联变体，增加 link-issue。</div></div>
+                <div class="card"><div class="card-title" style="font-size:15px;">自定义</div><div class="card-body">列出任务，与代理确定阶段及依赖，再通过临时预设启动。</div></div>
+            </div>
+            <p class="lead reveal" style="font-size:14px; color:var(--ink-3); margin-bottom:0;">
+                阶段链支持 DAG 依赖。<span class="mono accent">next</span> 推进所有当前位置；一轮多个普通执行位置须全部校验成功后再推进；一次 <span class="mono accent">next --decision</span> 将同一决议用于所有当前确认门。
+            </p>
+        </div>
+    </section>
+
+    <!-- ============ 05 · 工作原理 ============ -->
+    <section class="section" id="how">
+        <div class="wrap">
+            <div class="eyebrow reveal">04 · 工作原理</div>
+            <h2 class="title reveal">普通执行循环</h2>
+            <div class="grid cols-2" style="margin-bottom:16px;">
+                <div class="reveal">
+                    <div class="steps">
+                        <div class="step"><span class="n">1</span><span class="t">读取完整 <span class="mono">currentStage</span>，每个当前步骤先通过 <span class="mono accent">exec</span> 获取本次指令。</span></div>
+                        <div class="step"><span class="n">2</span><span class="t">完成本轮所有普通执行位置的实际工作。</span></div>
+                        <div class="step"><span class="n">3</span><span class="t">分别 <span class="mono accent">validate</span>；任一未完成或未通过校验，不调用推进命令。</span></div>
+                        <div class="step"><span class="n">4</span><span class="t">无审核时统一执行一次 <span class="mono accent">next</span>；有审核时按 gate payload 呈现，等待用户决议。</span></div>
+                        <div class="step"><span class="n">5</span><span class="t">每次状态改变后重新读取位置；全部完成后执行 <span class="mono accent">run finish</span>。</span></div>
+                    </div>
+                </div>
+                <div class="reveal">
+                    <div class="table-scroll">
+                        <table class="table">
+                            <thead><tr><th style="width:32%;">概念</th><th>含义</th></tr></thead>
+                            <tbody>
+                                <tr><td class="code-col">原子任务</td><td><span class="mono">atom-tasks/&lt;name&gt;/</span> 任务单元，含指令、相位与产物声明</td></tr>
+                                <tr><td class="code-col">workflow 预设</td><td>声明阶段及 <span class="mono">dependOn</span>，启动时物化进 state</td></tr>
+                                <tr><td class="code-col">run</td><td>一次运行，含任务链、状态和流程产物</td></tr>
+                                <tr><td class="code-col">相位</td><td>任务中的步骤，位置以 <span class="mono">spec:01</span> 表示</td></tr>
+                                <tr><td class="code-col">确认门</td><td>人工审核位置，获明确决议后才能推进</td></tr>
+                                <tr><td class="code-col">子流程</td><td>运行期下沉的嵌套流水，深度最多三层</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <p class="lead reveal" style="font-size:14px; color:var(--ink-3); margin-bottom:0;">
+                相位内修改、提问或回答问题不等于批准；交互先通过 <span class="mono accent">gate interact</span> 留痕，处理后重新 <span class="mono accent">gate present</span>。
+            </p>
+        </div>
+    </section>
+
+    <!-- ============ 06 · 命令参考 ============ -->
+    <section class="section" id="commands">
+        <div class="wrap">
+            <div class="eyebrow reveal">05 · 命令参考</div>
+            <h2 class="title reveal">CLI 命令一览</h2>
+            <p class="lead reveal" style="font-size:15px;">
+                统一入口 <span class="mono">node "&lt;skillRoot&gt;/tools/cli.js" &lt;命令&gt;</span>；日常由 SKILL.md 调用，下表供手动调试与维护参考。
+            </p>
+            <div class="reveal">
+                <div class="table-scroll">
+                    <table class="table">
+                        <thead><tr><th style="width:32%;">命令</th><th>作用</th></tr></thead>
+                        <tbody>
+                            <tr><td class="code-col">guide</td><td>返回运行清单、完整启动问题、选项和参数映射</td></tr>
+                            <tr><td class="code-col">run start</td><td>按预设创建 state 并注册运行；支持 <span class="mono">--ephemeral</span></td></tr>
+                            <tr><td class="code-col">exec / validate</td><td>返回当前相位组装指令 / 检查产物与输出 schema</td></tr>
+                            <tr><td class="code-col">next / rollback</td><td>推进全部位置 / 重置阶段（旧产物移到 <span class="mono">_del/</span>）</td></tr>
+                            <tr><td class="code-col">gate present / interact</td><td>呈现审核选项 / 记录相位内交互</td></tr>
+                            <tr><td class="code-col">subflow start / close</td><td>创建 / 收口子流程</td></tr>
+                            <tr><td class="code-col">run finish</td><td>结束运行并移出运行索引</td></tr>
+                            <tr><td class="code-col">status / resume</td><td>查看位置与可用命令 / 恢复运行</td></tr>
+                            <tr><td class="code-col">list tasks / workflows</td><td>列出任务与相位 / 预设与阶段链</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ 07 · SOP 演示（左终端 + 右文件树） ============ -->
+    <section class="section" id="sop">
+        <div class="wrap">
+            <div class="eyebrow reveal">06 · cmd 模拟</div>
+            <h2 class="title reveal" style="margin-bottom:10px;">模拟 Claude 操作 —— basic 工作流 SOP</h2>
+            <p class="lead reveal" style="font-size:15px; margin-bottom:18px;">
+                左侧自动播放一次从<strong class="accent">裸调用</strong>到收口的完整终端流程——含 AI 思考、skill 加载与 CLI 调用；右侧同步展示 <span class="mono">.run</span> 目录里各阶段产出的文档与作用。
+            </p>
+            <div class="sop-grid reveal">
+                <div class="claude-win" id="claudeWin">
+                    <div class="cw-head">
+                        <span class="cw-dots"><i></i><i></i><i></i></span>
+                        <span class="cw-title">Claude Code — ddo-code-flow</span>
+                        <span class="cw-stage">当前阶段：<span id="sopStage">启动</span></span>
+                        <button class="cw-replay" id="sopReplay" title="重播">↻ 重播</button>
+                    </div>
+                    <div class="cw-body" id="sopBody" role="log" aria-live="polite"></div>
+                </div>
+                <div class="tree-panel">
+                    <div class="tree-head">.run 目录变化 <small>— 各阶段产出与作用</small></div>
+                    <div class="tree-body" id="sopTree"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ 08 · 快速开始 ============ -->
+    <section class="section" id="quickstart">
+        <div class="wrap">
+            <div class="eyebrow reveal">07 · 上手</div>
+            <h2 class="title reveal">快速开始</h2>
+            <div class="grid cols-2 reveal" style="margin-bottom:24px;">
+                <div class="card">
+                    <div class="card-title">推荐 · 裸调用</div>
+                    <div class="card-body mono" style="font-size:14px; line-height:1.8;">
+                        <span class="accent">你</span>　/ddo-code-flow<br>
+                        <span class="accent">Claude</span>　恢复已有 run，还是新开 run？<br>
+                        <span class="accent">你</span>　新开 run<br>
+                        <span class="accent">Claude</span>　（询问目标）<br>
+                        <span class="accent">你</span>　修复导出函数的边界处理<br>
+                        <span class="accent">Claude</span>　（启动配置 → spec → plan → coding → reporting）
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-title">带描述 · 直接新开（AI 自动调用 / subflow）</div>
+                    <div class="card-body mono" style="font-size:14px; line-height:1.8;">
+                        <span class="accent">你</span>　/ddo-code-flow 修复导出函数的边界处理<br>
+                        <span class="accent">Claude</span>　（询问启动配置）<br>
+                        <span class="accent">你</span>　basic · fix · 正常存储<br>
+                        <span class="accent">Claude</span>　（固化需求 → spec → plan → coding → reporting → 收口）
+                    </div>
+                </div>
+            </div>
+            <div class="badge-row reveal" style="margin-bottom:20px;">
+                <span class="badge">github.com/Djhhhhhh/Ddo-Code-Flow</span>
+                <span class="badge">执行入口：SKILL.md</span>
+                <span class="badge">用户说明：README.md</span>
+                <span class="badge">MIT © 2026 Djhhhhhh</span>
+            </div>
+            <p class="lead reveal" style="margin-bottom:0;">
+                用户只需参与<strong class="accent">启动配置</strong>和<strong class="accent">人工审核</strong>，不需要手动记忆内部命令。
+            </p>
+        </div>
+    </section>
+
+</main>
+
+<script>
+/* ===========================================
+   竖向全屏翻页控制器 + 圆点导航 + 计数
+   =========================================== */
+const sections = Array.from(document.querySelectorAll('.section'));
+const dotnav = document.getElementById('dotnav');
+const counter = document.getElementById('counter');
+const dots = [];
+
+sections.forEach((_, i) => {
+    const d = document.createElement('button');
+    d.className = 'dot';
+    d.setAttribute('aria-label', '跳到第 ' + (i + 1) + ' 模块');
+    d.addEventListener('click', () => scrollToSection(i));
+    dotnav.appendChild(d);
+    dots.push(d);
+});
+
+function scrollToSection(i) {
+    sections[i].scrollIntoView({ behavior: 'smooth' });
+}
+
+document.addEventListener('keydown', (e) => {
+    const cur = activeIndex();
+    switch (e.key) {
+        case 'ArrowDown': case 'PageDown': case ' ': if (cur < sections.length - 1) scrollToSection(cur + 1); e.preventDefault(); break;
+        case 'ArrowUp': case 'PageUp': if (cur > 0) scrollToSection(cur - 1); e.preventDefault(); break;
+        case 'Home': scrollToSection(0); e.preventDefault(); break;
+        case 'End': scrollToSection(sections.length - 1); e.preventDefault(); break;
+    }
+});
+
+function activeIndex() {
+    const mid = window.scrollY + window.innerHeight / 2;
+    let idx = 0;
+    sections.forEach((s, i) => { if (s.offsetTop <= mid) idx = i; });
+    return idx;
+}
+
+const io = new IntersectionObserver((entries) => {
+    entries.forEach(en => {
+        if (en.isIntersecting) {
+            en.target.classList.add('in-view');
+            const i = sections.indexOf(en.target);
+            if (i >= 0) {
+                dots.forEach((d, k) => d.classList.toggle('active', k === i));
+                counter.textContent = (i + 1) + ' / ' + sections.length;
+            }
+            if (en.target.id === 'hero') mini.start();
+            if (en.target.id === 'sop') sop.start();
+        }
+    });
+}, { threshold: 0.35 });
+
+sections.forEach(s => io.observe(s));
+
+/* ===========================================
+   SOP 模拟 —— basic 工作流自动播放
+   类型：user(你输入) / think(Claude 思考) / skill(skill 加载) / act(Claude 动作) / cli(CLI 调用) / ask(问询块)
+   file：该步骤在 .run 目录新增的文档
+   =========================================== */
+const RUN_ID = '20261106-144337-51f5';
+
+const SOP = [
+    // ── 启动：裸调用 → 分流 → run start ──
+    { t:'user',  stage:'启动', text:'/ddo-code-flow' },
+    { t:'think', stage:'启动', text:'识别到显式调用；读取是否附带需求描述 → 本次未附带' },
+    { t:'think', stage:'启动', text:'按「不带描述」分支：先询问恢复/新建，不因无旧 run 跳过' },
+    { t:'skill', stage:'启动', text:'加载 ddo-code-flow/SKILL.md → 启动分流规则 + 执行循环节律' },
+    { t:'ask',   stage:'启动', chip:'入口', q:'希望恢复已有 run，还是新开 run？',
+      opts:[{l:'恢复已有 run',d:'从运行中的 run 接续'},{l:'新开 run',d:'开始一次全新任务'}],
+      ans:{i:1, note:null} },
+    { t:'think', stage:'启动', text:'用户选「新开 run」→ 运行 guide 获取启动问题序列与参数映射' },
+    { t:'cli',   stage:'启动', text:'node tools/cli.js guide' },
+    { t:'cli',   stage:'启动', text:'返回启动问题 + 选项 + 参数映射', ok:true },
+    { t:'ask',   stage:'启动', chip:'目标', q:'本次要完成什么？',
+      opts:[{l:'输入目标 / bug 描述',d:'例如：修复导出函数的边界处理'}],
+      ans:{i:0, note:'修复导出函数的边界处理'} },
+    { t:'think', stage:'启动', text:'目标已提供 → 继续询问其余启动配置与条件追问' },
+    { t:'ask',   stage:'启动', chip:'启动配置', q:'确认以下配置？',
+      opts:[{l:'basic · fix · 正常存储',d:'worktree 否 · 存储 正常'},{l:'重新选择',d:'返回修改配置'}],
+      ans:{i:0, note:null} },
+    { t:'cli',   stage:'启动', text:'node tools/cli.js run start --workflow basic --type fix' },
+    { t:'cli',   stage:'启动', text:'.state.json 已创建（唯一事实源）', ok:true, file:{name:'.state.json', desc:'执行状态 · 唯一事实源'} },
+    { t:'think', stage:'启动', text:'启动成功 → 读取 currentStage，进入执行循环' },
+
+    // ── requirement ──
+    { t:'cli',   stage:'requirement', text:'node tools/cli.js exec --task requirement --phase 01' },
+    { t:'act',   stage:'requirement', text:'阅读指令（Context + Output Contract）→ 固化原始需求', file:{name:'requirement.md', desc:'固化的原始需求'} },
+    { t:'cli',   stage:'requirement', text:'node tools/cli.js validate --task requirement --phase 01' },
+    { t:'cli',   stage:'requirement', text:'产物存在 + 结构合法，校验通过', ok:true },
+    { t:'cli',   stage:'requirement', text:'node tools/cli.js next' },
+    { t:'think', stage:'requirement', text:'推进成功 → currentStage 变为 [spec:01]' },
+
+    // ── spec（BQ 边界问题 + 确认门） ──
+    { t:'cli',   stage:'spec', text:'node tools/cli.js exec --task spec --phase 01' },
+    { t:'act',   stage:'spec', text:'生成 spec.md（FR / AC / BQ 契约），提出边界问题', file:{name:'spec.md', desc:'功能需求 · 验收标准 · 边界问题'} },
+    { t:'think', stage:'spec', text:'spec 含确认门 → 先呈现 BQ 边界问题，再 gate present' },
+    { t:'ask',   stage:'spec', chip:'BQ-1', q:'文档语言？',
+      opts:[{l:'中文',d:'文档使用中文'},{l:'英文',d:'文档使用英文'}], ans:{i:0, note:null} },
+    { t:'ask',   stage:'spec', chip:'BQ-2', q:'头图形态？',
+      opts:[{l:'静态 SVG',d:'静态图片，README 引用'},{l:'动态 GIF',d:'动图'}], ans:{i:0, note:null} },
+    { t:'cli',   stage:'spec', text:'node tools/cli.js gate interact --option 回答BQ-1' },
+    { t:'cli',   stage:'spec', text:'node tools/cli.js gate interact --option 回答BQ-2' },
+    { t:'cli',   stage:'spec', text:'node tools/cli.js gate present' },
+    { t:'ask',   stage:'spec', chip:'spec 审核', q:'请审核 spec 草案',
+      opts:[{l:'同意',d:'批准 spec，本相位完成'},{l:'驳回',d:'回滚 spec，回到 01 重新生成'},{l:'修改',d:'反馈作为新证据更新受影响条目'},{l:'提问',d:'只读答疑，不改状态'}],
+      ans:{i:2, note:'验收标准里加上边界值说明'} },
+    { t:'cli',   stage:'spec', text:'node tools/cli.js gate interact --option 修改' },
+    { t:'act',   stage:'spec', text:'把反馈作为新需求证据更新 spec → 展示变化摘要' },
+    { t:'cli',   stage:'spec', text:'node tools/cli.js gate present' },
+    { t:'ask',   stage:'spec', chip:'spec 审核', q:'请审核 spec 草案',
+      opts:[{l:'同意',d:'批准 spec，本相位完成'},{l:'驳回',d:'回滚 spec，回到 01 重新生成'},{l:'修改',d:'反馈作为新证据更新受影响条目'},{l:'提问',d:'只读答疑，不改状态'}],
+      ans:{i:0, note:null} },
+    { t:'cli',   stage:'spec', text:'node tools/cli.js next --decision 同意' },
+
+    // ── plan ──
+    { t:'cli',   stage:'plan', text:'node tools/cli.js exec --task plan --phase 01' },
+    { t:'act',   stage:'plan', text:'生成 plan.md（实施计划）', file:{name:'plan.md', desc:'实施计划'} },
+    { t:'cli',   stage:'plan', text:'node tools/cli.js validate --task plan --phase 01' },
+    { t:'cli',   stage:'plan', text:'node tools/cli.js gate present' },
+    { t:'ask',   stage:'plan', chip:'plan 审核', q:'请审核 plan',
+      opts:[{l:'同意',d:'批准本 revision'},{l:'驳回',d:'回滚 plan，回到 01'},{l:'修改',d:'应用到新 revision'},{l:'提问',d:'只答疑'},{l:'归档',d:'归档当前 plan'}],
+      ans:{i:0, note:null} },
+    { t:'cli',   stage:'plan', text:'node tools/cli.js next --decision 同意' },
+
+    // ── coding（人工审核门） ──
+    { t:'cli',   stage:'coding', text:'node tools/cli.js exec --task coding --phase 01' },
+    { t:'think', stage:'coding', text:'按计划实现：生成头图、介绍 HTML 与 README 重构' },
+    { t:'act',   stage:'coding', text:'完成编码 → docs/header.svg · intro.html · README.md 就位' },
+    { t:'cli',   stage:'coding', text:'node tools/cli.js validate --task coding --phase 01' },
+    { t:'cli',   stage:'coding', text:'node tools/cli.js gate present' },
+    { t:'ask',   stage:'coding', chip:'coding 审核', q:'coding 产物是否完成？',
+      opts:[{l:'同意',d:'确认完成，放行后续阶段'},{l:'提问',d:'答疑，不改状态'},{l:'修改',d:'按反馈调整，重新送审'}],
+      ans:{i:0, note:null} },
+    { t:'cli',   stage:'coding', text:'node tools/cli.js next --decision 同意' },
+
+    // ── reporting ──
+    { t:'cli',   stage:'reporting', text:'node tools/cli.js exec --task reporting --phase 01' },
+    { t:'act',   stage:'reporting', text:'产出 report.md（交付报告）', file:{name:'report.md', desc:'交付报告'} },
+    { t:'cli',   stage:'reporting', text:'node tools/cli.js validate --task reporting --phase 01' },
+    { t:'cli',   stage:'reporting', text:'node tools/cli.js next' },
+    { t:'cli',   stage:'reporting', text:'next → completed: true（任务已完成）' },
+    { t:'cli',   stage:'reporting', text:'node tools/cli.js run finish --status done' },
+    { t:'cli',   stage:'reporting', text:'run 已收口 · 交付完成', ok:true },
+];
+
+function esc(s) {
+    return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+}
+
+function delayFor(step) {
+    switch (step.t) {
+        case 'ask':   return 1100;
+        case 'think': return 550;
+        case 'skill': return 550;
+        case 'act':   return 450;
+        case 'cli':   return 320;
+        default:      return 320;
+    }
+}
+
+/* 右侧文件树 */
+const treeFiles = [];
+function renderTree(animateNew) {
+    const el = document.getElementById('sopTree');
+    let h = '<div><span class="dir">.run/</span></div>';
+    h += '<div><span class="dir">└─ ' + RUN_ID + '/</span></div>';
+    treeFiles.forEach((f, i) => {
+        const glyph = (i === treeFiles.length - 1) ? '└─' : '├─';
+        const cls = (animateNew && i === treeFiles.length - 1) ? ' class="tree-in"' : '';
+        h += '<div' + cls + '>&nbsp;&nbsp;&nbsp;' + glyph + ' <span class="file">' + esc(f.name) + '</span> <span class="dim"># ' + esc(f.desc) + '</span></div>';
+    });
+    el.innerHTML = h;
+    el.scrollTop = el.scrollHeight;
+}
+
+const sop = {
+    idx: 0, started: false, playing: true, timer: null,
+    body: document.getElementById('sopBody'),
+    stage: document.getElementById('sopStage'),
+    replayBtn: document.getElementById('sopReplay'),
+
+    init() {
+        this.replayBtn.addEventListener('click', () => this.replay());
+        renderTree();
+    },
+
+    start() { if (!this.started) { this.started = true; this.play(); } },
+
+    play() {
+        if (!this.playing) return;
+        if (this.idx >= SOP.length) { return; }
+        const s = SOP[this.idx];
+        this.append(s);
+        let addedFile = false;
+        if (s.file && !treeFiles.some(f => f.name === s.file.name)) { treeFiles.push(s.file); addedFile = true; }
+        renderTree(addedFile);
+        this.idx++;
+        this.timer = setTimeout(() => this.play(), delayFor(s));
+    },
+
+    replay() {
+        clearTimeout(this.timer);
+        this.idx = 0; this.started = true; this.playing = true;
+        this.body.innerHTML = '';
+        treeFiles.length = 0;
+        renderTree();
+        this.play();
+    },
+
+    append(s) {
+        if (s.t === 'ask') { this.appendAsk(s); this.setStage(s); return; }
+        const ln = document.createElement('div');
+        let cls = 'ln' + (s.ok ? ' ok' : '');
+        if (s.t === 'user') cls += ' user-row';
+        ln.className = cls;
+        let tag = '', body = '';
+        if (s.t === 'user') {
+            tag = '<span class="tag user">你</span>';
+            body = '<span class="p">❯</span> <span class="t">' + esc(s.text) + '</span>';
+        } else if (s.t === 'think') {
+            tag = '<span class="tag claude">Claude</span>';
+            body = '<span class="think">✦ ' + esc(s.text) + '</span>';
+        } else if (s.t === 'skill') {
+            tag = '<span class="tag skill">skill</span>';
+            body = '<span class="skill">⚙ ' + esc(s.text) + '</span>';
+        } else if (s.t === 'act') {
+            tag = '<span class="tag claude">Claude</span>';
+            body = '<span class="act">· ' + esc(s.text) + '</span>';
+        } else if (s.t === 'cli') {
+            tag = '<span class="tag cli">CLI</span>';
+            body = s.ok
+                ? '<span class="cli-t">✓ ' + esc(s.text) + '</span>'
+                : '<span class="dollar">$</span> <span class="cli-t">' + esc(s.text) + '</span>';
+        }
+        ln.innerHTML = tag + '<span class="b">' + body + '</span>';
+        this.body.appendChild(ln);
+        this.body.scrollTop = this.body.scrollHeight;
+        this.setStage(s);
+    },
+
+    appendAsk(s) {
+        const box = document.createElement('div');
+        box.className = 'ask-box';
+        let h = '';
+        h += '<div><span class="cb">☐</span> <span class="ab-head">' + esc(s.chip) + '</span></div>';
+        h += '<div><span class="bar">│</span> <span class="ab-q">' + esc(s.q) + '</span></div>';
+        s.opts.forEach((o, k) => {
+            h += '<div class="ab-opt">&nbsp;&nbsp;<span class="n">' + (k + 1) + '.</span> <span class="l">' + esc(o.l) + '</span></div>';
+            h += '<div class="ab-opt-d">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;' + esc(o.d) + '</div>';
+        });
+        box.innerHTML = h;
+        this.body.appendChild(box);
+        this.body.scrollTop = this.body.scrollHeight;
+        setTimeout(() => {
+            const a = s.ans;
+            const label = s.opts[a.i].l;
+            let p = '<div class="ab-pick"><span class="p">❯</span> <span class="n">' + (a.i + 1) + '.</span> <span class="l">' + esc(label) + (a.note ? ':' : '') + '</span></div>';
+            if (a.note) p += '<div class="ab-note">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;' + esc(a.note) + '</div>';
+            p += '<div class="ab-rule">─</div>';
+            box.insertAdjacentHTML('beforeend', p);
+            this.body.scrollTop = this.body.scrollHeight;
+        }, 600);
+    },
+
+    setStage(s) {
+        if (s.stage) this.stage.textContent = s.stage;
+    }
+};
+
+/* ===========================================
+   首屏简化 cmd 模拟 —— 一次 run 的极简剪影
+   行类型：cmd（$ 命令·打字机）/ out（输出）/ ok（成功）/ user（你）
+   进视口播一次，播完停在末行；不循环、不重播
+   =========================================== */
+const MINI = [
+    { k:'you',   text:'/ddo-code-flow 修复介绍页' },
+    { k:'tool',  text:'powershell › node …\\cli.js run start --workflow basic' },
+    { k:'cli',   text:'✓ { runId:"…-e1a9", currentStage:["requirement:01"] }' },
+    { k:'tool',  text:'powershell › node …\\cli.js exec · validate · next' },
+    { k:'cli',   text:'✓ { currentStage:["spec:01"] }' },
+    { k:'gate',  text:'⏸ spec 确认门：同意 / 修改 / 提问' },
+    { k:'you',   text:'同意' },
+    { k:'cli',   text:'✓ next --decision 同意 → { currentStage:["plan:01"] }' },
+    { k:'think', text:'逐页修复开始：审页 → 方案 → 决议 → 实施' },
+    { k:'gate',  text:'⏸ coding 确认门：8 页逐页迭代中…' },
+    { k:'cli',   text:'✓ { currentStage:["coding:01"] } · run 进行中' },
+];
+
+const MW_TAG_CLAUDE = '<span class="mw-tag claude">claude ›</span>';
+const MW_TAG_CLI = '<span class="mw-tag cli">cli ›</span>';
+
+const mini = {
+    started: false,
+    body: document.getElementById('miniBody'),
+    fast: window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+
+    start() { if (!this.started) { this.started = true; this.play(0); } },
+
+    line(k, html) {
+        const d = document.createElement('div');
+        d.className = 'mw-ln mw-' + k;
+        d.innerHTML = html;
+        this.body.appendChild(d);
+        this.body.scrollTop = this.body.scrollHeight;
+        return d;
+    },
+
+    gap(k) { return this.fast ? 40 : ({ you: 520, think: 500, tool: 440, cli: 540, gate: 950, ok: 650 })[k] || 500; },
+
+    play(i) {
+        if (i >= MINI.length) { this.line('cli', MW_TAG_CLI + '<span class="mw-caret"></span>'); return; }
+        const s = MINI[i];
+        const typeMs = this.fast ? 6 : 34;
+        if (s.k === 'you') {
+            const d = this.line('you', '<span class="mw-p">❯</span><span class="mw-tx"></span><span class="mw-caret"></span>');
+            const tx = d.querySelector('.mw-tx');
+            let j = 0;
+            const tick = () => {
+                if (j <= s.text.length) { tx.textContent = s.text.slice(0, j); j++; setTimeout(tick, typeMs); }
+                else { d.querySelector('.mw-caret').remove(); setTimeout(() => this.play(i + 1), this.gap('you')); }
+            };
+            tick();
+        } else if (s.k === 'think') {
+            this.line('think', MW_TAG_CLAUDE + '<span class="mw-tx">✦ ' + esc(s.text) + '</span>');
+            setTimeout(() => this.play(i + 1), this.gap('think'));
+        } else if (s.k === 'tool') {
+            this.line('tool', MW_TAG_CLAUDE + '<span class="mw-tx"><span class="mw-gear">⚙</span>' + esc(s.text) + '</span>');
+            setTimeout(() => this.play(i + 1), this.gap('tool'));
+        } else {
+            const tag = (s.k === 'ok') ? 'ok' : (s.k === 'gate' ? 'gate' : 'cli');
+            this.line(tag, MW_TAG_CLI + '<span class="mw-tx">' + esc(s.text) + '</span>');
+            setTimeout(() => this.play(i + 1), this.gap(tag));
+        }
+    }
+};
+
+sop.init();
+</script>
+</body>
+</html>
+
+

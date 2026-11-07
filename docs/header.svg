@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300" role="img" aria-label="Ddo-Code-Flow：显式调用的分阶段任务执行 skill">
+  <defs>
+    <!-- 页面 .fx-grid 网格叠层：42px 线网 + 点阵 -->
+    <pattern id="grid" width="42" height="42" patternUnits="userSpaceOnUse">
+      <path d="M 0.5 0 V 42 M 0 0.5 H 42" stroke="rgba(0,255,204,.035)" stroke-width="1" fill="none"/>
+      <circle cx="21" cy="21" r="1" fill="rgba(0,255,204,.18)"/>
+    </pattern>
+    <!-- 页面 body 双辉光：青 12% -8% / 品红 92% 108% -->
+    <radialGradient id="gcyan" cx="12%" cy="-8%" r="75%">
+      <stop offset="0%" stop-color="#00FFCC" stop-opacity=".10"/>
+      <stop offset="60%" stop-color="#00FFCC" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="gmag" cx="92%" cy="108%" r="75%">
+      <stop offset="0%" stop-color="#FF2EC4" stop-opacity=".10"/>
+      <stop offset="60%" stop-color="#FF2EC4" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="clip"><rect width="1200" height="300" rx="16"/></clipPath>
+    <filter id="soft" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="14"/></filter>
+  </defs>
+
+  <g clip-path="url(#clip)">
+    <rect width="1200" height="300" fill="#070B14"/>
+    <rect width="1200" height="300" fill="url(#grid)"/>
+    <rect width="1200" height="300" fill="url(#gcyan)"/>
+    <rect width="1200" height="300" fill="url(#gmag)"/>
+
+    <!-- hero-ghost 幽灵水印 -->
+    <text x="1164" y="286" text-anchor="end" font-family="'IBM Plex Mono', ui-monospace, 'Cascadia Code', Consolas, monospace" font-size="128" font-weight="700" letter-spacing="6" fill="none" stroke="rgba(0,255,204,.09)" stroke-width="1">DDO</text>
+
+    <!-- hero-brand：节点链标识 + 字标（同 hero SVG，currentColor=#E6F1FF） -->
+    <g transform="translate(78,36) scale(0.9)">
+      <g fill="#E6F1FF">
+        <circle cx="32" cy="60" r="6.5"/>
+        <circle cx="50" cy="44" r="6.5"/>
+        <circle cx="66" cy="56" r="3.5" opacity=".8"/>
+        <circle cx="23" cy="46" r="2" opacity=".4"/>
+        <circle cx="72" cy="38" r="1.8" opacity=".35"/>
+      </g>
+      <g fill="none" stroke="#E6F1FF" stroke-width="2" opacity=".5" stroke-linecap="round">
+        <path d="M37.5 56 C42 51 44 49 45.3 47.8"/>
+        <path d="M54.5 48.5 C59 52 61.5 54 63 55"/>
+      </g>
+    </g>
+    <!-- 字标青色环境辉光（text-shadow 0 0 46px rgba(0,255,204,.26) 的等价再现） -->
+    <text x="170" y="99" font-family="'Space Grotesk', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="46" font-weight="700" letter-spacing="-0.46" fill="#00FFCC" opacity=".2" filter="url(#soft)">Ddo-Code-Flow</text>
+    <text x="170" y="99" font-family="'Space Grotesk', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="46" font-weight="700" letter-spacing="-0.46" fill="#E6F1FF">Ddo-Code-Flow</text>
+
+    <!-- end-echo 收束语（同页面样式：21px/500，确定性青、决策权品红） + 一行静音描述 -->
+    <text x="82" y="136" font-family="'Space Grotesk', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="21" font-weight="500" fill="#9FB3D1">把<tspan fill="#00FFCC">确定性</tspan>还给流程，把<tspan fill="#FF2EC4">决策权</tspan>留给你。</text>
+    <text x="82" y="160" font-family="'Space Grotesk', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="14" fill="#5F7396">显式调用的分阶段任务执行 skill：把任务放入所选工作流，由代理逐阶段执行、按契约校验产物，在确认门等待你的决议，全程状态落盘、中断可恢复。</text>
+
+    <!-- hero-stats：硬保证条（符号 + 标签，竖线分隔，同页面） -->
+    <g font-family="'IBM Plex Mono', ui-monospace, 'Cascadia Code', Consolas, monospace">
+      <text x="82" y="198" font-size="27" font-weight="700" fill="#00FFCC" opacity=".35" filter="url(#soft)">↺</text>
+      <text x="82" y="198" font-size="27" font-weight="700" fill="#00FFCC">↺</text>
+      <text x="82" y="219" font-family="'Space Grotesk', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="12" letter-spacing=".72" fill="#5F7396">断点可恢复</text>
+
+      <line x1="212" y1="176" x2="212" y2="222" stroke="#1C2A45"/>
+      <text x="240" y="198" font-size="27" font-weight="700" fill="#00FFCC" opacity=".35" filter="url(#soft)">◆</text>
+      <text x="240" y="198" font-size="27" font-weight="700" fill="#00FFCC">◆</text>
+      <text x="240" y="219" font-family="'Space Grotesk', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="12" letter-spacing=".72" fill="#5F7396">确认门把关</text>
+
+      <line x1="370" y1="176" x2="370" y2="222" stroke="#1C2A45"/>
+      <text x="398" y="198" font-size="30" font-weight="700" fill="#00FFCC" opacity=".35" filter="url(#soft)">✓</text>
+      <text x="398" y="198" font-size="30" font-weight="700" fill="#00FFCC">✓</text>
+      <text x="398" y="219" font-family="'Space Grotesk', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="12" letter-spacing=".72" fill="#5F7396">产物硬校验</text>
+
+      <line x1="528" y1="176" x2="528" y2="222" stroke="#1C2A45"/>
+      <text x="556" y="198" font-size="27" font-weight="700" fill="#00FFCC" opacity=".35" filter="url(#soft)">0</text>
+      <text x="556" y="198" font-size="27" font-weight="700" fill="#00FFCC">0</text>
+      <text x="556" y="219" font-family="'Space Grotesk', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="12" letter-spacing=".72" fill="#5F7396">运行时依赖</text>
+    </g>
+
+    <!-- hero-meta-line（按横幅要求略去版本号） -->
+    <text x="82" y="260" font-family="'IBM Plex Mono', ui-monospace, 'Cascadia Code', Consolas, monospace" font-size="12.5" letter-spacing=".5" fill="#5F7396">MIT <tspan opacity=".5">·</tspan> 零依赖 Node CLI <tspan opacity=".5">·</tspan> Node ≥ 18</text>
+  </g>
+  <rect x=".5" y=".5" width="1199" height="299" rx="15.5" fill="none" stroke="#1C2A45"/>
+</svg>
