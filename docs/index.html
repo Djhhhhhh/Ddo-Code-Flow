@@ -706,7 +706,7 @@ body::after {
     @supports (min-height: 100svh) { .page > .section { min-height: 100svh; } }
     .page > .section .wrap { margin: 0; max-width: 100%; }
     .dotnav, .stage-rail { display: none; }   /* 右缘圆点导航与底部流程条让位给自然滚动 */
-    .board-hint { display: flex; }            /* 画板在移动端保留内部横滚，给出滑动提示 */
+    .board-hint { display: none; }            /* 画板纵向化后不再横滚，滑动提示随之移除 */
     .title { margin-bottom: 10px; }
     .ext-rows .ext-row { grid-template-columns: 1fr; gap: 6px; padding: 10px 0; }
     .qs-prompt pre { font-size: 11.5px; line-height: 1.75; padding: 12px 14px; }
@@ -721,6 +721,38 @@ body::after {
     .cta-btn { font-size: 15px; padding: 12px 26px; }
     .live-row { gap: 14px; font-size: 11.5px; }
     .board-legend { gap: 10px; }
+
+    /* —— 画板异化：950px 横向滚动画布 → 纵向分层卡片流（连线隐藏，流程语义由徽章 ①–⑧ 承载） —— */
+    .board { overflow-x: hidden; padding: 14px 14px 10px; }
+    .board-fit, .board-inner { min-width: 0; width: 100%; }
+    .board-wires, .wire-lbl { display: none; }
+    .stratum { padding: 12px 10px 14px; margin-bottom: 18px; }
+    .def-grid { grid-template-columns: 1fr; gap: 12px; }
+    .run-grid { grid-template-columns: 1fr; gap: 12px; }
+    .run-side { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .run-side .b-card { padding: 10px 12px; }
+    .run-loop { gap: 20px; }
+    .loop-row { grid-template-columns: 1fr; gap: 10px; }
+    #loopC .b-card { grid-column: auto; width: 100%; }   /* 覆盖桌面三栏居中特殊布局 */
+    #loopB #n-gate { order: 1; }                          /* 纵向阅读序对齐流程：⑤ gate → ⑦ next → ⑧ finish */
+    #loopB #n-next { order: 2; }
+    #loopB #n-finish { order: 3; }
+    .out-grid { grid-template-columns: 1fr; gap: 12px; }
+
+    /* —— hero / SOP / 工作流密度微调 —— */
+    .hero-grid { gap: 24px; }
+    .hero-brand { gap: 14px; margin-bottom: 16px; }
+    .hero-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 10px; }
+    .hero-stats .stat { padding: 0; border-left: none; }
+    .cw-head { flex-wrap: wrap; gap: 8px 10px; padding: 10px 14px; }
+    .cw-stage { font-size: 11px; padding: 4px 8px; }
+    .cw-body { padding: 14px 16px; }
+    .tree-panel { height: auto; max-height: 340px; min-height: 200px; }
+    .tree-body { padding: 12px 14px; }
+    .wf-chip { font-size: 13px; padding: 9px 12px; }
+    .wf-tree { font-size: 12.5px; }
+    .wf-tln .t-note { margin-left: 6px; }
+    .wf-tln { overflow-wrap: anywhere; }
 }
 @media (max-width: 900px) {
     .hero-grid { grid-template-columns: 1fr; gap: 28px; }
@@ -741,6 +773,20 @@ body::after {
     .stage-rail .rail-label { display: none; }
     .cw-head .cw-title { display: none; }
     .mini-win .mw-body { min-height: 372px; }
+}
+/* —— 小屏微调层（≤480px）：字号与密度再收一档，仅防溢出与触控密度，不改变风格 —— */
+@media (max-width: 480px) {
+    .title { font-size: 24px; }
+    .hero-grid .hero-wordmark { font-size: clamp(28px, 9.5vw, 38px); }
+    .hero-tagline { font-size: 15px; }
+    .cw-head { gap: 6px 8px; padding: 9px 12px; }
+    .cw-stage { font-size: 10.5px; padding: 3px 7px; white-space: normal; }
+    .cw-replay { font-size: 11px; padding: 3px 8px; }
+    .qs-install { font-size: 11px; }
+    .qs-prompt pre { font-size: 11px; }
+    .wf-chip { font-size: 12.5px; padding: 8px 11px; }
+    .end-install { padding-right: 64px; }
+    .cta-btn { width: 100%; justify-content: center; }
 }
 </style>
 </head>
