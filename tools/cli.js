@@ -10,7 +10,7 @@
 
 const path = require('path');
 const fs = require('fs');
-const { readState, writeState, assertState } = require('./lib/state');
+const { readState, writeState, assertState, WRITER_ALLOWLIST, strictViolations } = require('./lib/state');
 const registry = require('./lib/index-registry');
 const history = require('./lib/history');
 const { assemble, mergeConfig, applyConfigOverrides } = require('./lib/assemble');
@@ -1409,6 +1409,33 @@ function renderCommandHelp(cmd) {
 
 // ---------------------------------------------------------------- 主流程
 
+/**
+ * R-3 白名单守卫挂点（STATE-SPEC §4.4，P-2）：DDO_STATE_STRICT=1 时对带 --state 的命令
+ * 做写后深比对，越 WRITER_ALLOWLIST 的顶层键 → stderr 报告 + exit 1（开发/测试守卫）；
+ * 缺省关闭（零运行时成本）。state 文件消失仅 ephemeral finish 的删除分支合法。
+ */
+function runGuarded(cmd, flags) {
+  const statePath = flags.state;
+  if (process.env.DDO_STATE_STRICT !== '1' || !statePath) return cmd.run(flags);
+  const before = fs.existsSync(statePath) ? readState(statePath) : null;
+  const result = cmd.run(flags);
+  if (!fs.existsSync(statePath)) {
+    if (!(before && before.ephemeral === true && cmd.name === 'run finish')) {
+      process.stderr.write(`[STRICT] 命令 ${cmd.name} 执行后 state 文件不存在（越白名单写/删）: ${statePath}\n`);
+      process.exitCode = 1;
+    }
+    return result;
+  }
+  const after = readState(statePath);
+  const violations = strictViolations(before, after, cmd.name);
+  if (violations.length) {
+    const wl = (WRITER_ALLOWLIST[cmd.name] || []).join(', ') || '∅（纯读命令）';
+    process.stderr.write(`[STRICT] 命令 ${cmd.name} 越白名单写入: ${violations.join(', ')}（白名单: ${wl}）\n`);
+    process.exitCode = 1;
+  }
+  return result;
+}
+
 function main() {
   const argv = process.argv.slice(2);
   const { positional, flags, help } = parseArgv(argv);
@@ -1425,7 +1452,7 @@ function main() {
       process.stdout.write(`${renderCommandHelp(cmd)}\n`);
       return 0;
     }
-    const result = cmd.run(flags);
+    const result = runGuarded(cmd, flags);
     if (cmd.rawOutput) process.stdout.write(`${result}\n`);
     else process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     return process.exitCode || 0; // 命令可自设 exitCode（如 validate 校验失败仍输出 JSON）

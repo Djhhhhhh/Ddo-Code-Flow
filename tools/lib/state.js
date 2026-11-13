@@ -17,6 +17,86 @@ function writeState(statePath, state) {
   atomicWrite(statePath, `${JSON.stringify(state, null, 2)}\n`);
 }
 
+// ---------------------------------------------------------------- v2 加性扩展（schema v2 / STATE-SPEC §3）
+
+/** 写入方白名单（R-3 / STATE-SPEC §4.4）：每命令只准写其声明字段集；
+ *  未列出者（exec/validate/status/resume/list/guide/deps check）= 纯读，白名单为空集。
+ *  模式语义：'*create*' 前缀 = 全量创建放行；'stages.*.gate.x' 映射到顶层键 stages 比较。 */
+const WRITER_ALLOWLIST = {
+  'run start':      ['*create*'],                                  // 全量创建（A/B/C/E 空骨架）
+  'next':           ['currentStage', 'stages', 'artifacts'],
+  'gate present':   ['stages.*.gate.presentedAt', 'stages.*.gate'],// 隐式门物化限 gate 整对象
+  'gate interact':  ['stages.*.gate.lastInteractedAt'],
+  'rollback':       ['currentStage', 'stages', 'artifacts'],
+  'subflow start':  ['*create*child*', 'subflows'],                // 子创建+父注册
+  'subflow close':  ['subflows'],
+  'run finish':     ['currentStage'],
+};
+
+/** R-3 守卫（DDO_STATE_STRICT=1 时由 cli 挂点调用）：命令前后 state 深比对，
+ *  返回越白名单的顶层键数组（空 = 合规）。before=null 表示命令前文件不存在（创建场景）。 */
+function strictViolations(before, after, command) {
+  const patterns = WRITER_ALLOWLIST[command] || [];
+  if (patterns.some((p) => p.startsWith('*create'))) return [];
+  const allowed = new Set(patterns.map((p) => p.split('.')[0]));
+  const keys = new Set([...Object.keys(before || {}), ...Object.keys(after || {})]);
+  const out = [];
+  for (const k of keys) {
+    const changed = before == null || after == null || JSON.stringify(before[k]) !== JSON.stringify(after[k]);
+    if (changed && !allowed.has(k)) out.push(k);
+  }
+  return out;
+}
+
+/** E 产物区校验（v2 可选段 / STATE-SPEC §3.5）：键 ⊆ stages 键（I-E3）；
+ *  条目 {phase(两位), recordedAt(ISO), trigger 恒 "next", files[{path(相对防逃逸), bytes, sha256}]}。 */
+function assertArtifacts(artifacts, stages) {
+  if (!artifacts || typeof artifacts !== 'object' || Array.isArray(artifacts)) {
+    throw new Error('state.artifacts must be an object');
+  }
+  for (const [stageId, entries] of Object.entries(artifacts)) {
+    if (!(stageId in (stages || {}))) {
+      throw new Error(`state.artifacts 键 "${stageId}" 须 ⊆ stages 的键（I-E3）`);
+    }
+    if (!Array.isArray(entries) || !entries.length) {
+      throw new Error(`state.artifacts["${stageId}"] must be a non-empty array`);
+    }
+    for (const [i, e] of entries.entries()) {
+      const where = `state.artifacts["${stageId}"][${i}]`;
+      if (!e || typeof e !== 'object') throw new Error(`${where} must be an object`);
+      if (typeof e.phase !== 'string' || !/^\d{2}$/.test(e.phase)) {
+        throw new Error(`${where}.phase must be a two-digit phase id`);
+      }
+      if (typeof e.recordedAt !== 'string' || !ISO_RE.test(e.recordedAt)) {
+        throw new Error(`${where}.recordedAt must be an ISO 8601 string`);
+      }
+      if (e.trigger !== 'next') {
+        throw new Error(`${where}.trigger must be "next"（登记只发生在 next，I-E2）`);
+      }
+      if (!Array.isArray(e.files)) {
+        throw new Error(`${where}.files must be an array（声明缺失时空数组登记）`);
+      }
+      for (const [j, f] of e.files.entries()) {
+        const fw = `${where}.files[${j}]`;
+        if (!f || typeof f !== 'object') throw new Error(`${fw} must be an object`);
+        if (
+          typeof f.path !== 'string' || !f.path ||
+          path.isAbsolute(f.path) || f.path.split('/').includes('..')
+        ) {
+          throw new Error(`${fw}.path must be a runDir-relative path（禁绝对路径与 ..，I-4）`);
+        }
+        if (!Number.isInteger(f.bytes) || f.bytes < 0) {
+          throw new Error(`${fw}.bytes must be a non-negative integer`);
+        }
+        if (typeof f.sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(f.sha256)) {
+          throw new Error(`${fw}.sha256 must be a hex digest（64 位）`);
+        }
+      }
+    }
+  }
+  return true;
+}
+
 /** 结构断言：缺必填字段/非法枚举直接抛错（硬失败 exit 1）。 */
 function assertState(state) {
   for (const k of REQUIRED_TOP) {
@@ -29,6 +109,16 @@ function assertState(state) {
   if (state.ephemeral !== undefined && typeof state.ephemeral !== 'boolean') {
     throw new Error('state.ephemeral must be a boolean');
   }
+  // v2 可选段（STATE-SPEC §3.1/§3.5）：缺失 = v1 旧语义零迁移（I-6），出现即须完整合法
+  if (state.schemaVersion !== undefined) {
+    if (!Number.isInteger(state.schemaVersion) || state.schemaVersion < 1 || state.schemaVersion > 2) {
+      throw new Error('state.schemaVersion must be an integer in [1, 2]');
+    }
+  }
+  if (state.workflow !== undefined && (typeof state.workflow !== 'string' || !state.workflow)) {
+    throw new Error('state.workflow must be a non-empty string');
+  }
+  if (state.artifacts !== undefined) assertArtifacts(state.artifacts, state.stages);
   for (const [id, st] of Object.entries(state.stages || {})) {
     if (!STATUS_ENUM.has(st.status)) throw new Error(`stages[${id}].status invalid: ${st.status}`);
     if (!Array.isArray(st.dependOn)) throw new Error(`stages[${id}].dependOn must be an array`);
@@ -198,6 +288,10 @@ function assertGate(id, gate) {
   if (gate.presentedAt !== undefined && (typeof gate.presentedAt !== 'string' || !ISO_RE.test(gate.presentedAt))) {
     throw new Error(`${where}.presentedAt must be an ISO 8601 string`);
   }
+  // v2 有界化（STATE-SPEC §3.3）：覆盖式标量，取代 v1 interactions[]（后者读取兼容、写入废止）
+  if (gate.lastInteractedAt !== undefined && (typeof gate.lastInteractedAt !== 'string' || !ISO_RE.test(gate.lastInteractedAt))) {
+    throw new Error(`${where}.lastInteractedAt must be an ISO 8601 string`);
+  }
   if (gate.interactions !== undefined) {
     if (!Array.isArray(gate.interactions)) throw new Error(`${where}.interactions must be an array`);
     for (const [i, it] of gate.interactions.entries()) {
@@ -211,4 +305,4 @@ function assertGate(id, gate) {
   if (gate.closedAt !== undefined && typeof gate.closedAt !== 'string') throw new Error(`${where}.closedAt must be an ISO 8601 string`);
 }
 
-module.exports = { readState, writeState, assertState, STATUS_ENUM };
+module.exports = { readState, writeState, assertState, STATUS_ENUM, WRITER_ALLOWLIST, strictViolations };
