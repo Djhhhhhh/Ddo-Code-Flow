@@ -1,0 +1,481 @@
+{
+  "after": {
+    "320": {
+      "file": "/Users/djhhh/work_area/Ddo-Code-Flow-fix-docs-html-mobile-adaptation/.ddo/runs/fix/20261113-190028-dd1a/inputs/screens/shot-after-w320.png",
+      "vw": 320,
+      "docOverflow": false,
+      "docSW": 320,
+      "docCW": 320,
+      "sectionOverflow": [],
+      "sections": [
+        {
+          "id": "hero",
+          "sw": 320,
+          "cw": 320
+        },
+        {
+          "id": "what",
+          "sw": 320,
+          "cw": 320
+        },
+        {
+          "id": "workflows",
+          "sw": 320,
+          "cw": 320
+        },
+        {
+          "id": "how",
+          "sw": 320,
+          "cw": 320
+        },
+        {
+          "id": "sop",
+          "sw": 320,
+          "cw": 320
+        },
+        {
+          "id": "quickstart",
+          "sw": 320,
+          "cw": 320
+        },
+        {
+          "id": "end",
+          "sw": 320,
+          "cw": 320
+        }
+      ],
+      "board": {
+        "sw": 282,
+        "cw": 282,
+        "innerW": 258
+      },
+      "wiresDisplay": "none",
+      "hintDisplay": "none",
+      "gateOrder": "1"
+    },
+    "360": {
+      "file": "/Users/djhhh/work_area/Ddo-Code-Flow-fix-docs-html-mobile-adaptation/.ddo/runs/fix/20261113-190028-dd1a/inputs/screens/shot-after-w360.png",
+      "vw": 360,
+      "docOverflow": false,
+      "docSW": 360,
+      "docCW": 360,
+      "sectionOverflow": [],
+      "sections": [
+        {
+          "id": "hero",
+          "sw": 360,
+          "cw": 360
+        },
+        {
+          "id": "what",
+          "sw": 360,
+          "cw": 360
+        },
+        {
+          "id": "workflows",
+          "sw": 360,
+          "cw": 360
+        },
+        {
+          "id": "how",
+          "sw": 360,
+          "cw": 360
+        },
+        {
+          "id": "sop",
+          "sw": 360,
+          "cw": 360
+        },
+        {
+          "id": "quickstart",
+          "sw": 360,
+          "cw": 360
+        },
+        {
+          "id": "end",
+          "sw": 360,
+          "cw": 360
+        }
+      ],
+      "board": {
+        "sw": 322,
+        "cw": 322,
+        "innerW": 298
+      },
+      "wiresDisplay": "none",
+      "hintDisplay": "none",
+      "gateOrder": "1"
+    },
+    "375": {
+      "file": "/Users/djhhh/work_area/Ddo-Code-Flow-fix-docs-html-mobile-adaptation/.ddo/runs/fix/20261113-190028-dd1a/inputs/screens/shot-after-w375.png",
+      "vw": 375,
+      "docOverflow": false,
+      "docSW": 375,
+      "docCW": 375,
+      "sectionOverflow": [],
+      "sections": [
+        {
+          "id": "hero",
+          "sw": 375,
+          "cw": 375
+        },
+        {
+          "id": "what",
+          "sw": 375,
+          "cw": 375
+        },
+        {
+          "id": "workflows",
+          "sw": 375,
+          "cw": 375
+        },
+        {
+          "id": "how",
+          "sw": 375,
+          "cw": 375
+        },
+        {
+          "id": "sop",
+          "sw": 375,
+          "cw": 375
+        },
+        {
+          "id": "quickstart",
+          "sw": 375,
+          "cw": 375
+        },
+        {
+          "id": "end",
+          "sw": 375,
+          "cw": 375
+        }
+      ],
+      "board": {
+        "sw": 337,
+        "cw": 337,
+        "innerW": 313
+      },
+      "wiresDisplay": "none",
+      "hintDisplay": "none",
+      "gateOrder": "1"
+    },
+    "390": {
+      "file": "/Users/djhhh/work_area/Ddo-Code-Flow-fix-docs-html-mobile-adaptation/.ddo/runs/fix/20261113-190028-dd1a/inputs/screens/shot-after-w390.png",
+      "vw": 390,
+      "docOverflow": false,
+      "docSW": 390,
+      "docCW": 390,
+      "sectionOverflow": [],
+      "sections": [
+        {
+          "id": "hero",
+          "sw": 390,
+          "cw": 390
+        },
+        {
+          "id": "what",
+          "sw": 390,
+          "cw": 390
+        },
+        {
+          "id": "workflows",
+          "sw": 390,
+          "cw": 390
+        },
+        {
+          "id": "how",
+          "sw": 390,
+          "cw": 390
+        },
+        {
+          "id": "sop",
+          "sw": 390,
+          "cw": 390
+        },
+        {
+          "id": "quickstart",
+          "sw": 390,
+          "cw": 390
+        },
+        {
+          "id": "end",
+          "sw": 390,
+          "cw": 390
+        }
+      ],
+      "board": {
+        "sw": 352,
+        "cw": 352,
+        "innerW": 328
+      },
+      "wiresDisplay": "none",
+      "hintDisplay": "none",
+      "gateOrder": "1"
+    },
+    "768": {
+      "file": "/Users/djhhh/work_area/Ddo-Code-Flow-fix-docs-html-mobile-adaptation/.ddo/runs/fix/20261113-190028-dd1a/inputs/screens/shot-after-w768.png",
+      "vw": 768,
+      "docOverflow": false,
+      "docSW": 768,
+      "docCW": 768,
+      "sectionOverflow": [],
+      "sections": [
+        {
+          "id": "hero",
+          "sw": 768,
+          "cw": 768
+        },
+        {
+          "id": "what",
+          "sw": 768,
+          "cw": 768
+        },
+        {
+          "id": "workflows",
+          "sw": 768,
+          "cw": 768
+        },
+        {
+          "id": "how",
+          "sw": 768,
+          "cw": 768
+        },
+        {
+          "id": "sop",
+          "sw": 768,
+          "cw": 768
+        },
+        {
+          "id": "quickstart",
+          "sw": 768,
+          "cw": 768
+        },
+        {
+          "id": "end",
+          "sw": 768,
+          "cw": 768
+        }
+      ],
+      "board": {
+        "sw": 730,
+        "cw": 730,
+        "innerW": 702
+      },
+      "wiresDisplay": "none",
+      "hintDisplay": "none",
+      "gateOrder": "1"
+    },
+    "1024": {
+      "file": "/Users/djhhh/work_area/Ddo-Code-Flow-fix-docs-html-mobile-adaptation/.ddo/runs/fix/20261113-190028-dd1a/inputs/screens/shot-after-w1024.png",
+      "vw": 1024,
+      "docOverflow": false,
+      "docSW": 1024,
+      "docCW": 1024,
+      "sectionOverflow": [],
+      "sections": [
+        {
+          "id": "hero",
+          "sw": 1024,
+          "cw": 1024
+        },
+        {
+          "id": "what",
+          "sw": 1024,
+          "cw": 1024
+        },
+        {
+          "id": "workflows",
+          "sw": 1024,
+          "cw": 1024
+        },
+        {
+          "id": "how",
+          "sw": 1024,
+          "cw": 1024
+        },
+        {
+          "id": "sop",
+          "sw": 1024,
+          "cw": 1024
+        },
+        {
+          "id": "quickstart",
+          "sw": 1024,
+          "cw": 1024
+        },
+        {
+          "id": "end",
+          "sw": 1024,
+          "cw": 1024
+        }
+      ],
+      "board": {
+        "sw": 974,
+        "cw": 974,
+        "innerW": 950
+      },
+      "wiresDisplay": "block",
+      "hintDisplay": "none",
+      "gateOrder": "0"
+    },
+    "1440": {
+      "file": "/Users/djhhh/work_area/Ddo-Code-Flow-fix-docs-html-mobile-adaptation/.ddo/runs/fix/20261113-190028-dd1a/inputs/screens/shot-after-w1440.png",
+      "vw": 1440,
+      "docOverflow": false,
+      "docSW": 1440,
+      "docCW": 1440,
+      "sectionOverflow": [],
+      "sections": [
+        {
+          "id": "hero",
+          "sw": 1440,
+          "cw": 1440
+        },
+        {
+          "id": "what",
+          "sw": 1440,
+          "cw": 1440
+        },
+        {
+          "id": "workflows",
+          "sw": 1440,
+          "cw": 1440
+        },
+        {
+          "id": "how",
+          "sw": 1440,
+          "cw": 1440
+        },
+        {
+          "id": "sop",
+          "sw": 1440,
+          "cw": 1440
+        },
+        {
+          "id": "quickstart",
+          "sw": 1440,
+          "cw": 1440
+        },
+        {
+          "id": "end",
+          "sw": 1440,
+          "cw": 1440
+        }
+      ],
+      "board": {
+        "sw": 1078,
+        "cw": 1078,
+        "innerW": 1042
+      },
+      "wiresDisplay": "block",
+      "hintDisplay": "none",
+      "gateOrder": "0"
+    }
+  },
+  "before1024": {
+    "file": "/Users/djhhh/work_area/Ddo-Code-Flow-fix-docs-html-mobile-adaptation/.ddo/runs/fix/20261113-190028-dd1a/inputs/screens/shot-before-w1024.png",
+    "vw": 1024,
+    "docOverflow": false,
+    "docSW": 1024,
+    "docCW": 1024,
+    "sectionOverflow": [],
+    "sections": [
+      {
+        "id": "hero",
+        "sw": 1024,
+        "cw": 1024
+      },
+      {
+        "id": "what",
+        "sw": 1024,
+        "cw": 1024
+      },
+      {
+        "id": "workflows",
+        "sw": 1024,
+        "cw": 1024
+      },
+      {
+        "id": "how",
+        "sw": 1024,
+        "cw": 1024
+      },
+      {
+        "id": "sop",
+        "sw": 1024,
+        "cw": 1024
+      },
+      {
+        "id": "quickstart",
+        "sw": 1024,
+        "cw": 1024
+      },
+      {
+        "id": "end",
+        "sw": 1024,
+        "cw": 1024
+      }
+    ],
+    "board": {
+      "sw": 974,
+      "cw": 974,
+      "innerW": 950
+    },
+    "wiresDisplay": "block",
+    "hintDisplay": "none",
+    "gateOrder": "0"
+  },
+  "before1440": {
+    "file": "/Users/djhhh/work_area/Ddo-Code-Flow-fix-docs-html-mobile-adaptation/.ddo/runs/fix/20261113-190028-dd1a/inputs/screens/shot-before-w1440.png",
+    "vw": 1440,
+    "docOverflow": false,
+    "docSW": 1440,
+    "docCW": 1440,
+    "sectionOverflow": [],
+    "sections": [
+      {
+        "id": "hero",
+        "sw": 1440,
+        "cw": 1440
+      },
+      {
+        "id": "what",
+        "sw": 1440,
+        "cw": 1440
+      },
+      {
+        "id": "workflows",
+        "sw": 1440,
+        "cw": 1440
+      },
+      {
+        "id": "how",
+        "sw": 1440,
+        "cw": 1440
+      },
+      {
+        "id": "sop",
+        "sw": 1440,
+        "cw": 1440
+      },
+      {
+        "id": "quickstart",
+        "sw": 1440,
+        "cw": 1440
+      },
+      {
+        "id": "end",
+        "sw": 1440,
+        "cw": 1440
+      }
+    ],
+    "board": {
+      "sw": 1078,
+      "cw": 1078,
+      "innerW": 1042
+    },
+    "wiresDisplay": "block",
+    "hintDisplay": "none",
+    "gateOrder": "0"
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "noise_w1024": {
+    "diffPixels": 7416,
+    "total": 25804800,
+    "ratioPct": 0.0287,
+    "bbox": [
+      60,
+      100,
+      2047,
+      1793
+    ]
+  },
+  "delta_w1024": {
+    "diffPixels": 1392,
+    "total": 25804800,
+    "ratioPct": 0.0054,
+    "bbox": [
+      178,
+      50,
+      2017,
+      1761
+    ]
+  },
+  "noise_w1440": {
+    "diffPixels": 1819,
+    "total": 36288000,
+    "ratioPct": 0.005,
+    "bbox": [
+      16,
+      4,
+      2801,
+      1749
+    ]
+  },
+  "delta_w1440": {
+    "diffPixels": 1903,
+    "total": 36288000,
+    "ratioPct": 0.0052,
+    "bbox": [
+      16,
+      32,
+      2801,
+      1769
+    ]
+  }
+}

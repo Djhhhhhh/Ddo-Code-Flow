@@ -1,0 +1,1979 @@
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<title>Ddo-Code-Flow</title>
+<meta name="description" content="把确定性还给流程，把决策权留给你。Ddo-Code-Flow 把任务放入所选工作流，由代理逐阶段执行、按契约校验产物，在确认门等待你的决议；全程状态落盘、断点可恢复，零依赖 Node CLI。">
+<meta property="og:title" content="Ddo-Code-Flow —— 显式调用的分阶段任务执行 skill">
+<meta property="og:description" content="把确定性还给流程，把决策权留给你。工作流驱动 · 代理执行 · 人工决议 · 状态可恢复。">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://ddoai.cn/">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230A0F1C'/%3E%3Cg fill='%23E6F1FF'%3E%3Ccircle cx='32' cy='60' r='6.5'/%3E%3Ccircle cx='50' cy='44' r='6.5'/%3E%3Ccircle cx='66' cy='56' r='3.5' opacity='.8'/%3E%3Ccircle cx='23' cy='46' r='2' opacity='.4'/%3E%3Ccircle cx='72' cy='38' r='1.8' opacity='.35'/%3E%3C/g%3E%3Cg fill='none' stroke='%23E6F1FF' stroke-width='2' opacity='.5' stroke-linecap='round'%3E%3Cpath d='M37.5 56 C42 51 44 49 45.3 47.8'/%3E%3Cpath d='M54.5 48.5 C59 52 61.5 54 63 55'/%3E%3C/g%3E%3C/svg%3E">
+
+<!--
+  Ddo-Code-Flow 项目介绍页
+  形态：竖向全屏翻页（scroll-snap），每次滚动完整切换到下一个模块
+  分区：相邻模块背景色递变 + 底部青色→品红渐变分割线
+  亮点：第 7 模块左右两栏——左侧终端自动播放 basic SOP（含 AI 思考 / skill 加载 / CLI 调用，
+        明确标注 你/Claude/CLI/skill），右侧同步展示 .ddo/runs/<type>/<runId>/ 目录文件树
+  样式：frontend-slides · Neon Cyber 终端风（深海军蓝 + 青/品红霓虹 + 网格/辉光/扫描线）
+-->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+/* ===========================================
+   THEME TOKENS —— Neon Cyber 终端风
+   =========================================== */
+:root {
+    --bg-0: #070B14;
+    --bg-1: #0A0F1C;
+    --bg-2: #0D1424;
+    --bg-3: #101A2E;
+    --panel: #0B1322;
+    --panel-2: #111C33;
+    --code-bg: #081020;
+    --line: #1C2A45;
+    --line-soft: #15223A;
+    --ink: #E6F1FF;
+    --ink-2: #9FB3D1;
+    --ink-3: #5F7396;
+    --cyan: #00FFCC;
+    --cyan-dim: #00D9AE;
+    --magenta: #FF2EC4;
+    --magenta-dim: #FF6BD8;
+    --ok: #28C840;
+    --warn: #FEBC2E;
+    --danger: #FF5F57;
+    --glow-cyan: 0 0 22px rgba(0,255,204,.22);
+    --glow-magenta: 0 0 22px rgba(255,46,196,.20);
+    --font-display: 'Space Grotesk', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    --font-body: 'Space Grotesk', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Code', Consolas, monospace;
+    --r-sm: 6px; --r-md: 9px; --r-lg: 14px;
+    --ease: cubic-bezier(0.16,1,0.3,1);
+
+    /* 分区背景（近同色微差交替，避免模块边界色块跳变） */
+    --s1: #070B14;
+    --s2: #070B14;
+    --s3: #070B14;
+    --s4: #070B14;
+    --s5: #070B14;
+    --s6: #070B14;
+    --s7: #070B14;
+    --s8: #070B14;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+/* ===========================================
+   竖向全屏翻页（scroll-snap）+ 氛围背景
+   =========================================== */
+html, body { height: auto; }
+body {
+    font-family: var(--font-body);
+    color: var(--ink);
+    overflow-x: hidden;
+    background:
+        radial-gradient(900px 600px at 12% -8%, rgba(0,255,204,.10), transparent 60%),
+        radial-gradient(900px 600px at 92% 108%, rgba(255,46,196,.10), transparent 60%),
+        var(--bg-0);
+    -webkit-font-smoothing: antialiased;
+}
+body::before {
+    content: "";
+    position: fixed; inset: 0; z-index: 2; pointer-events: none;
+    background-image:
+        linear-gradient(rgba(0,255,204,.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,255,204,.035) 1px, transparent 1px),
+        radial-gradient(rgba(0,255,204,.18) 1px, transparent 1.5px);
+    background-size: 42px 42px, 42px 42px, 42px 42px;
+}
+
+/* CRT 扫描线叠层（极淡，位于内容之上、不拦截交互） */
+body::after {
+    content: "";
+    position: fixed; inset: 0; z-index: 2; pointer-events: none;
+    background: repeating-linear-gradient(0deg, rgba(230,241,255,.016) 0 1px, transparent 1px 4px);
+}
+
+/* 随机数字质感层：点阵随机闪烁 + 横线数据脉冲（内容之上；终端窗族在其上免疫） */
+.fx-layer { position: fixed; inset: 0; z-index: 2; pointer-events: none; overflow: hidden; }
+.fx-dot { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: var(--cyan); opacity: 0; box-shadow: 0 0 6px rgba(0,255,204,.55); animation: twinkle var(--dur) ease-in-out var(--delay) infinite; }
+.fx-dot.m { background: var(--magenta); box-shadow: 0 0 6px rgba(255,46,196,.55); }
+@keyframes twinkle { 0%, 100% { opacity: 0; } 50% { opacity: .5; } }
+.fx-line { position: absolute; height: 1px; width: 140px; background: linear-gradient(90deg, transparent, rgba(0,255,204,.35), transparent); animation: pulseX var(--dur) linear forwards; }
+@keyframes pulseX { 0% { transform: translateX(0); opacity: 0; } 15% { opacity: .8; } 100% { transform: translateX(60vw); opacity: 0; } }
+@keyframes auroraSpin { to { transform: translate(-50%, -50%) rotate(360deg); } }
+
+/* 翻页采用原生文档滚动 + window.scrollTo({behavior:'smooth'})：无合成层轨道，
+   渲染路径与普通长页一致，规避大层平移后内容不绘制的合成器缺陷 */
+.page { position: relative; }
+
+/* 终端窗族：置于随机动效层之上，保持纯净实底（.page 不再构成层叠上下文） */
+.mini-win, .claude-win, .tree-panel { position: relative; z-index: 2; }
+
+.page > .section {
+    height: 100vh;
+    position: relative;
+    display: flex;
+    justify-content: center;
+    padding: 88px 24px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+.page > .section .wrap { margin: auto; }
+.page > .section:nth-of-type(1) { background: radial-gradient(1100px 620px at 30% 44%, rgba(0,255,204,.06), transparent 65%), var(--s1); }
+.page > .section:nth-of-type(2) { background: var(--s2); }
+.page > .section:nth-of-type(3) { background: var(--s3); }
+.page > .section:nth-of-type(4) { background: var(--s4); }
+.page > .section:nth-of-type(5) { background: var(--s5); }
+.page > .section:nth-of-type(6) { background: var(--s6); }
+.page > .section:nth-of-type(7) { background: var(--s7); }
+.page > .section:nth-of-type(8) { background: var(--s8); }
+.page > .section::after {
+    content: "";
+    position: absolute; left: 0; right: 0; bottom: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(0,255,204,.4), rgba(255,46,196,.4), transparent);
+    opacity: .55;
+}
+
+.wrap { width: 100%; max-width: 1080px; }
+#hero { overflow: hidden; }
+#hero .wrap { max-width: 1240px; }
+
+/* ===========================================
+   排版
+   =========================================== */
+.eyebrow {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--cyan);
+    margin-bottom: 14px;
+}
+.title {
+    font-family: var(--font-display);
+    font-size: clamp(26px, 3vw, 38px);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    line-height: 1.12;
+    color: var(--ink);
+    margin-bottom: 16px;
+}
+.lead {
+    font-size: clamp(15px, 1.4vw, 17.5px);
+    line-height: 1.62;
+    color: var(--ink-2);
+    max-width: 820px;
+    margin-bottom: 28px;
+}
+.lead strong { color: var(--ink); font-weight: 600; }
+.accent { color: var(--cyan); }
+.accent-m { color: var(--magenta); }
+.mono { font-family: var(--font-mono); }
+.muted { color: var(--ink-3); }
+
+/* ===========================================
+   徽章（终端 chip）
+   =========================================== */
+.badge-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.badge {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1;
+    padding: 8px 13px;
+    border-radius: var(--r-sm);
+    color: var(--ink-2);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    white-space: nowrap;
+    transition: transform .2s var(--ease), border-color .2s, box-shadow .2s, color .2s;
+}
+.badge:hover { transform: translateY(-2px); border-color: rgba(0,255,204,.45); color: var(--ink); box-shadow: var(--glow-cyan); }
+.badge.badge-accent {
+    color: var(--cyan);
+    background: rgba(0,255,204,.08);
+    border-color: rgba(0,255,204,.32);
+    box-shadow: var(--glow-cyan);
+}
+
+/* ===========================================
+   卡片（终端面板）
+   =========================================== */
+.grid { display: grid; gap: 18px; }
+.grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+.grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+.card {
+    background: linear-gradient(180deg, var(--panel-2), var(--panel));
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    padding: 22px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color .25s var(--ease), box-shadow .25s var(--ease), transform .25s var(--ease);
+}
+.card::before {
+    content: "";
+    position: absolute; top: 0; left: 18px; right: 18px; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(0,255,204,.5), transparent);
+    opacity: 0; transition: opacity .25s var(--ease);
+}
+.card:hover { border-color: rgba(0,255,204,.4); box-shadow: var(--glow-cyan); transform: translateY(-2px); }
+.card:hover::before { opacity: 1; }
+.card .card-title { font-size: 17px; font-weight: 600; color: var(--ink); display: flex; align-items: center; gap: 10px; }
+.card .card-title svg { color: var(--cyan); flex: 0 0 auto; }
+.card .idx { position: absolute; top: 14px; right: 16px; font-family: var(--font-mono); font-size: 12px; letter-spacing: .08em; color: var(--ink-3); opacity: .7; }
+.card .card-role {
+    font-family: var(--font-mono); font-size: 12px; font-weight: 500;
+    color: var(--cyan); background: rgba(0,255,204,.08);
+    border: 1px solid rgba(0,255,204,.3); border-radius: var(--r-sm); padding: 2px 8px;
+}
+.card .card-role.role-m { color: var(--magenta); background: rgba(255,46,196,.08); border-color: rgba(255,46,196,.3); }
+.card .card-body { font-size: 14.5px; line-height: 1.6; color: var(--ink-2); }
+.card .card-foot { font-size: 12.5px; line-height: 1.5; color: var(--ink-3); border-top: 1px solid var(--line-soft); padding-top: 10px; }
+
+/* ===========================================
+   HERO
+   =========================================== */
+.hero-brand { display: flex; align-items: center; gap: 22px; margin-bottom: 22px; }
+.hero-brand svg { transition: color .3s, filter .3s; }
+.hero-brand:hover svg { color: var(--cyan); filter: drop-shadow(0 0 12px rgba(0,255,204,.5)); }
+.hero-wordmark {
+    font-family: var(--font-display);
+    font-size: clamp(34px, 5vw, 58px);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    line-height: 1.03;
+    color: var(--ink);
+    text-shadow: 0 0 46px rgba(0,255,204,.26);
+}
+.hero-tagline { font-size: clamp(16px, 1.6vw, 19px); line-height: 1.68; color: var(--ink-2); max-width: 820px; margin-bottom: 28px; }
+
+/* hero 数据条（数字均为仓库实测） */
+.hero-stats { display: flex; flex-wrap: wrap; margin-bottom: 28px; }
+.hero-stats .stat { display: flex; flex-direction: column; gap: 4px; padding: 0 28px; border-left: 1px solid var(--line); }
+.hero-stats .stat:first-child { padding-left: 0; border-left: none; }
+.hero-stats .stat-n { font-family: var(--font-mono); font-size: 27px; font-weight: 700; line-height: 1; color: var(--cyan); text-shadow: 0 0 18px rgba(0,255,204,.35); }
+.hero-stats .stat:nth-child(3) .stat-n { font-size: 30px; }  /* ✓ 笔画开放，略放大平衡视觉重量 */
+.hero-stats .stat-l { font-size: 12px; letter-spacing: .06em; color: var(--ink-3); }
+
+/* hero 幽灵水印 */
+.hero-ghost { position: absolute; right: 3%; bottom: 8%; font-family: var(--font-mono); font-weight: 700; font-size: clamp(90px, 13vw, 200px); line-height: 1; letter-spacing: .05em; color: transparent; -webkit-text-stroke: 1px rgba(0,255,204,.08); user-select: none; pointer-events: none; }
+
+/* M3 工作流：左选择栏 × 右链展示 */
+.wf-layout { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 34px; align-items: start; }
+.wf-list { display: flex; flex-direction: column; gap: 8px; }
+.wf-tab { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; text-align: left; font-family: var(--font-mono); background: transparent; border: 1px solid transparent; border-left: 2px solid var(--line); border-radius: 0 var(--r-sm) var(--r-sm) 0; padding: 11px 14px; cursor: pointer; transition: border-color .2s, background .2s; }
+.wf-tab .wf-name { font-size: 14px; font-weight: 600; color: var(--ink-2); transition: color .2s; }
+.wf-tab .wf-sub { font-size: 11.5px; color: var(--ink-3); font-family: var(--font-body); }
+.wf-tab:hover { background: rgba(0,255,204,.04); }
+.wf-tab:hover .wf-name { color: var(--cyan); }
+.wf-tab.active { border-left-color: var(--cyan); background: rgba(0,255,204,.06); }
+.wf-tab.active .wf-name { color: var(--cyan); }
+.wf-display { padding-top: 2px; min-height: 470px; }
+.wf-head { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; flex-wrap: wrap; }
+.wf-title { font-family: var(--font-mono); font-size: 19px; font-weight: 700; color: var(--ink); }
+.wf-sub2 { font-size: 13px; color: var(--ink-3); }
+.wf-desc { font-size: 15px; line-height: 1.65; color: var(--ink-2); margin-bottom: 4px; }
+.wf-sec { font-family: var(--font-mono); font-size: 11.5px; letter-spacing: .12em; color: var(--ink-3); margin: 18px 0 10px; }
+.wf-tree { display: flex; flex-direction: column; gap: 8px; font-family: var(--font-mono); font-size: 13.5px; }
+.wf-tln { color: var(--ink); animation: wfIn .45s var(--ease) both; }
+.wf-tln .t-dir { color: var(--cyan); }
+.wf-tln .t-note { color: var(--ink-3); font-family: var(--font-body); font-size: 12px; margin-left: 10px; }
+.wf-files-note { font-size: 13.5px; color: var(--ink-3); font-family: var(--font-body); }
+.wf-chain { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 10px; }
+.wf-chip { font-family: var(--font-mono); font-size: 14px; color: var(--ink); background: var(--code-bg); border: 1px solid var(--line); border-radius: var(--r-md); padding: 10px 15px; animation: wfIn .45s var(--ease) both; }
+.wf-chip.gated { border-color: rgba(255,46,196,.4); }
+.wf-gate { font-style: normal; color: var(--magenta); font-size: 10px; margin-left: 7px; }
+.wf-arr { color: var(--cyan); opacity: .7; font-family: var(--font-mono); font-size: 15px; animation: wfIn .45s var(--ease) both; }
+@keyframes wfIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+/* M4 工作原理：run 生命周期动线 */
+/* —— M4 架构画板：HTML 卡片布局 + JS 运行时正交连线（不依赖手工坐标，天然防重叠） —— */
+.board { position: relative; border: 1px solid var(--line); border-radius: var(--r-lg); background: linear-gradient(180deg, var(--panel-2), var(--panel)); padding: 18px 18px 8px; overflow-x: auto; }
+.board-fit { position: relative; margin: 0 auto; }   /* 缩放承压层：布局宽=缩放后宽，承担居中 */
+.board-inner { min-width: 950px; position: relative; }
+.board-wires { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 0; }
+.board-hint { display: none; justify-content: center; align-items: center; margin: 10px 2px 0; font-family: var(--font-mono); font-size: 11px; letter-spacing: .1em; color: var(--ink-3); user-select: none; }
+/* 画板屏需要缩放时：先收紧本屏留白，再收纳 lc-meta，最后才等比缩放（仅本屏生效） */
+#how.board-compact { padding-top: 46px; padding-bottom: 34px; }
+#how.board-compact .lead { margin-bottom: 14px; }
+#how.board-compact .board-legend { margin: 10px 2px 0; }
+.stratum { position: relative; border-radius: 12px; padding: 14px 12px 18px; margin-bottom: 26px; }
+.s-out { margin-bottom: 4px; }
+.s-def { background: rgba(0,255,204,.025); border: 1px solid rgba(0,255,204,.13); }
+.s-run { background: rgba(10,15,28,.5); border: 1px solid rgba(233,241,255,.1); }
+.s-out { background: rgba(255,46,196,.02); border: 1px solid rgba(255,46,196,.1); }
+.s-label { font-family: var(--font-mono); font-size: 12px; font-weight: 600; letter-spacing: .12em; margin-bottom: 14px; }
+.s-def .s-label { color: rgba(0,255,204,.85); }
+.s-run .s-label { color: #A9BCDD; }
+.s-out .s-label { color: rgba(255,46,196,.8); }
+.b-card { position: relative; z-index: 1; border-radius: 9px; padding: 12px 14px; border: 1px solid; transition: box-shadow .25s, border-color .25s; }
+.b-card b { display: block; font-family: var(--font-mono); font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 5px; }
+.b-card span { display: block; font-size: 11px; line-height: 1.6; color: #A9BCDD; }
+.b-card.e { border-color: rgba(0,255,204,.38); background: rgba(0,255,204,.045); }
+.b-card.e:hover { border-color: rgba(0,255,204,.7); box-shadow: 0 0 12px rgba(0,255,204,.15); }
+.b-card.a { border-color: rgba(255,46,196,.42); background: rgba(255,46,196,.05); }
+.b-card.a:hover { border-color: rgba(255,46,196,.7); box-shadow: 0 0 12px rgba(255,46,196,.15); }
+.b-card.u { border-color: rgba(233,241,255,.42); background: rgba(233,241,255,.045); }
+.b-card.u:hover { border-color: rgba(233,241,255,.7); box-shadow: 0 0 12px rgba(233,241,255,.12); }
+.b-card.o { border-color: rgba(255,46,196,.35); background: rgba(255,46,196,.035); }
+.b-card.hub { border-color: rgba(0,255,204,.55); background: rgba(0,255,204,.07); border-width: 1.4px; }
+.b-card[data-badge]::after { content: attr(data-badge); position: absolute; top: -9px; left: -9px; width: 19px; height: 19px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 10.5px; font-weight: 700; background: #0A0F1C; }
+.b-card[data-badge].e::after { border: 1px solid rgba(0,255,204,.6); color: var(--cyan); }
+.b-card[data-badge].a::after { border: 1px solid rgba(255,46,196,.6); color: var(--magenta); }
+.b-card[data-badge].u::after { border: 1px solid rgba(233,241,255,.55); color: #E9F1FF; }
+.def-grid { display: grid; grid-template-columns: 1.1fr 1.1fr 1.3fr 1.3fr; gap: 22px; }
+.run-grid { display: grid; grid-template-columns: 145px 195px minmax(0, 1fr); gap: 18px; align-items: stretch; }
+.run-side { display: flex; flex-direction: column; gap: 12px; }
+.run-side .b-card { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 8px 12px; }
+.run-side .b-card b { margin-bottom: 2px; font-size: 12.5px; }
+.run-side .b-card span { font-size: 10.5px; }
+.b-card.hubcard { display: flex; flex-direction: column; justify-content: center; }
+.run-loop { display: flex; flex-direction: column; gap: 46px; }
+.loop-row { display: grid; grid-template-columns: 160px 176px 160px; gap: 24px; }
+.loop-row .b-card { min-height: 62px; }
+#loopC .b-card { grid-column: 2; width: 120%; justify-self: center; min-height: 54px; }
+.out-grid { display: grid; grid-template-columns: 3.6fr 1fr; gap: 22px; }
+.wire-lbl { position: absolute; z-index: 2; font-family: var(--font-mono); font-size: 10.5px; line-height: 1; padding: 3px 7px; background: rgba(7,11,20,.94); border: 1px solid var(--line-soft); border-radius: 4px; white-space: nowrap; color: #A9BCDD; }
+.board-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin: 14px 2px 20px; font-size: 12px; color: var(--ink-2); }
+.board-legend i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+.board-legend .e { background: var(--cyan); box-shadow: 0 0 7px rgba(0,255,204,.6); }
+.board-legend .a { background: var(--magenta); box-shadow: 0 0 7px rgba(255,46,196,.6); }
+.board-legend .u { background: #E9F1FF; box-shadow: 0 0 7px rgba(233,241,255,.4); }
+.board-legend .dash { border-top: 1.5px dashed rgba(255,46,196,.8); padding-top: 2px; }
+.board-legend .solid { border-top: 1.5px solid rgba(0,255,204,.8); padding-top: 2px; }
+.lc-meta { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
+.lc-chip { font-family: var(--font-mono); font-size: 12px; color: var(--ink-2); background: var(--panel); border: 1px solid var(--line); border-radius: 99px; padding: 6px 13px; }
+.lc-chip .accent { font-weight: 600; }
+
+/* M2 为什么：痛点清单 × 信任循环 双栏 */
+.why-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 46px; align-items: start; margin-bottom: 8px; }
+.why-col-label { font-family: var(--font-mono); font-size: 11.5px; letter-spacing: .14em; color: var(--ink-3); margin-bottom: 14px; }
+.why-col-label.accent { color: var(--cyan); }
+.pain-list { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.pain-list li { display: flex; align-items: baseline; gap: 10px; font-size: 15px; color: var(--ink-2); padding: 11px 14px; border: 1px dashed rgba(255,95,87,.35); border-radius: var(--r-md); background: rgba(255,95,87,.03); transition: border-color .25s, background .25s, transform .25s var(--ease); }
+.pain-list li:hover { border-color: rgba(255,95,87,.7); background: rgba(255,95,87,.06); transform: translateX(4px); }
+.pain-list .x { color: var(--danger); font-weight: 700; font-family: var(--font-mono); }
+.why-note { font-size: 12.5px; color: var(--ink-3); margin-top: 12px; }
+.why-loop { position: relative; }
+.why-loop::before { content: ""; position: absolute; left: 0; top: 36px; bottom: 6px; width: 2px; border-radius: 2px; background: linear-gradient(180deg, rgba(0,255,204,.42), rgba(0,255,204,.24) 62%, rgba(255,46,196,.4)); }
+.loop-step { position: relative; padding: 12px 14px 12px 38px; }
+.loop-step:hover .loop-role { color: var(--cyan); }
+.loop-step:hover .loop-dot { box-shadow: 0 0 14px rgba(0,255,204,.85); }
+.loop-dot { position: absolute; left: -4px; top: 17px; width: 10px; height: 10px; border-radius: 50%; background: var(--cyan); box-shadow: var(--glow-cyan); }
+.loop-dot.dot-m { background: var(--magenta); box-shadow: var(--glow-magenta); }
+.loop-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.loop-role { font-family: var(--font-mono); font-size: 15px; font-weight: 700; color: var(--ink); transition: color .25s; }
+.loop-chip { font-family: var(--font-mono); font-size: 11px; color: var(--cyan); background: rgba(0,255,204,.08); border: 1px solid rgba(0,255,204,.3); border-radius: var(--r-sm); padding: 2px 8px; }
+.loop-chip.m { color: var(--magenta); background: rgba(255,46,196,.08); border-color: rgba(255,46,196,.3); }
+.loop-body { font-size: 14px; line-height: 1.62; color: var(--ink-2); }
+.loop-link { font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-3); padding: 5px 0 5px 38px; }
+.loop-link.loop-back { color: var(--magenta); }
+
+/* hero 底部 basic 阶段轨：静态核心概念可视化（◆=确认门），一次性入场淡入 */
+.stage-rail { position: absolute; left: 50%; transform: translateX(-50%); bottom: 20px; display: flex; align-items: center; gap: 9px; font-family: var(--font-mono); font-size: 12px; white-space: nowrap; color: var(--ink-2); animation: railIn .8s var(--ease) .4s both; }
+@keyframes railIn { from { opacity: 0; transform: translateX(-50%) translateY(8px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+.stage-rail .rail-label { color: var(--ink-3); letter-spacing: .1em; }
+.stage-rail .gate { color: var(--magenta); font-size: 10px; opacity: .75; }
+.stage-rail .arr { color: var(--ink-3); opacity: .6; }
+.hero-meta { margin-bottom: 26px; }
+.hero-meta-line { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; font-family: var(--font-mono); font-size: 12.5px; letter-spacing: .04em; color: var(--ink-3); margin-bottom: 26px; }
+.hero-meta-line .v { color: var(--cyan); }
+.hero-meta-line .sep { opacity: .5; }
+
+/* ===========================================
+   HERO 双栏：左信息+锚点 / 右简化 cmd 模拟
+   =========================================== */
+.hero-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 56px; align-items: center; }
+.hero-grid .hero-wordmark { font-size: clamp(38px, 4.6vw, 62px); }
+.hero-anchors { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; padding-top: 14px; }
+.hero-anchors .sep { color: var(--ink-3); opacity: .55; font-size: 12px; }
+.hero-anchors a { font-size: 14px; color: var(--ink-2); text-decoration: none; transition: color .2s; }
+.hero-anchors a:hover { color: var(--cyan); }
+.hero-anchors a.ext:hover { color: var(--cyan); }
+
+/* 首屏简化 cmd 模拟（复用终端窗视觉，极简版） */
+.mini-win {
+    background: var(--code-bg);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    box-shadow: 0 8px 30px rgba(0,0,0,.35);
+    overflow: hidden;
+    transition: transform .3s var(--ease), box-shadow .3s;
+}
+.mini-win:hover { transform: translateY(-3px); box-shadow: 0 14px 40px rgba(0,0,0,.45); }
+.mini-win .mw-dots i { transition: background .25s; }
+.mini-win:hover .mw-dots i:nth-child(1) { background: var(--danger); }
+.mini-win:hover .mw-dots i:nth-child(2) { background: var(--warn); }
+.mini-win:hover .mw-dots i:nth-child(3) { background: var(--ok); }
+.mini-win .mw-head {
+    display: flex; align-items: center; gap: 12px;
+    padding: 8px 14px; border-bottom: 1px solid var(--line-soft);
+    font-family: var(--font-mono); font-size: 12px; font-weight: 500; color: var(--ink-3);
+}
+.mini-win .mw-head .mw-dots { display: flex; gap: 6px; }
+.mini-win .mw-head .mw-dots i { width: 8px; height: 8px; border-radius: 99px; background: var(--line); }
+.mini-win .mw-body {
+    padding: 16px 18px; min-height: 360px;
+    font-family: var(--font-mono); font-size: 12.5px; line-height: 1.7;
+    display: flex; flex-direction: column; gap: 2px;
+}
+.mw-ln { display: flex; align-items: baseline; white-space: pre-wrap; word-break: break-word; animation: msgIn .3s ease-out; }
+.mw-ln .mw-tag { flex: 0 0 auto; font-size: 10.5px; font-weight: 500; margin-right: 6px; }
+.mw-tag.claude { color: var(--magenta-dim); }
+.mw-tag.cli { color: var(--ink-3); }
+.mw-ln .mw-tx { flex: 1 1 auto; }
+.mw-ln .mw-p { color: var(--cyan); font-weight: 700; margin-right: 8px; }
+.mw-ln.mw-think .mw-tx { color: #8AA2C4; }
+.mw-ln.mw-tool .mw-tx { color: var(--ink); }
+.mw-ln.mw-tool .mw-gear { color: var(--cyan); margin-right: 3px; }
+.mw-ln.mw-cli .mw-tx { color: var(--ink-3); }
+.mw-ln.mw-gate .mw-tx { color: var(--warn); }
+.mw-ln.mw-ok .mw-tx { color: var(--ok); }
+.mw-ln.mw-you { background: rgba(0,255,204,.06); border-left: 2px solid var(--cyan); border-radius: 0 var(--r-sm) var(--r-sm) 0; padding: 2px 8px 2px 7px; color: #FFFFFF; font-weight: 600; }
+.mw-caret { display: inline-block; width: 8px; height: .95em; vertical-align: -0.12em; background: var(--cyan); box-shadow: 0 0 10px var(--cyan); animation: blink 1s steps(2, start) infinite; }
+@keyframes blink { 0%,49% { opacity: 1; } 50%,100% { opacity: 0; } }
+
+/* 全局焦点环（键盘可见性） */
+:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+
+/* ===========================================
+   CLAUDE 终端窗 + 左右两栏（SOP）
+   =========================================== */
+.sop-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 18px; height: min(64vh, 560px); align-items: stretch; }
+
+.claude-win {
+    display: flex; flex-direction: column;
+    background: var(--code-bg);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    box-shadow: 0 20px 60px rgba(0,0,0,.5), var(--glow-cyan);
+    overflow: hidden;
+    height: 100%;
+}
+.cw-head {
+    display: flex; align-items: center; gap: 16px;
+    padding: 13px 20px; background: var(--panel-2); border-bottom: 1px solid var(--line);
+}
+.cw-dots { display: flex; gap: 8px; flex-shrink: 0; }
+.cw-dots i { width: 12px; height: 12px; border-radius: 99px; }
+.cw-dots i:nth-child(1) { background: var(--danger); }
+.cw-dots i:nth-child(2) { background: var(--warn); }
+.cw-dots i:nth-child(3) { background: var(--ok); }
+.cw-head .cw-title { font-family: var(--font-mono); font-size: 13.5px; font-weight: 500; color: var(--ink-2); }
+.cw-head .cw-stage { font-family: var(--font-mono); font-size: 12.5px; font-weight: 500; color: var(--cyan); background: rgba(0,255,204,.08); border: 1px solid rgba(0,255,204,.3); border-radius: var(--r-sm); padding: 5px 11px; white-space: nowrap; margin-left: auto; }
+.cw-replay { margin-left: 2px; background: transparent; border: 1px solid var(--line); color: var(--ink-2); font-family: var(--font-mono); font-size: 12px; padding: 4px 10px; border-radius: var(--r-sm); cursor: pointer; transition: color .2s, border-color .2s; white-space: nowrap; }
+.cw-replay:hover { color: var(--cyan); border-color: rgba(0,255,204,.4); }
+
+.cw-body {
+    flex: 1; min-height: 0; overflow-y: auto; padding: 18px 20px;
+    display: flex; flex-direction: column; gap: 11px;
+    background-image: repeating-linear-gradient(0deg, rgba(255,255,255,.025) 0 1px, transparent 1px 4px);
+}
+
+/* ============ 终端日志行（明确标注 你/Claude/CLI/skill） ============ */
+.ln { font-family: var(--font-mono); font-size: 13px; line-height: 1.6; display: flex; align-items: baseline; gap: 9px; animation: msgIn .3s ease-out; }
+.ln.key { background: rgba(0,255,204,.055); border-left: 2px solid var(--cyan); border-radius: 0 4px 4px 0; padding: 4px 8px; }
+.ln.key .cli-t, .ln.key .think, .ln.key .act { color: var(--ink); }
+.cursor { color: var(--cyan); animation: blinkC 1.1s steps(1) infinite; }
+@keyframes blinkC { 50% { opacity: 0; } }
+.cw-stage.done { color: var(--cyan); }
+
+/* ============ 自定义屏 · 概念规格行 + PROMPT 模板 ============ */
+.ext-rows { margin-bottom: 6px; }
+.ext-row {
+    display: grid; grid-template-columns: 200px 1fr; gap: 20px;
+    padding: 12px 0; border-bottom: 1px dashed var(--line-soft); align-items: baseline;
+}
+.ext-row:last-child { border-bottom: none; }
+.ext-term { font-family: var(--font-display); font-size: 15px; font-weight: 600; color: var(--ink); white-space: nowrap; }
+.ext-term b {
+    font-family: var(--font-mono); font-size: 11px; font-weight: 500;
+    color: var(--cyan); margin-right: 8px; letter-spacing: .08em;
+}
+.ext-term small {
+    display: block; margin-top: 4px;
+    font-family: var(--font-mono); font-size: 11px; font-weight: 400; color: var(--ink-2);
+}
+.ext-desc { font-size: 13px; line-height: 1.7; color: var(--ink-2); }
+.ext-desc .mono { font-size: 12px; }
+
+.qs-prompt {
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-lg);
+    overflow: hidden; margin-bottom: 16px;
+}
+.qs-prompt-head {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 9px 12px 9px 18px; border-bottom: 1px solid var(--line-soft);
+    font-family: var(--font-mono); font-size: 11px; letter-spacing: .1em;
+    color: var(--ink-2); text-transform: uppercase;
+}
+.qs-copy {
+    font-family: var(--font-mono); font-size: 11px; letter-spacing: .06em;
+    color: var(--cyan); background: rgba(0,255,204,.07);
+    border: 1px solid rgba(0,255,204,.32); border-radius: 6px;
+    padding: 4px 12px; cursor: pointer; transition: background .2s var(--ease);
+}
+.qs-copy:hover { background: rgba(0,255,204,.16); }
+.qs-prompt pre {
+    margin: 0; padding: 14px 18px;
+    font-family: var(--font-mono); font-size: 12.5px; line-height: 1.85;
+    color: var(--ink); white-space: pre-wrap;
+}
+
+/* ============ 开始使用 · CTA 收尾 ============ */
+.end-echo { font-family: var(--font-display); font-size: 21px; font-weight: 500; color: var(--ink-2); margin-bottom: 28px; }
+.cta-row { display: flex; align-items: center; gap: 24px; margin-bottom: 28px; flex-wrap: wrap; }
+.cta-btn {
+    display: inline-flex; align-items: center; gap: 10px;
+    font-family: var(--font-display); font-size: 17px; font-weight: 600;
+    color: #04120f; background: var(--cyan);
+    border: none; border-radius: 10px; padding: 15px 34px;
+    text-decoration: none; box-shadow: 0 0 30px rgba(0,255,204,.32);
+    transition: transform .2s var(--ease), box-shadow .2s var(--ease);
+}
+.cta-btn:hover { transform: translateY(-2px); box-shadow: 0 0 46px rgba(0,255,204,.5); }
+.cta-star {
+    font-size: 13.5px; color: var(--ink-2); text-decoration: none;
+    border-bottom: 1px dashed var(--line); padding-bottom: 2px; transition: color .2s;
+}
+.cta-star:hover { color: var(--cyan); }
+.end-install { position: relative; padding-right: 92px; margin-bottom: 22px; }
+.end-install .qs-copy { position: absolute; top: 10px; right: 12px; }
+.live-row {
+    display: flex; gap: 28px; flex-wrap: wrap;
+    font-family: var(--font-mono); font-size: 12.5px; color: var(--ink-2);
+    margin-bottom: 24px;
+}
+.live-row b { color: var(--cyan); font-weight: 600; }
+.live-star { width: 12.5px; height: 12.5px; fill: var(--cyan); vertical-align: -1.8px; margin-right: 3px; }
+.host-block { margin-bottom: 24px; }
+.host-label {
+    font-family: var(--font-mono); font-size: 11px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--ink-3); margin-bottom: 14px;
+}
+.host-grid { display: flex; gap: 36px; flex-wrap: wrap; align-items: center; }
+.host { display: flex; align-items: center; gap: 10px; color: var(--ink-2); transition: color .2s var(--ease); }
+.host:hover { color: var(--ink); }
+.host-ic { width: 25px; height: 25px; fill: currentColor; opacity: .78; flex: 0 0 auto; transition: opacity .2s, filter .2s; }
+.host:hover .host-ic { opacity: 1; filter: drop-shadow(0 0 6px rgba(0,255,204,.5)); }
+.host span { font-size: 14px; font-weight: 500; }
+.host-note { font-size: 12px; color: var(--ink-3); margin-top: 14px; }
+
+.qs-install {
+    font-family: var(--font-mono); font-size: 13px; line-height: 1.8;
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-lg);
+    padding: 12px 20px; margin-bottom: 18px;
+}
+.qs-install .dollar { color: var(--cyan); font-weight: 700; margin-right: 8px; }
+.qs-install .dim { color: var(--ink-2); opacity: .85; font-size: 12px; }
+.ln .tag { flex: 0 0 auto; font-size: 10px; font-weight: 700; letter-spacing: .04em; padding: 1px 6px; border-radius: 4px; text-transform: uppercase; line-height: 1.5; }
+.ln .tag.user { color: #03130f; background: var(--cyan); }
+.ln .tag.claude { color: #1c0411; background: var(--magenta); }
+.ln .tag.cli { color: var(--ink-2); background: var(--panel-2); border: 1px solid var(--line); }
+.ln .tag.skill { color: var(--cyan); background: rgba(0,255,204,.1); border: 1px solid rgba(0,255,204,.32); }
+.ln .b { flex: 1 1 auto; white-space: pre-wrap; word-break: break-word; }
+.ln .p { color: var(--cyan); font-weight: 700; }
+.ln .t { color: var(--ink); }
+.ln .dollar { color: var(--cyan); font-weight: 700; }
+.ln .think { color: #8AA2C4; }
+.ln .act { color: var(--ink-2); }
+.ln .skill { color: var(--cyan); }
+.ln .cli-t { color: var(--ink-3); }
+.ln.ok .b { color: var(--ok); }
+.ln.user-row { background: rgba(0,255,204,.08); border-left: 2px solid var(--cyan); border-radius: 0 var(--r-sm) var(--r-sm) 0; padding: 5px 10px 5px 8px; }
+.ln.user-row .t { color: #FFFFFF; font-weight: 600; }
+
+/* 问询块（AskUserQuestion 终端样式） */
+.ask-box { font-family: var(--font-mono); font-size: 13px; line-height: 1.6; color: var(--ink-2); white-space: pre-wrap; word-break: break-word; animation: msgIn .3s ease-out; }
+.ask-box > div { min-height: 1.55em; }
+.ask-box .cb { color: var(--ink-3); }
+.ask-box .bar { color: var(--ink-3); }
+.ask-box .ab-head { color: var(--cyan); font-weight: 700; }
+.ask-box .ab-q { color: var(--ink); }
+.ask-box .ab-opt .n { color: var(--ink-3); }
+.ask-box .ab-opt .l { color: var(--ink-2); }
+.ask-box .ab-opt-d { color: var(--ink-3); }
+.ask-box .ab-pick .p { color: var(--cyan); font-weight: 700; }
+.ask-box .ab-pick .n { color: var(--magenta); font-weight: 700; }
+.ask-box .ab-pick .l { color: var(--ink); font-weight: 700; }
+.ask-box .ab-note { color: var(--ink-3); }
+.ask-box .ab-rule { color: var(--ink-3); }
+
+/* 右侧运行目录文件树 */
+.tree-panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-lg); display: flex; flex-direction: column; overflow: hidden; }
+.tree-head { padding: 13px 20px; background: var(--panel-2); border-bottom: 1px solid var(--line); font-family: var(--font-mono); font-size: 12px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--cyan); }
+.tree-head small { color: var(--ink-3); text-transform: none; letter-spacing: 0; font-weight: 400; }
+.tree-body { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 20px; font-family: var(--font-mono); font-size: 12.5px; line-height: 1.9; color: var(--ink-2); }
+.tree-body .dir { color: var(--cyan); }
+.tree-body .file { color: var(--ink); }
+.tree-body .dim { color: var(--ink-3); }
+.tree-body .tree-in { animation: msgIn .3s ease-out; }
+
+@keyframes msgIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ===========================================
+   滚动条
+   =========================================== */
+*{scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--ink-3) 35%,transparent) transparent}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--ink-3) 35%,transparent);border-radius:99px;border:2px solid transparent;background-clip:padding-box}
+::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb,var(--cyan) 45%,transparent)}
+::-webkit-scrollbar-corner{background:transparent}
+
+/* ===========================================
+   侧边圆点导航 + 计数（固定 chrome）
+   =========================================== */
+.dotnav { position: fixed; right: 22px; top: 50%; transform: translateY(-50%); z-index: 100; display: flex; flex-direction: column; gap: 12px; }
+.dotnav .dot { width: 10px; height: 10px; border-radius: 99px; background: var(--panel-2); border: 1px solid var(--line); cursor: pointer; padding: 0; position: relative; transition: background .2s, border-color .2s, box-shadow .2s, transform .2s; }
+.dotnav .dot:hover { transform: scale(1.35); border-color: var(--cyan); box-shadow: var(--glow-cyan); }
+.dotnav .dot::after {
+    content: attr(data-name);
+    position: absolute; right: 24px; top: 50%;
+    transform: translateY(-50%) translateX(6px);
+    font-family: var(--font-mono); font-size: 11px; color: var(--cyan);
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--r-sm);
+    padding: 3px 9px; white-space: nowrap;
+    opacity: 0; pointer-events: none;
+    transition: opacity .2s, transform .2s;
+}
+.dotnav .dot:hover::after { opacity: 1; transform: translateY(-50%) translateX(0); }
+.dotnav .dot.active { background: var(--cyan); border-color: var(--cyan); box-shadow: var(--glow-cyan); }
+
+/* hero 底部下滑提示 */
+.scroll-hint {
+    position: absolute; left: 50%; bottom: 26px;
+    font-family: var(--font-mono); font-size: 11px; letter-spacing: .18em;
+    color: var(--ink-3);
+    display: flex; flex-direction: column; align-items: center; gap: 7px;
+    animation: hintFloat 2.4s ease-in-out infinite;
+}
+.scroll-hint .bar { width: 1px; height: 28px; background: linear-gradient(180deg, var(--cyan), transparent); }
+@keyframes hintFloat { 0%,100% { transform: translateX(-50%) translateY(0); opacity: .65; } 50% { transform: translateX(-50%) translateY(6px); opacity: 1; } }
+/* 注：scroll-hint 由 hero-ticker 取代，保留定义以便回退快照时样式完整 */
+
+/* ===========================================
+   REVEAL 动画（进入视口触发）
+   =========================================== */
+.reveal { opacity: 0; }
+
+/* 通用模块入场：容器上浮淡入 + 子级级联（无缩放/模糊，保证文字清晰与节奏统一）
+   改用 CSS animation 而非 transition：类加上即播放、不依赖样式变更时序；
+   in-view 一经加上不再摘除，任何中断下内容都不会停留在隐藏态 */
+.section .wrap { opacity: 0; }
+.section.in-view .wrap { animation: wrapIn .5s var(--ease) both; }
+
+.section.in-view .reveal { animation: revIn .55s var(--ease) both; }
+.section.in-view .reveal:nth-child(1) { animation-delay: .05s; }
+.section.in-view .reveal:nth-child(2) { animation-delay: .12s; }
+.section.in-view .reveal:nth-child(3) { animation-delay: .19s; }
+.section.in-view .reveal:nth-child(4) { animation-delay: .26s; }
+.section.in-view .reveal:nth-child(5) { animation-delay: .33s; }
+.section.in-view .reveal:nth-child(6) { animation-delay: .40s; }
+
+@keyframes wrapIn { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: none; } }
+@keyframes revIn { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+    * { animation-duration: .01ms !important; transition-duration: .2s !important; }
+    html { scroll-behavior: auto; }
+    .mw-caret { animation: none; opacity: 1; }
+}
+
+/* ===========================================
+   响应式（移动端折叠）
+   =========================================== */
+/* —— 移动端骨架（≤768px）：全屏吸附翻页 → 自然文档流。样式与内容不变，仅切换布局骨架 —— */
+@media (max-width: 768px) {
+    html { scroll-behavior: smooth; }
+    .page > .section {
+        height: auto; min-height: 100vh;      /* 每屏至少一满屏，超高内容自然向下长 */
+        display: block; overflow: visible;    /* 解除 100vh 锁屏与屏内滚动 */
+        padding: 60px 18px 52px;
+    }
+    @supports (min-height: 100svh) { .page > .section { min-height: 100svh; } }
+    .page > .section .wrap { margin: 0; max-width: 100%; }
+    .dotnav, .stage-rail { display: none; }   /* 右缘圆点导航与底部流程条让位给自然滚动 */
+    .board-hint { display: flex; }            /* 画板在移动端保留内部横滚，给出滑动提示 */
+    .title { margin-bottom: 10px; }
+    .ext-rows .ext-row { grid-template-columns: 1fr; gap: 6px; padding: 10px 0; }
+    .qs-prompt pre { font-size: 11.5px; line-height: 1.75; padding: 12px 14px; }
+    .qs-install { font-size: 11.5px; padding: 12px 14px; }
+    .qs-install div, .qs-install span { overflow-wrap: anywhere; }
+    /* 补回按钮让位：上面 padding 简写会覆盖 .end-install 的 padding-right */
+    .end-install { padding-right: 72px; }
+    .end-install .qs-copy { padding: 3px 10px; }
+    .host-grid { gap: 20px 24px; }
+    .end-echo { font-size: 18px; margin-bottom: 20px; }
+    .cta-row { gap: 16px; margin-bottom: 22px; }
+    .cta-btn { font-size: 15px; padding: 12px 26px; }
+    .live-row { gap: 14px; font-size: 11.5px; }
+    .board-legend { gap: 10px; }
+}
+@media (max-width: 900px) {
+    .hero-grid { grid-template-columns: 1fr; gap: 28px; }
+    .why-grid { grid-template-columns: 1fr; gap: 30px; }
+    .wf-layout { grid-template-columns: 1fr; gap: 22px; }
+    .wf-list { flex-direction: row; flex-wrap: wrap; }
+    .wf-display { min-height: 0; }
+    .sop-grid { grid-template-columns: 1fr; height: auto; }
+    .claude-win { height: min(60vh, 520px); }
+    .tree-panel { height: 300px; }
+}
+@media (max-width: 720px) {
+    .grid.cols-3, .grid.cols-2 { grid-template-columns: 1fr; }
+    .board { padding: 12px 12px 8px; }
+    .dotnav { right: 12px; gap: 9px; }
+    .stage-rail { font-size: 10px; gap: 5px; }
+    .stage-rail .st { padding: 3px 6px; }
+    .stage-rail .rail-label { display: none; }
+    .cw-head .cw-title { display: none; }
+    .mini-win .mw-body { min-height: 372px; }
+}
+</style>
+</head>
+<body>
+
+<!-- 侧边圆点导航 -->
+<nav class="dotnav" id="dotnav" aria-label="模块导航"></nav>
+<div class="fx-layer" aria-hidden="true"></div>
+
+<main class="page">
+
+    <!-- ============ 01 · HERO（左信息+锚点 / 右简化 cmd 模拟） ============ -->
+    <section class="section" id="hero">
+        <div class="wrap">
+            <div class="hero-grid">
+                <div class="hero-left">
+                    <div class="hero-brand reveal">
+                        <svg width="72" height="72" viewBox="0 0 100 100" role="img" aria-label="Ddo 产品族图标：节点链" style="color: var(--ink)">
+                            <g fill="currentColor">
+                                <circle cx="32" cy="60" r="6.5"/>
+                                <circle cx="50" cy="44" r="6.5"/>
+                                <circle cx="66" cy="56" r="3.5" opacity=".8"/>
+                                <circle cx="23" cy="46" r="2" opacity=".4"/>
+                                <circle cx="72" cy="38" r="1.8" opacity=".35"/>
+                            </g>
+                            <g fill="none" stroke="currentColor" stroke-width="2" opacity=".5" stroke-linecap="round">
+                                <path d="M37.5 56 C42 51 44 49 45.3 47.8"/>
+                                <path d="M54.5 48.5 C59 52 61.5 54 63 55"/>
+                            </g>
+                        </svg>
+                        <div class="hero-wordmark">Ddo-Code-Flow</div>
+                    </div>
+
+                    <div class="hero-tagline reveal">
+                        显式调用的分阶段任务执行 skill —— 把任务放入选定工作流，由代理依次完成，在人工审核点等待你的决议，全程保存状态、支持中断恢复。
+                    </div>
+
+                    <div class="hero-stats reveal">
+                        <div class="stat"><span class="stat-n">↺</span><span class="stat-l">断点可恢复</span></div>
+                        <div class="stat"><span class="stat-n">◆</span><span class="stat-l">确认门把关</span></div>
+                        <div class="stat"><span class="stat-n">✓</span><span class="stat-l">产物硬校验</span></div>
+                        <div class="stat"><span class="stat-n">0</span><span class="stat-l">运行时依赖</span></div>
+                    </div>
+
+                    <div class="hero-meta-line reveal">
+                        <span class="v">v2.2</span><span class="sep">·</span>
+                        <span>MIT</span><span class="sep">·</span>
+                        <span>零依赖 Node CLI</span><span class="sep">·</span>
+                        <span>Node ≥ 18</span>
+                    </div>
+
+                    <nav class="hero-anchors reveal" aria-label="页面锚点">
+                        <a href="#what">为什么</a><span class="sep">/</span>
+                        <a href="#workflows">工作流</a><span class="sep">/</span>
+                        <a href="#how">工作原理</a><span class="sep">/</span>
+                        <a href="#sop">SOP</a><span class="sep">/</span>
+                        <a href="#quickstart">自定义</a><span class="sep">·</span>
+                        <a class="ext" href="https://github.com/Djhhhhhh/Ddo-Code-Flow" target="_blank" rel="noopener">GitHub ↗</a>
+                    </nav>
+                </div>
+
+                <div class="hero-right reveal">
+                    <div class="mini-win" id="miniWin">
+                        <div class="mw-head">
+                            <span class="mw-dots"><i></i><i></i><i></i></span>
+                            <span>Ddo-Code-Flow · 一次 run 的剪影</span>
+                        </div>
+                        <div class="mw-body" id="miniBody" role="log" aria-label="命令行演示：一次 run 的极简流程"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="hero-ghost" aria-hidden="true">DDO</div>
+        <div class="stage-rail" aria-hidden="true">
+            <span class="rail-label">basic ·</span>
+            <span class="st">requirement</span><span class="arr">→</span>
+            <span class="st">spec</span><span class="gate">◆</span><span class="arr">→</span>
+            <span class="st">plan</span><span class="gate">◆</span><span class="arr">→</span>
+            <span class="st">coding</span><span class="gate">◆</span><span class="arr">→</span>
+            <span class="st">reporting</span>
+        </div>
+    </section>
+
+    <!-- ============ 02 · 为什么需要它（痛点 × 信任循环） ============ -->
+    <section class="section" id="what">
+        <div class="wrap">
+            <div class="eyebrow reveal">01 · WHY</div>
+            <h2 class="title reveal">为什么需要它</h2>
+            <p class="lead reveal">
+                直接让 AI 完成开发任务，过程不受约束：需求、方案、留档与接续都押在一次对话上。
+                Ddo-Code-Flow 不替代理写代码，而是把任务组织成<strong class="accent">可审核、可恢复的流程</strong>，用一个零依赖的 Node CLI 检查执行位置、输出契约与确认门。
+            </p>
+            <div class="why-grid">
+                <div class="why-pains reveal">
+                    <div class="why-col-label">// PAIN POINTS</div>
+                    <ul class="pain-list">
+                        <li><span class="x">✗</span>需求未对齐就动手实现</li>
+                        <li><span class="x">✗</span>方案没有审核就定稿</li>
+                        <li><span class="x">✗</span>过程与决策缺少留档</li>
+                        <li><span class="x">✗</span>会话中断后无法接续</li>
+                        <li><span class="x">✗</span>流程固定死板，无法按需组合</li>
+                    </ul>
+                    <p class="why-note">—— AI 单打独斗的默认工作方式，缺少流程约束。</p>
+                </div>
+                <div class="why-loop reveal">
+                    <div class="why-col-label accent">// TRUST LOOP · 三方分工</div>
+                    <div class="loop-step">
+                        <span class="loop-dot"></span>
+                        <div class="loop-head"><span class="loop-role">执行内核</span><span class="loop-chip">组织</span></div>
+                        <div class="loop-body">skill 的确定性流水线内核（零依赖 Node CLI）：提供当前指令、校验产物、检查位置与确认门、推进状态。<span class="muted">不代替代理完成任务，不代替用户决议。</span></div>
+                    </div>
+                    <div class="loop-link">指令（exec）↓</div>
+                    <div class="loop-step">
+                        <span class="loop-dot dot-m"></span>
+                        <div class="loop-head"><span class="loop-role">代理</span><span class="loop-chip m">执行</span></div>
+                        <div class="loop-body">指宿主中的 AI coding agent（如 Claude Code、Codex）——skill 加载后由它完成实际工作：执行指令、校验产物、呈现选项并代跑合法命令。<span class="muted">不手改 state，不自造选项，不替用户批准。</span></div>
+                    </div>
+                    <div class="loop-link">待审内容（gate present）↓</div>
+                    <div class="loop-step">
+                        <span class="loop-dot"></span>
+                        <div class="loop-head"><span class="loop-role">用户</span><span class="loop-chip">决议</span></div>
+                        <div class="loop-body">显式调用、选择配置、审核关键交付并作出决议。<span class="muted">不需要手动操作内部状态文件。</span></div>
+                    </div>
+                    <div class="loop-link loop-back">↺ 决议驱动推进（next）· 呈现与决议全程留痕</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ 03 · 工作流：链选择器 ============ -->
+    <section class="section" id="workflows">
+        <div class="wrap">
+            <div class="eyebrow reveal">02 · WORKFLOWS</div>
+            <h2 class="title reveal">选一条链开始</h2>
+            <p class="lead reveal">
+                内置五条预设工作流覆盖开发、测试与交付收尾；也可以自由组合原子任务，定义自己的链。
+            </p>
+            <div class="wf-layout reveal">
+                <div class="wf-list" id="wfTabs"></div>
+                <div class="wf-display">
+                    <div class="wf-head">
+                        <span class="wf-title" id="wfTitle"></span>
+                        <span class="wf-sub2" id="wfSub2"></span>
+                    </div>
+                    <p class="wf-desc" id="wfDesc"></p>
+                    <div class="wf-sec">// 阶段链</div>
+                    <div class="wf-chain" id="wfChain"></div>
+                    <div class="wf-sec">// 产物 · 一次 run 落盘</div>
+                    <div class="wf-files" id="wfFiles"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ 04 · 工作原理：一次 run 的生命周期 ============ -->
+    <section class="section" id="how">
+        <div class="wrap">
+            <div class="eyebrow reveal">03 · HOW IT WORKS</div>
+            <h2 class="title reveal">一次 run 的执行架构</h2>
+            <p class="lead reveal">
+                一张图看懂：三方各在哪一层、指令按 ①–⑧ 什么顺序流动、每一步被什么硬约束兜住。
+            </p>
+            <div class="board reveal">
+                <div class="board-fit">
+                <div class="board-inner">
+                    <svg class="board-wires" id="archWires" aria-hidden="true"></svg>
+                    <div class="stratum s-def">
+                        <div class="s-label">定义层 · 仓库静态资产</div>
+                        <div class="def-grid">
+                            <div class="b-card e" id="n-skill">
+                                <b>SKILL.md</b>
+                                <span>唯一调用入口 · 显式调用才启动</span>
+                                <span>调用契约 · 启动分流 · 执行循环节律</span>
+                                <span>安全红线 · 细节以引擎 help 为权威</span>
+                            </div>
+                            <div class="b-card e" id="n-cli">
+                                <b>tools/cli.js</b>
+                                <span>确定性执行内核</span>
+                                <span>16 命令 · 零依赖 · stdout 仅 JSON</span>
+                                <span>退出码 0 / 1 / 2 硬约定</span>
+                            </div>
+                            <div class="b-card e" id="n-wf">
+                                <b>workflows/*.json ×5</b>
+                                <span>5 内置 + 自定义预设</span>
+                                <span>stages[] 阶段链 · dependOn DAG</span>
+                                <span>basic / standard / test / pr-delivery…</span>
+                            </div>
+                            <div class="b-card e" id="n-at">
+                                <b>atom-tasks/ ×26</b>
+                                <span>config.json：output 契约 · phases · gate 选项</span>
+                                <span>prompt.md：任务指令模板</span>
+                                <span>26 个任务单元 = 流程乐高</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stratum s-run">
+                        <div class="s-label">运行时 · 一次 run 的执行循环</div>
+                        <div class="run-grid">
+                            <div class="run-side">
+                                <div class="b-card e" id="n-runstart" data-badge="1">
+                                    <b>run start</b>
+                                    <span>物化 state · 注册 index</span>
+                                </div>
+                                <div class="b-card e" id="n-resume">
+                                    <b>resume</b>
+                                    <span>断点接续 · 状态即进度</span>
+                                </div>
+                                <div class="b-card e" id="n-rollback">
+                                    <b>rollback</b>
+                                    <span>回滚 · 旧产物 → _del/</span>
+                                </div>
+                                <div class="b-card e" id="n-subflow">
+                                    <b>subflow</b>
+                                    <span>子流程下沉 ≤ 3 层</span>
+                                </div>
+                            </div>
+                            <div class="b-card e hub hubcard" id="n-state">
+                                <b>.state.json</b>
+                                <span>唯一事实源</span>
+                                <span>runId · currentStage[]</span>
+                                <span>stages（status · gate · dependOn）</span>
+                                <span>atomTasks · dirs</span>
+                                <span>CLI 推进 · agent 读取 · 决议写回</span>
+                            </div>
+                            <div class="run-loop">
+                                <div class="loop-row" id="loopA">
+                                    <div class="b-card e" id="n-exec" data-badge="2">
+                                        <b>exec</b>
+                                        <span>恰好必需 · 渐进式</span>
+                                    </div>
+                                    <div class="b-card a" id="n-agent" data-badge="3">
+                                        <b>agent 执行</b>
+                                        <span>调研 · 写文档 · 改代码 · 跑命令</span>
+                                    </div>
+                                    <div class="b-card e" id="n-validate" data-badge="4">
+                                        <b>validate</b>
+                                        <span>存在 · 必填段 · 无占位</span>
+                                    </div>
+                                </div>
+                                <div class="loop-row" id="loopB">
+                                    <div class="b-card e" id="n-finish" data-badge="8">
+                                        <b>run finish</b>
+                                        <span>ZIP → history</span>
+                                    </div>
+                                    <div class="b-card e" id="n-next" data-badge="7">
+                                        <b>next</b>
+                                        <span>纯状态推进 · DAG 激活后继</span>
+                                    </div>
+                                    <div class="b-card u" id="n-gate" data-badge="5">
+                                        <b>gate ◆</b>
+                                        <span>呈现选项 · 不批准不推进</span>
+                                    </div>
+                                </div>
+                                <div class="loop-row" id="loopC">
+                                    <div class="b-card u" id="n-you" data-badge="6">
+                                        <b>你 — 同意 / 修改 / 驳回 / 提问</b>
+                                        <span>只在确认门决议 · 决议写回 state</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stratum s-out">
+                        <div class="s-label">产物层 · .ddo/ 运行目录与归档</div>
+                        <div class="out-grid">
+                            <div class="b-card o" id="n-rundir">
+                                <b>.ddo/runs/&lt;type&gt;/&lt;runId&gt;/</b>
+                                <span>requirement.md → spec.md → plan.md → … → execution-report.md</span>
+                                <span>每阶段产物由 validate 按 output 声明硬校验</span>
+                                <span>inputs/ 草稿 · _del/ 回滚归档 · subflows/ 子流程</span>
+                            </div>
+                            <div class="b-card e" id="n-history">
+                                <b>history</b>
+                                <span>run finish 收口：ZIP 留档</span>
+                                <span>runs.jsonl · index 移除</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                </div>
+            </div>
+            <div class="board-hint" aria-hidden="true">‹ 左右滑动查看完整架构图 ›</div>
+            <div class="board-legend reveal">
+                <span><i class="e"></i>引擎</span>
+                <span><i class="a"></i>宿主 agent</span>
+                <span><i class="u"></i>你</span>
+                <span class="solid">执行流</span>
+                <span class="dash">修正循环</span>
+            </div>
+            <div class="lc-meta reveal">
+                <span class="lc-chip"><span class="accent">engine</span> 零依赖 · Node ≥ 18</span>
+                <span class="lc-chip"><span class="accent">atom-tasks</span> 26 个任务单元</span>
+                <span class="lc-chip"><span class="accent">workflows</span> 5 内置 + 自定义</span>
+                <span class="lc-chip"><span class="accent">subflow</span> 子流程下沉 · 最多三层</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ 07 · SOP 演示（左终端 + 右文件树） ============ -->
+    <section class="section" id="sop">
+        <div class="wrap">
+            <div class="eyebrow reveal">04 · LIVE SOP</div>
+            <h2 class="title reveal" style="margin-bottom:10px;">模拟 Claude 操作 —— basic 工作流 SOP</h2>
+            <p class="lead reveal" style="font-size:15px; margin-bottom:18px;">
+                左侧自动播放一次从<strong class="accent">裸调用</strong>到收口的完整终端流程——含 AI 思考、skill 加载与 CLI 调用；右侧同步展示 <span class="mono">.ddo/runs/fix/&lt;runId&gt;/</span> 目录里各阶段产出的文档与作用。
+            </p>
+            <div class="sop-grid reveal">
+                <div class="claude-win" id="claudeWin">
+                    <div class="cw-head">
+                        <span class="cw-dots"><i></i><i></i><i></i></span>
+                        <span class="cw-title">Claude Code — ddo-code-flow</span>
+                        <span class="cw-stage">当前阶段：<span id="sopStage">启动</span></span>
+                        <button class="cw-replay" id="sopReplay" title="重播">↻ 重播</button>
+                    </div>
+                    <div class="cw-body" id="sopBody" role="log" aria-live="polite"></div>
+                </div>
+                <div class="tree-panel">
+                    <div class="tree-head">.ddo/runs/ 目录变化 <small>— 各阶段产出与作用</small></div>
+                    <div class="tree-body" id="sopTree"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ 08 · 自定义与扩展 ============ -->
+    <section class="section" id="quickstart">
+        <div class="wrap">
+            <div class="eyebrow reveal">05 · CUSTOMIZE</div>
+            <h2 class="title reveal" style="margin-bottom:12px;">自定义流程与配置</h2>
+            <p class="lead reveal" style="font-size:15px; margin-bottom:14px;">
+                内置 26 个原子任务与 5 条预设只是起点。扩展不碰一行引擎代码——可自定义的只有三种东西，全是纯文件，<strong class="accent">新建即生效</strong>。
+            </p>
+            <div class="ext-rows reveal">
+                <div class="ext-row">
+                    <div class="ext-term"><b>01</b>原子任务<small>atom-tasks/&lt;名&gt;/</small></div>
+                    <div class="ext-desc">一个目录就是一个任务：<span class="mono">prompt.md</span> 写指令，按 <span class="mono">@phase:NN</span> 分相位；<span class="mono">config.json</span> 声明相位、gate 选项与 output 产物契约。</div>
+                </div>
+                <div class="ext-row">
+                    <div class="ext-term"><b>02</b>工作流<small>workflows/&lt;名&gt;.json</small></div>
+                    <div class="ext-desc"><span class="mono">stages</span> 列出任务清单，<span class="mono">dependOn</span> 组成依赖图；<span class="mono">when</span> 按配置裁剪未启用的阶段并自动重接上下游。</div>
+                </div>
+                <div class="ext-row">
+                    <div class="ext-term"><b>03</b>规则注入<small>三层优先级</small></div>
+                    <div class="ext-desc">任务默认 ＜ 用户级（<span class="mono">atom-tasks.json</span>）＜ 运行级（<span class="mono">--config</span> 可重复 · 同键后者胜）；标量逐层覆盖，<span class="mono">rules</span> 数组逐层拼接。</div>
+                </div>
+            </div>
+            <div class="qs-prompt reveal">
+                <div class="qs-prompt-head">
+                    <span>不想手写？复制这段话发给你的 AI</span>
+                    <button class="qs-copy" data-copy-from="qsPromptText" type="button">复制</button>
+                </div>
+                <pre id="qsPromptText">帮我给 ddo-code-flow 增加一个自定义原子任务「<span class="accent">任务名</span>」：
+
+1. 参考 ~/.claude/skills/ddo-code-flow/atom-tasks/ 下现有任务的格式
+2. 生成 prompt.md —— 任务指令，按相位分段（@phase:NN）
+3. 生成 config.json —— 声明相位、gate 选项与 output 产物契约
+4. 如需流水线：写 workflows/&lt;名称&gt;.json，stages + dependOn 组 DAG
+5. 运行 list tasks 确认新任务已被识别</pre>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ 09 · 开始使用 · CTA 收尾 ============ -->
+    <section class="section" id="end">
+        <div class="wrap">
+            <div class="eyebrow reveal">06 · START</div>
+            <h2 class="title reveal" style="margin-bottom:10px;">开始使用</h2>
+            <p class="end-echo reveal">把<span class="accent">确定性</span>还给流程，把<span class="accent-m">决策权</span>留给你。</p>
+            <div class="cta-row reveal">
+                <a class="cta-btn" href="https://github.com/Djhhhhhh/Ddo-Code-Flow" target="_blank" rel="noopener">GitHub 获取 ↗</a>
+                <a class="cta-star" href="https://github.com/Djhhhhhh/Ddo-Code-Flow/stargazers" target="_blank" rel="noopener">⭐ 觉得有用，求个 Star</a>
+            </div>
+            <div class="host-block reveal">
+                <div class="host-label">已测试宿主</div>
+                <div class="host-grid">
+                    <div class="host">
+                        <svg class="host-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 10.5h3v3h-3v3h-1.5v3H18v-3h-1.5v3H15v-3H9v3H7.5v-3H6v3H4.5v-3H3v-3H0v-3h3v-6h18Zm-15 0h1.5v-3H6Zm10.5 0H18v-3h-1.5z"/></svg>
+                        <span>Claude Code</span>
+                    </div>
+                    <div class="host">
+                        <svg class="host-ic" viewBox="0 0 24 24" aria-hidden="true"><path clip-rule="evenodd" fill-rule="evenodd" d="M8.086.457a6.105 6.105 0 013.046-.415c1.333.153 2.521.72 3.564 1.7a.117.117 0 00.107.029c1.408-.346 2.762-.224 4.061.366l.063.03.154.076c1.357.703 2.33 1.77 2.918 3.198.278.679.418 1.388.421 2.126a5.655 5.655 0 01-.18 1.631.167.167 0 00.04.155 5.982 5.982 0 011.578 2.891c.385 1.901-.01 3.615-1.183 5.14l-.182.22a6.063 6.063 0 01-2.934 1.851.162.162 0 00-.108.102c-.255.736-.511 1.364-.987 1.992-1.199 1.582-2.962 2.462-4.948 2.451-1.583-.008-2.986-.587-4.21-1.736a.145.145 0 00-.14-.032c-.518.167-1.04.191-1.604.185a5.924 5.924 0 01-2.595-.622 6.058 6.058 0 01-2.146-1.781c-.203-.269-.404-.522-.551-.821a7.74 7.74 0 01-.495-1.283 6.11 6.11 0 01-.017-3.064.166.166 0 00.008-.074.115.115 0 00-.037-.064 5.958 5.958 0 01-1.38-2.202 5.196 5.196 0 01-.333-1.589 6.915 6.915 0 01.188-2.132c.45-1.484 1.309-2.648 2.577-3.493.282-.188.55-.334.802-.438.286-.12.573-.22.861-.304a.129.129 0 00.087-.087A6.016 6.016 0 015.635 2.31C6.315 1.464 7.132.846 8.086.457zm-.804 7.85a.848.848 0 00-1.473.842l1.694 2.965-1.688 2.848a.849.849 0 001.46.864l1.94-3.272a.849.849 0 00.007-.854l-1.94-3.393zm5.446 6.24a.849.849 0 000 1.695h4.848a.849.849 0 000-1.696h-4.848z"/></svg>
+                        <span>Codex</span>
+                    </div>
+                    <div class="host">
+                        <svg class="host-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 24H2V0h20zM17 4.8H7v14.4h10z"/></svg>
+                        <span>OpenCode</span>
+                    </div>
+                    <div class="host">
+                        <svg class="host-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M0 0v24h6v-6h6v-6H6V6h6v6h6V0Zm18 12v12h6V12Z"/></svg>
+                        <span>Pi</span>
+                    </div>
+                </div>
+                <div class="host-note">任何能加载 skill 指令并执行命令的 agent 均可 · Node ≥ 18 · 零 npm 依赖</div>
+            </div>
+            <div class="qs-install end-install reveal">
+                <div class="dim"># ① 安装到宿主 skills 目录（以 Claude Code 为例，其他宿主按其规范放置）</div>
+                <div><span class="dollar">$</span><span id="qsInstallCmd">git clone https://github.com/Djhhhhhh/Ddo-Code-Flow.git ~/.claude/skills/ddo-code-flow</span></div>
+                <div class="dim" style="margin-top:8px;"># ② 在宿主中显式调用——附上需求描述（或显式引用 SKILL.md 作为执行入口）</div>
+                <div><span class="dollar">❯</span>/ddo-code-flow 修复登录后跳回首页的问题</div>
+                <button class="qs-copy" data-copy-from="qsInstallCmd" type="button">复制</button>
+            </div>
+            <div class="live-row reveal" id="ghLive" hidden>
+                <span>⟳ 积极维护 · 近 30 天 <b id="ghCommits">–</b> 次提交</span>
+                <span><svg class="live-star" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1.7l3.1 6.3 6.9 1-5 4.9 1.2 6.9L12 17.6l-6.2 3.2L7 13.9 2 9l6.9-1z"/></svg><b id="ghStars">–</b></span>
+            </div>
+        </div>
+    </section>
+
+</main>
+
+<script>
+/* ===========================================
+   竖向全屏翻页控制器 + 圆点导航 + 计数
+   =========================================== */
+const sections = Array.from(document.querySelectorAll('.section'));
+const dotnav = document.getElementById('dotnav');
+const dots = [];
+
+/* 移动端骨架（≤768px）：翻为自然文档流，滚轮/键盘/触摸翻页全部交还原生滚动 */
+const mqMobile = window.matchMedia('(max-width: 768px)');
+
+const SECTION_NAMES = { hero: '首屏', what: '为什么需要它', workflows: '工作流', how: '工作原理', sop: 'SOP 演示', quickstart: '自定义', end: '开始使用' };
+
+sections.forEach((s, i) => {
+    const d = document.createElement('button');
+    d.className = 'dot';
+    d.setAttribute('aria-label', '跳到第 ' + (i + 1) + ' 模块');
+    d.setAttribute('data-name', SECTION_NAMES[s.id] || ('模块 ' + (i + 1)));
+    d.addEventListener('click', () => goTo(i));
+    dotnav.appendChild(d);
+    dots.push(d);
+});
+
+/* 翻页器：原生平滑滚动，滚轮/键盘/触摸/锚点统一管线 */
+let curIdx = 0;
+let lastGo = 0;
+const idxById = {};
+sections.forEach((s, i) => { idxById[s.id] = i; });
+
+function goTo(i) {
+    i = Math.max(0, Math.min(sections.length - 1, i));
+    if (i === curIdx) return;
+    const now = performance.now();
+    if (now - lastGo < 120) return; /* 仅合并单次手势的惯性事件流，不限制连续翻页速度 */
+    lastGo = now;
+    pendingTarget = i;
+    window.scrollTo({ top: sections[i].getBoundingClientRect().top + window.scrollY, behavior: 'smooth' });
+    dots.forEach((d, k) => d.classList.toggle('active', k === i));
+    if (sections[i].id === 'hero') mini.start();
+    if (sections[i].id === 'sop') sop.start();
+    curIdx = i;
+}
+
+/* 入场时机：目标屏对齐到 ~70% 即提前触发（滑行尾段与入场重叠，缩短到达空白感），
+   仅作用于本次翻页的目的屏；滚动条/锚点等任意滚动方式由停稳检测兜底 */
+let settleRAF = 0;
+let pendingTarget = -1;
+function markArrived() {
+    settleRAF = 0;
+    let best = 0, bestDist = Infinity;
+    sections.forEach((s, k) => {
+        const d = Math.abs(s.getBoundingClientRect().top);
+        if (d < bestDist) { bestDist = d; best = k; }
+    });
+    sections[best].classList.add('in-view');
+    if (sections[best].id === 'sop') sop.start();   /* 自然滚动进入 SOP 屏同样自动播放 */
+    curIdx = best;
+    dots.forEach((d, k) => d.classList.toggle('active', k === best));
+}
+window.addEventListener('scroll', () => {
+    if (pendingTarget >= 0) {
+        const s = sections[pendingTarget];
+        if (!s.classList.contains('in-view') && Math.abs(s.getBoundingClientRect().top) < window.innerHeight * .3) {
+            s.classList.add('in-view');
+            pendingTarget = -1;
+        }
+    }
+    if (settleRAF) cancelAnimationFrame(settleRAF);
+    settleRAF = requestAnimationFrame(() => { settleRAF = requestAnimationFrame(markArrived); });
+}, { passive: true });
+
+function sectionCanScroll(i, dir) {
+    const s = sections[i];
+    if (s.scrollHeight <= s.clientHeight + 2) return false;
+    return dir > 0 ? s.scrollTop + s.clientHeight < s.scrollHeight - 2 : s.scrollTop > 2;
+}
+
+window.addEventListener('wheel', (e) => {
+    if (mqMobile.matches) return;
+    if (Math.abs(e.deltaY) < 4) return;
+    const dir = e.deltaY > 0 ? 1 : -1;
+    if (sectionCanScroll(curIdx, dir)) return;
+    e.preventDefault();
+    goTo(curIdx + dir);
+}, { passive: false });
+
+document.addEventListener('keydown', (e) => {
+    if (mqMobile.matches) return;
+    switch (e.key) {
+        case 'ArrowDown': case 'PageDown': case ' ':
+            if (sectionCanScroll(curIdx, 1)) return;
+            e.preventDefault(); goTo(curIdx + 1); break;
+        case 'ArrowUp': case 'PageUp':
+            if (sectionCanScroll(curIdx, -1)) return;
+            e.preventDefault(); goTo(curIdx - 1); break;
+        case 'Home': e.preventDefault(); goTo(0); break;
+        case 'End': e.preventDefault(); goTo(sections.length - 1); break;
+    }
+});
+
+let touchY = null;
+window.addEventListener('touchstart', (e) => { touchY = e.touches[0].clientY; }, { passive: true });
+window.addEventListener('touchend', (e) => {
+    if (mqMobile.matches || touchY === null) return;
+    const dy = touchY - e.changedTouches[0].clientY;
+    touchY = null;
+    if (Math.abs(dy) < 60) return;
+    const dir = dy > 0 ? 1 : -1;
+    if (sectionCanScroll(curIdx, dir)) return;
+    goTo(curIdx + dir);
+}, { passive: true });
+
+document.querySelectorAll('a[href^="#"]').forEach((a) => {
+    a.addEventListener('click', (e) => {
+        const id = a.getAttribute('href').slice(1);
+        if (id && idxById[id] !== undefined) { e.preventDefault(); goTo(idxById[id]); }
+    });
+});
+
+sections[0].classList.add('in-view');
+if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+
+/* ===== M4 架构画板：按真实渲染位置绘制正交连线（字体就绪 / 缩放自动重算） ===== */
+(function () {
+    const board = document.querySelector('.board-inner');
+    const svg = document.getElementById('archWires');
+    if (!board || !svg) return;
+    const NS = 'http://www.w3.org/2000/svg';
+    const FILLS = { c: 'rgba(0,255,204,.85)', m: 'rgba(255,46,196,.85)', w: 'rgba(233,241,255,.85)' };
+    const STROKES = { c: 'rgba(0,255,204,.65)', m: 'rgba(255,46,196,.65)', w: 'rgba(233,241,255,.65)' };
+    const defs = document.createElementNS(NS, 'defs');
+    defs.innerHTML = '<marker id="w-ar-c" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L8 4 L0 8 Z" fill="' + FILLS.c + '"/></marker>' +
+        '<marker id="w-ar-m" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L8 4 L0 8 Z" fill="' + FILLS.m + '"/></marker>' +
+        '<marker id="w-ar-w" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L8 4 L0 8 Z" fill="' + FILLS.w + '"/></marker>';
+    const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+    function rectOf(id) {
+        /* 布局坐标（offset 链）：对 transform 缩放与容器滚动免疫，
+           保证 fitBoard 施加等比缩放后重绘也不会产生 s² 双重缩放连线 */
+        const el = document.getElementById(id);
+        let x = 0, y = 0, node = el;
+        while (node && node !== board) {
+            x += node.offsetLeft; y += node.offsetTop;
+            node = node.offsetParent;
+        }
+        const w = el.offsetWidth, h = el.offsetHeight;
+        return { l: x, r: x + w, t: y, b: y + h, cx: x + w / 2, cy: y + h / 2 };
+    }
+    function port(rc, side, frac) {
+        frac = frac === undefined ? .5 : frac;
+        if (side === 'l') return { x: rc.l, y: rc.t + (rc.b - rc.t) * frac };
+        if (side === 'r') return { x: rc.r, y: rc.t + (rc.b - rc.t) * frac };
+        if (side === 't') return { x: rc.l + (rc.r - rc.l) * frac, y: rc.t };
+        return { x: rc.l + (rc.r - rc.l) * frac, y: rc.b };
+    }
+    function portAt(rc, side, v) {
+        if (side === 'l' || side === 'r') return { x: side === 'l' ? rc.l : rc.r, y: clamp(v, rc.t + 10, rc.b - 10) };
+        return { x: clamp(v, rc.l + 12, rc.r - 12), y: side === 't' ? rc.t : rc.b };
+    }
+    function seg(d, col, dashed) {
+        const p = document.createElementNS(NS, 'path');
+        p.setAttribute('d', d); p.setAttribute('fill', 'none');
+        p.setAttribute('stroke', STROKES[col]); p.setAttribute('stroke-width', '1.6');
+        if (dashed) p.setAttribute('stroke-dasharray', '5 4');
+        p.setAttribute('marker-end', 'url(#w-ar-' + col + ')');
+        svg.appendChild(p);
+    }
+    function label(txt, x, y, color, mode) {
+        const s = document.createElement('span');
+        s.className = 'wire-lbl'; s.textContent = txt;
+        if (color) s.style.color = color;
+        board.appendChild(s);
+        const w = s.offsetWidth;
+        s.style.left = Math.round(mode === 'c' ? x - w / 2 : mode === 'r' ? x - w : x) + 'px';
+        s.style.top = Math.round(y) + 'px';
+    }
+
+    /* [from, fromSide, to, toSide, color, router, frac, dashed] */
+    const EDGES = [
+        ['n-skill', 'r', 'n-cli', 'l', 'c', 'h', .5],
+        ['n-wf', 'l', 'n-cli', 'r', 'c', 'h', .4],
+        ['n-at', 't', 'n-cli', 't', 'c', 'ovh'],
+        ['n-cli', 'b', 'n-state', 't', 'c', 'v'],
+        ['n-runstart', 'r', 'n-state', 'l', 'c', 'h'],
+        ['n-resume', 'r', 'n-state', 'l', 'c', 'h'],
+        ['n-rollback', 'r', 'n-state', 'l', 'c', 'h'],
+        ['n-subflow', 'r', 'n-state', 'l', 'c', 'h'],
+        ['n-state', 'r', 'n-exec', 'l', 'c', 'h'],
+        ['n-exec', 'r', 'n-agent', 'l', 'c', 'h', .5],
+        ['n-agent', 'r', 'n-validate', 'l', 'c', 'h', .38],
+        ['n-validate', 'b', 'n-agent', 'b', 'm', 'tdip', .06, true],
+        ['n-validate', 'b', 'n-gate', 't', 'c', 'v', .28],
+        ['n-gate', 'l', 'n-next', 'r', 'c', 'h', .5],
+        ['n-next', 'l', 'n-finish', 'r', 'c', 'h', .5],
+        ['n-next', 't', 'n-exec', 'b', 'c', 'uod', .5],
+        ['n-gate', 'b', 'n-you', 'r', 'w', 'vh', .3],
+        ['n-you', 't', 'n-next', 'b', 'w', 'v', .5],
+        ['n-validate', 'r', 'n-rundir', 't', 'm', 'hvd', .5],
+        ['n-rundir', 'r', 'n-history', 'l', 'c', 'h', .4],
+    ];
+
+    function draw() {
+        board.style.transform = '';   /* 先还原 fitBoard 的等比缩放，按自然坐标绘制连线 */
+        svg.innerHTML = ''; svg.appendChild(defs);
+        svg.setAttribute('width', board.scrollWidth);
+        svg.setAttribute('height', board.scrollHeight);
+        board.querySelectorAll('.wire-lbl').forEach(el => el.remove());
+        EDGES.forEach(e => {
+            const rf = rectOf(e[0]), rt = rectOf(e[2]);
+            const frac = e[6], dashed = e[7] === true;
+            let d = '';
+            if (e[5] === 'h') {
+                const p1 = port(rf, e[1], frac), p2 = portAt(rt, e[3], p1.y);
+                d = 'M ' + p1.x + ' ' + p1.y + ' L ' + p2.x + ' ' + p2.y;
+            } else if (e[5] === 'v') {
+                const p1 = port(rf, e[1], frac), p2 = portAt(rt, e[3], p1.x);
+                d = 'M ' + p1.x + ' ' + p1.y + ' L ' + p2.x + ' ' + p2.y;
+            } else if (e[5] === 'ovh') {
+                const p1 = port(rf, 't', .5), tx = rt.cx, ty = rt.t;
+                const chY = p1.y - 14;
+                d = 'M ' + p1.x + ' ' + p1.y + ' V ' + chY + ' H ' + tx + ' V ' + (ty - 1);
+            } else if (e[5] === 'tdip') {
+                /* validate 不合格 → 打回 agent：借 loopA/loopB 行间走廊走小折钩，
+                   箭头自下而上回到 agent 底边（与 uod「写回」同一视觉语言），不再翻越顶部标签行 */
+                const p1 = port(rf, 'b', frac);
+                const px = clamp(p1.x, rt.l + 12, rt.r - 12);
+                const chY = Math.round((rf.b + rectOf('n-gate').t) / 2);
+                d = 'M ' + p1.x + ' ' + p1.y + ' V ' + chY + ' H ' + px + ' V ' + (rt.b + 1);
+            } else if (e[5] === 'uod') {
+                const p1 = port(rf, 't', .5), p2 = portAt(rt, 'b', p1.x);
+                const chY = (p1.y + p2.y) / 2;
+                d = 'M ' + p1.x + ' ' + p1.y + ' V ' + chY + ' H ' + p2.x + ' V ' + (p2.y + 1);
+            } else if (e[5] === 'vh') {
+                const p1 = port(rf, 'b', frac), ty = rt.cy;
+                d = 'M ' + p1.x + ' ' + p1.y + ' V ' + ty + ' H ' + (rt.r + 1);
+            } else if (e[5] === 'hvd') {
+                /* validate → rundir：从 validate 右缘中部出线（不再贴底边滑行），
+                   让出 gate 右侧垂直下潜，折回 rundir 顶边落地 */
+                const p1 = port(rf, 'r', frac);
+                const rG2 = rectOf('n-gate');
+                const cx = rG2.r + 30;
+                const lx = clamp(cx, rt.l + 14, rt.r - 14);
+                if (Math.abs(lx - cx) < 2) {
+                    d = 'M ' + p1.x + ' ' + p1.y + ' H ' + cx + ' V ' + (rt.t - 1);
+                } else {
+                    /* 折回高度避开 you 卡（窄布局下 rundir 顶边整体在 you 左侧） */
+                    const rU2 = rectOf('n-you');
+                    const midY = Math.round(clamp((rG2.b + rt.t) / 2, rU2.b + 18, rt.t - 24));
+                    d = 'M ' + p1.x + ' ' + p1.y + ' H ' + cx + ' V ' + midY + ' H ' + lx + ' V ' + (rt.t - 1);
+                }
+            }
+            seg(d, e[4], dashed);
+        });
+        /* 连线标注 */
+        const rA = rectOf('n-agent'), rV = rectOf('n-validate');
+        const rN = rectOf('n-next'), rE = rectOf('n-exec');
+        const rG = rectOf('n-gate'), rU = rectOf('n-you');
+        const rC = rectOf('n-cli'), rS = rectOf('n-state'), rR = rectOf('n-rundir');
+        const bkX1 = rV.l + (rV.r - rV.l) * .06, bkX2 = clamp(bkX1, rA.l + 12, rA.r - 12);
+        label('不合格↺修正', (bkX1 + bkX2) / 2, (rV.b + rG.t) / 2 + 2, 'rgba(255,46,196,.95)', 'c');
+        label('写回·激活后继相位↺', (rN.cx + rE.cx) / 2, (rN.t + rE.b) / 2 - 9, 'rgba(0,255,204,.9)', 'c');
+        label('决议', rG.cx + 8, (rG.b + rU.cy) / 2, 'rgba(233,241,255,.85)', 'l');
+        label('output 契约校验', rG.r - 2, rV.b + 14, 'rgba(255,46,196,.85)', 'r');
+        label('读取定义 · 驱动 run', rC.cx + 10, (rC.b + rS.t) / 2, 'rgba(0,255,204,.85)', 'l');
+    }
+    /* 绘制完成后链式触发缩放适配，保证任何事件顺序下都是「先自然坐标绘制、后统一缩放」 */
+    const chainFit = () => { if (window.__ddoFitBoard) window.__ddoFitBoard(); };
+    const redraw = () => { draw(); chainFit(); };
+    redraw();
+    window.addEventListener('resize', redraw);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(redraw);
+    window.addEventListener('load', redraw);
+})();
+
+/* ===== 架构画板自适应：PC（>768px）等比缩放至整图完整可见、免除页内滚动；
+       移动端还原自然尺寸，保留画板内部横向滚动 + 滑动提示 ===== */
+(function () {
+    const boardEl = document.querySelector('.board');
+    const fitBox = document.querySelector('.board-fit');
+    const inner = document.querySelector('.board-inner');
+    const sec = document.getElementById('how');
+    const lcMeta = sec ? sec.querySelector('.lc-meta') : null;
+    if (!boardEl || !fitBox || !inner || !sec) return;
+    let rAF = 0;
+    function fit() {
+        rAF = 0;
+        if (mqMobile.matches) {                       /* 移动端：还原，横滚交给 CSS */
+            inner.style.transform = '';
+            inner.style.width = '';
+            fitBox.style.width = ''; fitBox.style.height = '';
+            boardEl.style.height = ''; boardEl.style.overflowX = '';
+            sec.classList.remove('board-compact');
+            if (lcMeta) lcMeta.style.display = '';
+            return;
+        }
+        inner.style.transform = '';                   /* 还原后测自然尺寸（连线按此坐标绘制） */
+        inner.style.width = '';
+        fitBox.style.width = ''; fitBox.style.height = '';
+        boardEl.style.height = '';
+        sec.classList.remove('board-compact');
+        if (lcMeta) lcMeta.style.display = '';
+        const nw = inner.offsetWidth, nh = inner.offsetHeight;
+        if (!nw || !nh) return;
+        const cs = getComputedStyle(boardEl);
+        const padH = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+        const availW = boardEl.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+        /* 高度预算 = 屏可视高 − 屏上下内边距 − 画板以外兄弟块（含外边距）− 画板自身上下内边距与边框 */
+        const othersH = () => {
+            let sum = 0;
+            Array.from(sec.querySelector('.wrap').children).forEach((ch) => {
+                if (ch === boardEl || ch === lcMeta) return;
+                const ccs = getComputedStyle(ch);
+                sum += ch.offsetHeight + parseFloat(ccs.marginTop) + parseFloat(ccs.marginBottom);
+            });
+            return sum;
+        };
+        const fitScale = () => {
+            const scs = getComputedStyle(sec);
+            const secPadY = parseFloat(scs.paddingTop) + parseFloat(scs.paddingBottom);
+            return Math.min(1, availW / nw, (sec.clientHeight - secPadY - othersH() - padH - 2) / nh);
+        };
+        let s = fitScale();
+        if (s < 0.995) {                              /* 第一级：收紧本屏上下留白（其余屏不受影响） */
+            sec.classList.add('board-compact');
+            s = fitScale();
+        }
+        if (s < 0.995 && lcMeta) {                    /* 第二级：收纳与他屏重复的 lc-meta 芯片 */
+            lcMeta.style.display = 'none';
+            s = fitScale();
+        }
+        if (s < 0.995) {
+            /* 等比缩放画进 board-fit 承压层：其布局宽高=缩放后尺寸并 margin:auto 居中；
+               inner 在层内 scale，布局尺寸不变 → 无 shrink-to-fit 反馈、连线坐标恒为自然系 */
+            inner.style.transform = 'scale(' + s + ')';
+            inner.style.transformOrigin = 'top left';
+            inner.style.width = nw + 'px';            /* 冻结测量态宽度：fitBox 收窄不改变布局坐标系 */
+            fitBox.style.width = Math.round(nw * s) + 'px';
+            fitBox.style.height = Math.round(nh * s) + 'px';
+            boardEl.style.height = Math.round(nh * s + padH + 2) + 'px';
+            boardEl.style.overflowX = 'hidden';
+        } else {
+            boardEl.style.overflowX = 'auto';
+        }
+    }
+    const schedule = () => { if (!rAF) rAF = requestAnimationFrame(fit); };
+    window.__ddoFitBoard = schedule;      /* 由 M4 draw() 收尾链式调用：先绘制后缩放 */
+    if (mqMobile.addEventListener) mqMobile.addEventListener('change', schedule);
+    schedule();
+})();
+
+/* ===========================================
+   SOP 模拟 —— basic 工作流自动播放
+   类型：user(你输入) / think(Claude 思考) / skill(skill 加载) / act(Claude 动作) / cli(CLI 调用) / ask(问询块)
+   file：该步骤在 .ddo/runs/&lt;type&gt;/&lt;runId&gt;/ 目录新增的文档
+   =========================================== */
+const RUN_ID = '20261106-144337-51f5';
+
+const SOP = [
+    // ── 启动：裸调用 → 分流 → run start ──
+    { t:'user',  stage:'启动', text:'/ddo-code-flow' },
+    { t:'think', stage:'启动', text:'识别到显式调用；读取是否附带需求描述 → 本次未附带' },
+    { t:'think', stage:'启动', text:'按「不带描述」分支：先询问恢复/新建，不因无旧 run 跳过' },
+    { t:'skill', stage:'启动', text:'加载 ddo-code-flow/SKILL.md → 启动分流规则 + 执行循环节律' },
+    { t:'ask',   stage:'启动', chip:'入口', q:'希望恢复已有 run，还是新开 run？',
+      opts:[{l:'恢复已有 run',d:'从运行中的 run 接续'},{l:'新开 run',d:'开始一次全新任务'}],
+      ans:{i:1, note:null} },
+    { t:'think', stage:'启动', text:'用户选「新开 run」→ 运行 guide 获取启动问题序列与参数映射' },
+    { t:'cli',   stage:'启动', text:'node tools/cli.js guide' },
+    { t:'cli',   stage:'启动', text:'返回启动问题 + 选项 + 参数映射', ok:true },
+    { t:'ask',   stage:'启动', chip:'目标', q:'本次要完成什么？',
+      opts:[{l:'输入目标 / bug 描述',d:'例如：修复导出函数的边界处理'}],
+      ans:{i:0, note:'修复导出函数的边界处理'} },
+    { t:'think', stage:'启动', text:'目标已提供 → 继续询问其余启动配置与条件追问' },
+    { t:'ask',   stage:'启动', chip:'启动配置', q:'确认以下配置？',
+      opts:[{l:'basic · fix · 正常存储',d:'worktree 否 · 存储 正常'},{l:'重新选择',d:'返回修改配置'}],
+      ans:{i:0, note:null} },
+    { t:'cli',   stage:'启动', text:'node tools/cli.js run start --title "修复导出函数的边界处理" --workflow basic --type fix' },
+    { t:'cli',   stage:'启动', text:'.ddo/runs/fix/<runId>/ 已物化 · .state.json 创建（唯一事实源）', ok:true, key:true, file:{name:'.state.json', desc:'执行状态 · 唯一事实源'} },
+    { t:'think', stage:'启动', text:'启动成功 → 读取 currentStage，进入执行循环' },
+
+    // ── requirement ──
+    { t:'cli',   stage:'requirement', text:'node tools/cli.js exec --task requirement --phase 01' },
+    { t:'act',   stage:'requirement', text:'阅读指令（Context + Output Contract）→ 固化原始需求', file:{name:'requirement.md', desc:'固化的原始需求'} },
+    { t:'cli',   stage:'requirement', text:'node tools/cli.js validate --task requirement --phase 01' },
+    { t:'cli',   stage:'requirement', text:'产物存在 + 结构合法，校验通过', ok:true, key:true },
+    { t:'cli',   stage:'requirement', text:'node tools/cli.js next' },
+    { t:'think', stage:'requirement', text:'推进成功 → currentStage 变为 [spec:01]', key:true },
+
+    // ── spec（BQ 边界问题 + 确认门） ──
+    { t:'cli',   stage:'spec', text:'node tools/cli.js exec --task spec --phase 01' },
+    { t:'act',   stage:'spec', text:'生成 spec.md（FR / AC / BQ 契约），提出边界问题', file:{name:'spec.md', desc:'功能需求 · 验收标准 · 边界问题'} },
+    { t:'think', stage:'spec', text:'spec 含确认门 → 先呈现 BQ 边界问题，再 gate present' },
+    { t:'ask',   stage:'spec', chip:'BQ-1', q:'文档语言？',
+      opts:[{l:'中文',d:'文档使用中文'},{l:'英文',d:'文档使用英文'}], ans:{i:0, note:null} },
+    { t:'ask',   stage:'spec', chip:'BQ-2', q:'头图形态？',
+      opts:[{l:'静态 SVG',d:'静态图片，README 引用'},{l:'动态 GIF',d:'动图'}], ans:{i:0, note:null} },
+    { t:'cli',   stage:'spec', text:'node tools/cli.js gate interact --option 回答BQ-1' },
+    { t:'cli',   stage:'spec', text:'node tools/cli.js gate interact --option 回答BQ-2' },
+    { t:'cli',   stage:'spec', text:'node tools/cli.js gate present' },
+    { t:'ask',   stage:'spec', chip:'spec 审核', q:'请审核 spec 草案',
+      opts:[{l:'同意',d:'批准 spec，本相位完成'},{l:'驳回',d:'回滚 spec，回到 01 重新生成'},{l:'修改',d:'反馈作为新证据更新受影响条目'},{l:'提问',d:'只读答疑，不改状态'}],
+      ans:{i:2, note:'验收标准里加上边界值说明'} },
+    { t:'cli',   stage:'spec', text:'node tools/cli.js gate interact --option 修改' },
+    { t:'act',   stage:'spec', text:'把反馈作为新需求证据更新 spec → 展示变化摘要' },
+    { t:'cli',   stage:'spec', text:'node tools/cli.js gate present' },
+    { t:'ask',   stage:'spec', chip:'spec 审核', q:'请审核 spec 草案',
+      opts:[{l:'同意',d:'批准 spec，本相位完成'},{l:'驳回',d:'回滚 spec，回到 01 重新生成'},{l:'修改',d:'反馈作为新证据更新受影响条目'},{l:'提问',d:'只读答疑，不改状态'}],
+      ans:{i:0, note:null} },
+    { t:'cli',   stage:'spec', text:'node tools/cli.js next --decision 同意' },
+
+    // ── plan ──
+    { t:'cli',   stage:'plan', text:'node tools/cli.js exec --task plan --phase 01' },
+    { t:'act',   stage:'plan', text:'生成 plan.md（实施计划）', file:{name:'plan.md', desc:'实施计划'} },
+    { t:'cli',   stage:'plan', text:'node tools/cli.js validate --task plan --phase 01' },
+    { t:'cli',   stage:'plan', text:'node tools/cli.js gate present' },
+    { t:'ask',   stage:'plan', chip:'plan 审核', q:'请审核 plan',
+      opts:[{l:'同意',d:'批准本 revision'},{l:'驳回',d:'回滚 plan，回到 01'},{l:'修改',d:'应用到新 revision'},{l:'提问',d:'只答疑'},{l:'归档',d:'归档当前 plan'}],
+      ans:{i:0, note:null} },
+    { t:'cli',   stage:'plan', text:'node tools/cli.js next --decision 同意' },
+
+    // ── coding（人工审核门） ──
+    { t:'cli',   stage:'coding', text:'node tools/cli.js exec --task coding --phase 01' },
+    { t:'think', stage:'coding', text:'按计划实现：生成头图、介绍 HTML 与 README 重构' },
+    { t:'act',   stage:'coding', text:'完成编码 → docs/header.svg · intro.html · README.md 就位' },
+    { t:'cli',   stage:'coding', text:'node tools/cli.js validate --task coding --phase 01' },
+    { t:'cli',   stage:'coding', text:'node tools/cli.js gate present' },
+    { t:'ask',   stage:'coding', chip:'coding 审核', q:'coding 产物是否完成？',
+      opts:[{l:'同意',d:'确认完成，放行后续阶段'},{l:'提问',d:'答疑，不改状态'},{l:'修改',d:'按反馈调整，重新送审'}],
+      ans:{i:0, note:null} },
+    { t:'cli',   stage:'coding', text:'node tools/cli.js next --decision 同意' },
+
+    // ── reporting ──
+    { t:'cli',   stage:'reporting', text:'node tools/cli.js exec --task reporting --phase 01' },
+    { t:'act',   stage:'reporting', text:'产出 execution-report.md（交付报告）', file:{name:'execution-report.md', desc:'交付报告'} },
+    { t:'cli',   stage:'reporting', text:'node tools/cli.js validate --task reporting --phase 01' },
+    { t:'cli',   stage:'reporting', text:'node tools/cli.js next' },
+    { t:'cli',   stage:'reporting', text:'next → completed: true（任务已完成）', key:true },
+    { t:'cli',   stage:'reporting', text:'node tools/cli.js run finish --status done' },
+    { t:'cli',   stage:'reporting', text:'run 已收口 · 交付完成', ok:true, key:true },
+];
+
+function esc(s) {
+    return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+}
+
+function delayFor(step) {
+    switch (step.t) {
+        case 'ask':   return 2400;
+        case 'think': return 1000;
+        case 'skill': return 1000;
+        case 'act':   return 900;
+        case 'cli':   return 680;
+        default:      return 680;
+    }
+}
+
+/* 右侧文件树 —— 目录在 run start 时才物化 */
+const treeFiles = [];
+function renderTree(animateNew) {
+    const el = document.getElementById('sopTree');
+    let h = '<div><span class="dir">your-project/</span></div>';
+    if (!treeFiles.length) {
+        h += '<div><span class="dim">&nbsp;&nbsp;（尚无 .ddo/runs/ —— run start 时创建）</span></div>';
+    } else {
+        h += '<div><span class="dir">└─ .ddo/runs/fix/' + RUN_ID + '/</span></div>';
+        treeFiles.forEach((f, i) => {
+            const glyph = (i === treeFiles.length - 1) ? '└─' : '├─';
+            const cls = (animateNew && i === treeFiles.length - 1) ? ' class="tree-in"' : '';
+            h += '<div' + cls + '>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;' + glyph + ' <span class="file">' + esc(f.name) + '</span> <span class="dim"># ' + esc(f.desc) + '</span></div>';
+        });
+    }
+    el.innerHTML = h;
+    el.scrollTop = el.scrollHeight;
+}
+
+const sop = {
+    idx: 0, started: false, playing: true, timer: null, done: false,
+    body: document.getElementById('sopBody'),
+    stage: document.getElementById('sopStage'),
+    replayBtn: document.getElementById('sopReplay'),
+
+    init() {
+        this.replayBtn.addEventListener('click', () => this.replay());
+        renderTree();
+    },
+
+    start() { if (!this.started) { this.started = true; this.play(); } },
+
+    play() {
+        if (!this.playing) return;
+        if (this.idx >= SOP.length) {
+            if (!this.done) {
+                this.done = true;
+                /* 终端隐喻收尾：空提示符 + 闪烁光标 —— 轮到你输入了 */
+                const end = document.createElement('div');
+                end.className = 'ln';
+                end.innerHTML = '<span class="p">❯</span> <span class="cursor">▊</span>';
+                this.body.appendChild(end);
+                this.body.scrollTop = this.body.scrollHeight;
+                this.stage.textContent = '已收口 ✓';
+                this.stage.parentElement.classList.add('done');
+            }
+            return;
+        }
+        const s = SOP[this.idx];
+        this.append(s);
+        let addedFile = false;
+        if (s.file && !treeFiles.some(f => f.name === s.file.name)) { treeFiles.push(s.file); addedFile = true; }
+        renderTree(addedFile);
+        this.idx++;
+        this.timer = setTimeout(() => this.play(), delayFor(s));
+    },
+
+    replay() {
+        clearTimeout(this.timer);
+        this.idx = 0; this.started = true; this.playing = true; this.done = false;
+        this.body.innerHTML = '';
+        treeFiles.length = 0;
+        this.stage.parentElement.classList.remove('done');
+        renderTree();
+        this.play();
+    },
+
+    append(s) {
+        if (s.t === 'ask') { this.appendAsk(s); this.setStage(s); return; }
+        const ln = document.createElement('div');
+        let cls = 'ln' + (s.ok ? ' ok' : '') + (s.key ? ' key' : '');
+        if (s.t === 'user') cls += ' user-row';
+        ln.className = cls;
+        let tag = '', body = '';
+        if (s.t === 'user') {
+            tag = '<span class="tag user">你</span>';
+            body = '<span class="p">❯</span> <span class="t">' + esc(s.text) + '</span>';
+        } else if (s.t === 'think') {
+            tag = '<span class="tag claude">Claude</span>';
+            body = '<span class="think">✦ ' + esc(s.text) + '</span>';
+        } else if (s.t === 'skill') {
+            tag = '<span class="tag skill">skill</span>';
+            body = '<span class="skill">⚙ ' + esc(s.text) + '</span>';
+        } else if (s.t === 'act') {
+            tag = '<span class="tag claude">Claude</span>';
+            body = '<span class="act">· ' + esc(s.text) + '</span>';
+        } else if (s.t === 'cli') {
+            tag = '<span class="tag cli">CLI</span>';
+            body = s.ok
+                ? '<span class="cli-t">✓ ' + esc(s.text) + '</span>'
+                : '<span class="dollar">$</span> <span class="cli-t">' + esc(s.text) + '</span>';
+        }
+        ln.innerHTML = tag + '<span class="b">' + body + '</span>';
+        this.body.appendChild(ln);
+        this.body.scrollTop = this.body.scrollHeight;
+        this.setStage(s);
+    },
+
+    appendAsk(s) {
+        const box = document.createElement('div');
+        box.className = 'ask-box';
+        let h = '';
+        h += '<div><span class="cb">☐</span> <span class="ab-head">' + esc(s.chip) + '</span></div>';
+        h += '<div><span class="bar">│</span> <span class="ab-q">' + esc(s.q) + '</span></div>';
+        s.opts.forEach((o, k) => {
+            h += '<div class="ab-opt">&nbsp;&nbsp;<span class="n">' + (k + 1) + '.</span> <span class="l">' + esc(o.l) + '</span></div>';
+            h += '<div class="ab-opt-d">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;' + esc(o.d) + '</div>';
+        });
+        box.innerHTML = h;
+        this.body.appendChild(box);
+        this.body.scrollTop = this.body.scrollHeight;
+        setTimeout(() => {
+            const a = s.ans;
+            const label = s.opts[a.i].l;
+            let p = '<div class="ab-pick"><span class="p">❯</span> <span class="n">' + (a.i + 1) + '.</span> <span class="l">' + esc(label) + (a.note ? ':' : '') + '</span></div>';
+            if (a.note) p += '<div class="ab-note">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;' + esc(a.note) + '</div>';
+            p += '<div class="ab-rule">─</div>';
+            box.insertAdjacentHTML('beforeend', p);
+            this.body.scrollTop = this.body.scrollHeight;
+        }, 900);
+    },
+
+    setStage(s) {
+        if (s.stage) this.stage.textContent = s.stage;
+    }
+};
+
+/* ===========================================
+   首屏简化 cmd 模拟 —— 一次 run 的极简剪影
+   行类型：cmd（$ 命令·打字机）/ out（输出）/ ok（成功）/ user（你）
+   进视口播一次，播完停在末行；不循环、不重播
+   =========================================== */
+const MINI = [
+    { k:'you',   text:'/ddo-code-flow 修复介绍页' },
+    { k:'tool',  text:'node tools/cli.js run start --title "修复导出函数的边界处理" --workflow basic --type fix' },
+    { k:'cli',   text:'✓ { runId:"…-e1a9", currentStage:["requirement:01"] }' },
+    { k:'tool',  text:'node tools/cli.js exec · validate · next' },
+    { k:'cli',   text:'✓ { currentStage:["spec:01"] }' },
+    { k:'gate',  text:'⏸ spec 确认门：同意 / 修改 / 提问' },
+    { k:'you',   text:'同意' },
+    { k:'cli',   text:'✓ next --decision 同意 → { currentStage:["plan:01"] }' },
+    { k:'think', text:'逐页修复开始：审页 → 方案 → 决议 → 实施' },
+    { k:'gate',  text:'⏸ coding 确认门：8 页逐页迭代中…' },
+    { k:'cli',   text:'✓ { currentStage:["coding:01"] } · run 进行中' },
+];
+
+const MW_TAG_CLAUDE = '<span class="mw-tag claude">claude ›</span>';
+const MW_TAG_CLI = '<span class="mw-tag cli">cli ›</span>';
+
+const mini = {
+    started: false,
+    body: document.getElementById('miniBody'),
+    fast: window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+
+    start() { if (!this.started) { this.started = true; this.play(0); } },
+
+    line(k, html) {
+        const d = document.createElement('div');
+        d.className = 'mw-ln mw-' + k;
+        d.innerHTML = html;
+        this.body.appendChild(d);
+        this.body.scrollTop = this.body.scrollHeight;
+        return d;
+    },
+
+    gap(k) { return this.fast ? 40 : ({ you: 520, think: 500, tool: 440, cli: 540, gate: 950, ok: 650 })[k] || 500; },
+
+    play(i) {
+        if (i >= MINI.length) { this.line('cli', MW_TAG_CLI + '<span class="mw-caret"></span>'); return; }
+        const s = MINI[i];
+        const typeMs = this.fast ? 6 : 34;
+        if (s.k === 'you') {
+            const d = this.line('you', '<span class="mw-p">❯</span><span class="mw-tx"></span><span class="mw-caret"></span>');
+            const tx = d.querySelector('.mw-tx');
+            let j = 0;
+            const tick = () => {
+                if (j <= s.text.length) { tx.textContent = s.text.slice(0, j); j++; setTimeout(tick, typeMs); }
+                else { d.querySelector('.mw-caret').remove(); setTimeout(() => this.play(i + 1), this.gap('you')); }
+            };
+            tick();
+        } else if (s.k === 'think') {
+            this.line('think', MW_TAG_CLAUDE + '<span class="mw-tx">✦ ' + esc(s.text) + '</span>');
+            setTimeout(() => this.play(i + 1), this.gap('think'));
+        } else if (s.k === 'tool') {
+            this.line('tool', MW_TAG_CLAUDE + '<span class="mw-tx"><span class="mw-gear">⚙</span>' + esc(s.text) + '</span>');
+            setTimeout(() => this.play(i + 1), this.gap('tool'));
+        } else {
+            const tag = (s.k === 'ok') ? 'ok' : (s.k === 'gate' ? 'gate' : 'cli');
+            this.line(tag, MW_TAG_CLI + '<span class="mw-tx">' + esc(s.text) + '</span>');
+            setTimeout(() => this.play(i + 1), this.gap(tag));
+        }
+    }
+};
+
+/* 随机数字质感：点阵闪烁 + 横线数据脉冲 */
+const fxLayer = document.querySelector('.fx-layer');
+if (fxLayer && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    for (let i = 0; i < 42; i++) {
+        const d = document.createElement('i');
+        d.className = 'fx-dot' + (Math.random() < .3 ? ' m' : '');
+        d.style.left = (Math.random() * 100).toFixed(2) + '%';
+        d.style.top = (Math.random() * 100).toFixed(2) + '%';
+        d.style.setProperty('--dur', (2.5 + Math.random() * 5).toFixed(2) + 's');
+        d.style.setProperty('--delay', (Math.random() * 6).toFixed(2) + 's');
+        fxLayer.appendChild(d);
+    }
+    const spawnLine = () => {
+        const l = document.createElement('i');
+        l.className = 'fx-line';
+        l.style.top = (5 + Math.random() * 90).toFixed(2) + '%';
+        l.style.left = (-10 + Math.random() * 40).toFixed(2) + '%';
+        const dur = 1.6 + Math.random() * 1.6;
+        l.style.setProperty('--dur', dur.toFixed(2) + 's');
+        fxLayer.appendChild(l);
+        setTimeout(() => l.remove(), dur * 1000 + 120);
+        setTimeout(spawnLine, 900 + Math.random() * 2600);
+    };
+    setTimeout(spawnLine, 1200);
+}
+
+/* 工作流链选择器 */
+const WORKFLOWS = [
+    { name: 'basic', sub: '轻量开发链', desc: '适用于功能开发、缺陷修复等常规任务——从需求到交付的最小闭环。', stages: ['requirement', 'spec', 'plan', 'coding', 'reporting'], gates: ['spec', 'plan', 'coding'],
+      tree: [
+        '<span class="t-dir">&lt;runDir&gt;/</span><span class="t-note">取自仓库内一次真实 run：.ddo/runs/feat/20261013-225913-4df9</span>',
+        '├─ requirement.md<span class="t-note">固化的原始需求</span>',
+        '├─ spec.md<span class="t-note">对齐契约 · FR / AC / BQ</span>',
+        '├─ plan.md<span class="t-note">技术方案与文件变更计划</span>',
+        '└─ execution-report.md<span class="t-note">交付报告</span>',
+      ] },
+    { name: 'standard', sub: '完整开发链', desc: '在 basic 之上补全测试计划、任务拆分、验证、复审与复盘，适合需要完整质量环节的交付。', stages: ['requirement', 'spec', 'plan', 'test-plan', 'tasking', 'coding', 'verification', 'review', 'reporting', 'reflection'], gates: ['spec', 'plan', 'test-plan', 'coding', 'reflection'],
+      tree: [
+        '<span class="t-dir">&lt;runDir&gt;/</span><span class="t-note">按 10 个任务的输出声明</span>',
+        '├─ requirement.md · spec.md · plan.md<span class="t-note">需求与方案</span>',
+        '├─ test-plan.md<span class="t-note">测试计划</span>',
+        '├─ tasks/task-group.json<span class="t-note">任务拆分</span>',
+        '├─ verification.log<span class="t-note">验证记录</span>',
+        '├─ review-report.md<span class="t-note">复审报告</span>',
+        '├─ execution-report.md<span class="t-note">交付报告</span>',
+        '└─ reflection-report.md<span class="t-note">复盘</span>',
+      ] },
+    { name: 'test', sub: '测试链路', desc: '为现有代码补充分层测试：范围设定 → 分层设计 → unit / api / e2e 分级执行 → 总结。', stages: ['test-scope', 'test-design', 'test-unit / test-api / test-e2e', 'test-reporting'], gates: ['test-scope', 'test-design'],
+      tree: [
+        '<span class="t-dir">&lt;runDir&gt;/</span><span class="t-note">按任务输出声明</span>',
+        '├─ test-scope.md<span class="t-note">测试范围设定</span>',
+        '├─ test-design.md<span class="t-note">分层测试计划</span>',
+        '├─ unit / api / e2e-test-report.md<span class="t-note">分级执行报告（按能力裁剪）</span>',
+        '└─ test-reporting.md<span class="t-note">测试总结</span>',
+      ] },
+    { name: 'custom', sub: '自定义', desc: '内置链不满足时，列出原子任务、商定阶段与依赖，以临时预设启动。', stages: ['atom-tasks', '自由组合', '临时预设', 'run start'], gates: [], tree: null },
+];
+const wfTabs = document.getElementById('wfTabs');
+const wfChain = document.getElementById('wfChain');
+const wfDesc = document.getElementById('wfDesc');
+const wfTitle = document.getElementById('wfTitle');
+const wfSub2 = document.getElementById('wfSub2');
+const wfFiles = document.getElementById('wfFiles');
+
+function renderWf(i) {
+    const w = WORKFLOWS[i];
+    wfTitle.textContent = w.name;
+    wfSub2.textContent = w.sub;
+    wfDesc.textContent = w.desc;
+    wfChain.innerHTML = '';
+    w.stages.forEach((s, k) => {
+        const gated = w.gates.indexOf(s) >= 0;
+        const chip = document.createElement('span');
+        chip.className = 'wf-chip' + (gated ? ' gated' : '');
+        chip.innerHTML = s + (gated ? '<i class="wf-gate">◆</i>' : '');
+        chip.style.animationDelay = (k * 35) + 'ms';
+        wfChain.appendChild(chip);
+        if (k < w.stages.length - 1) {
+            const a = document.createElement('span');
+            a.className = 'wf-arr';
+            a.textContent = '→';
+            a.style.animationDelay = (k * 35 + 20) + 'ms';
+            wfChain.appendChild(a);
+        }
+    });
+    wfFiles.innerHTML = '';
+    if (w.tree) {
+        const box = document.createElement('div');
+        box.className = 'wf-tree';
+        w.tree.forEach((h, k) => {
+            const ln = document.createElement('div');
+            ln.className = 'wf-tln';
+            ln.innerHTML = h;
+            ln.style.animationDelay = (k * 30) + 'ms';
+            box.appendChild(ln);
+        });
+        wfFiles.appendChild(box);
+    } else {
+        const el = document.createElement('span');
+        el.className = 'wf-files-note';
+        el.textContent = '产物由所选原子任务决定——26 个任务的输出均可自由组合。';
+        wfFiles.appendChild(el);
+    }
+    Array.from(wfTabs.children).forEach((t, k) => t.classList.toggle('active', k === i));
+}
+
+WORKFLOWS.forEach((w, i) => {
+    const b = document.createElement('button');
+    b.className = 'wf-tab';
+    b.innerHTML = '<span class="wf-name">' + w.name + '</span><span class="wf-sub">' + w.sub + '</span>';
+    b.addEventListener('click', () => renderWf(i));
+    wfTabs.appendChild(b);
+});
+renderWf(0);
+
+sop.init();
+mini.start();
+
+/* ---- 复制按钮（PROMPT 模板 / 安装命令） ---- */
+document.querySelectorAll('.qs-copy').forEach(function(btn){
+    btn.addEventListener('click', function(){
+        const src = document.getElementById(btn.getAttribute('data-copy-from'));
+        if (!src) return;
+        const text = src.textContent;
+        const done = function(ok){
+            btn.textContent = ok ? '已复制 ✓' : '复制失败';
+            setTimeout(function(){ btn.textContent = '复制'; }, 1600);
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(function(){ done(true); }, function(){ done(false); });
+        } else {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed'; ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            let ok = false;
+            try { ok = document.execCommand('copy'); } catch (e) {}
+            document.body.removeChild(ta);
+            done(ok);
+        }
+    });
+});
+
+/* ---- 开始使用 · GitHub 活跃度（动态获取，失败整行隐藏） ---- */
+(function(){
+    const row = document.getElementById('ghLive');
+    if (!row || !window.fetch) return;
+    let any = false;
+    const show = function(){ if (any) row.hidden = false; };
+    fetch('https://api.github.com/repos/Djhhhhhh/Ddo-Code-Flow')
+        .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+        .then(function(j){
+            any = true;
+            const s = document.getElementById('ghStars');
+            if (s) s.textContent = j.stargazers_count;
+            show();
+        })
+        .catch(function(){});
+    const since = new Date(Date.now() - 30 * 864e5).toISOString();
+    fetch('https://api.github.com/repos/Djhhhhhh/Ddo-Code-Flow/commits?since=' + since + '&per_page=100')
+        .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+        .then(function(list){
+            if (!Array.isArray(list) || !list.length) return;
+            any = true;
+            const c = document.getElementById('ghCommits');
+            if (c) c.textContent = list.length >= 100 ? '100+' : list.length;
+            show();
+        })
+        .catch(function(){});
+})();
+</script>
+</body>
+</html>
+
+
