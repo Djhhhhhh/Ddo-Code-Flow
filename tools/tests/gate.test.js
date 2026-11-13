@@ -578,7 +578,7 @@ test('coding 门全循环：拦截 → 呈现 → interact 提问使呈现过期
   }
 });
 
-test('coding 门：修改 in-phase 留痕（反馈进 state 供审计），同意前不推进', () => {
+test('coding 门：修改 in-phase 留痕（v2 标量进 state、反馈全文进日志），同意前不推进', () => {
   const sb = sandbox();
   try {
     writeState(sb, ['coding:02'], codingStages({
@@ -594,9 +594,13 @@ test('coding 门：修改 in-phase 留痕（反馈进 state 供审计），同�
     const i = cli(['gate', 'interact', '--state', sb.statePath, '--option', '修改', '--note', '补一个边界测试'], sb);
     assert.equal(i.status, 0, i.stderr);
     const gate = readBack(sb).stages.coding.gate;
-    assert.ok(Array.isArray(gate.interactions) && gate.interactions.length === 1);
-    assert.equal(gate.interactions[0].option, '修改');
-    assert.equal(gate.interactions[0].note, '补一个边界测试');
+    // v2 有界化（I-5）：interactions[] 停写，只写覆盖式标量；note 全文在 F 区日志（V-1/V-2）
+    assert.ok(gate.interactions === undefined);
+    assert.ok(gate.lastInteractedAt);
+    const jl = JSON.parse(fs.readFileSync(path.join(sb.runDir, '.usage.jsonl'), 'utf8').trim().split('\n').pop());
+    assert.equal(jl.event, 'interacted');
+    assert.equal(jl.option, '修改');
+    assert.equal(jl.note, '补一个边界测试');
     assert.deepStrictEqual(readBack(sb).currentStage, ['coding:02']); // 仍在门上
   } finally {
     cleanup(sb);

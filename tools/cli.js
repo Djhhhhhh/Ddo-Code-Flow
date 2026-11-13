@@ -10,7 +10,7 @@
 
 const path = require('path');
 const fs = require('fs');
-const { readState, writeState, assertState } = require('./lib/state');
+const { readState, writeState, assertState, WRITER_ALLOWLIST, strictViolations } = require('./lib/state');
 const registry = require('./lib/index-registry');
 const history = require('./lib/history');
 const { assemble, mergeConfig, applyConfigOverrides } = require('./lib/assemble');
@@ -18,9 +18,11 @@ const { loadTaskSchema, validateArtifact } = require('./lib/output-schema');
 const { loadWorkflow, expandStages, phaseType, nextPhase, readyStages, statusForPhase, standardOptions, buildGate, isAdvancing, pruneStages, activateStarts } = require('./lib/workflow');
 const { subflowStart, subflowClose, activeSubflows } = require('./lib/subflow');
 const { openGates, presentPayload, renderGateOptions, fillState, isPresentationValid } = require('./lib/gate');
+const journal = require('./lib/journal');
 const { gitInfo, inferMainBranch } = require('./lib/git-info');
 const { readDependencies, checkDependencies } = require('./lib/deps');
 const { spawnSync } = require('node:child_process');
+const { createHash } = require('node:crypto');
 
 const ATOM_TASKS_DIR = path.join(__dirname, '..', 'atom-tasks');
 const WORKFLOWS_DIR = path.join(__dirname, '..', 'workflows');
@@ -84,15 +86,71 @@ function tasksDirFor(f, state) {
   return (state.dirs && state.dirs.tasksDir) || ATOM_TASKS_DIR;
 }
 
-/** 阶段的 output 声明文件全集（去重）：相位级 + 顶层。 */
-function stageOutputFiles(tasksDir, stageId) {
+/** 阶段的 output 声明文件全集（去重）：相位级 + 顶层。三形态（STATE-SPEC §4.3.2）：
+ *  string / {updates} / {files,dirs}——files 与 updates 同为文件清单；dirs 另由 stageOutputDirs 归档。 */
+function outputDecls(tasksDir, stageId) {
   const cfg = JSON.parse(fs.readFileSync(path.join(tasksDir, stageId, 'config.json'), 'utf8'));
   const decls = [];
   for (const ph of Array.isArray(cfg.phases) ? cfg.phases : []) {
     if (ph.output !== undefined) decls.push(ph.output);
   }
   if (cfg.output !== undefined) decls.push(cfg.output);
-  return [...new Set(decls.flatMap((d) => (typeof d === 'string' ? [d] : (d && d.updates) || [])))];
+  return decls;
+}
+
+function stageOutputFiles(tasksDir, stageId) {
+  return [...new Set(outputDecls(tasksDir, stageId).flatMap((d) => (
+    typeof d === 'string' ? [d] : (d && d.updates) || (d && d.files) || []
+  )))];
+}
+
+/** 阶段声明的产物目录集（第三形态 dirs）：回滚时整目录移入 _del/rollback-<n>/（V-6）。 */
+function stageOutputDirs(tasksDir, stageId) {
+  return [...new Set(outputDecls(tasksDir, stageId).flatMap((d) => (d && Array.isArray(d.dirs) ? d.dirs : [])))];
+}
+
+/** 相位级 output 声明（E 区登记取声明用；无声明返回 null）。 */
+function phaseOutputDecl(tasksDir, stageId, phase) {
+  const cfg = JSON.parse(fs.readFileSync(path.join(tasksDir, stageId, 'config.json'), 'utf8'));
+  if (Array.isArray(cfg.phases)) {
+    const entry = cfg.phases.find((p) => String(p.id).padStart(2, '0') === phase);
+    return (entry && entry.output) || null;
+  }
+  return phase === '01' ? (cfg.output || null) : null;
+}
+
+/**
+ * E 区登记快照（STATE-SPEC §5.1/A1）：解析声明→文件集 F+目录集 D→artifactPath 防逃逸→
+ * D 逐目录列举现存文件（仅一层）并入→对全集计算 {path,bytes,sha256}（I-E1：登记时刻真实存在）。
+ * 任何声明文件缺失或目录缺失/为空 → files=[]（空登记；missing 返回调用方呈现，不阻断推进）。
+ */
+function snapshotArtifacts(runDir, decl) {
+  const declared = typeof decl === 'string'
+    ? [decl]
+    : decl && Array.isArray(decl.files) ? decl.files
+      : decl && Array.isArray(decl.updates) ? decl.updates
+        : [];
+  const dirs = decl && Array.isArray(decl.dirs) ? decl.dirs : [];
+  const rel = [];
+  const seen = new Set();
+  const push = (p) => { if (!seen.has(p)) { seen.add(p); rel.push(p); } };
+  for (const f of declared) push(f);
+  const missing = [];
+  for (const d of dirs) {
+    const dirAbs = artifactPath(runDir, d);
+    if (!fs.existsSync(dirAbs) || !fs.statSync(dirAbs).isDirectory()) { missing.push(`${d}/`); continue; }
+    const names = fs.readdirSync(dirAbs).filter((n) => fs.statSync(path.join(dirAbs, n)).isFile());
+    if (!names.length) { missing.push(`${d}/（空目录）`); continue; }
+    for (const n of names.sort()) push(`${d}/${n}`);
+  }
+  const files = [];
+  for (const r of rel) {
+    const abs = artifactPath(runDir, r);
+    if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) { missing.push(r); continue; }
+    const buf = fs.readFileSync(abs);
+    files.push({ path: r, bytes: buf.length, sha256: createHash('sha256').update(buf).digest('hex') });
+  }
+  return missing.length ? { files: [], missing } : { files, missing: [] };
 }
 
 // ---------------------------------------------------------------- DAG 工具
@@ -193,11 +251,14 @@ function runFinish(f) {
     registry.unregister(state.runId);
     return { finished: state.runId, finalStatus, ephemeral: true, deleted: true };
   }
-  // 迁移顺序（11 §2，02 §7 修订；#51 起 ① 为整目录 zip）：① runDir zip 归档（含 .state.json，
-  // 保留收束前最后位置，幂等覆盖）② history 追加 ③ index 移除 ④ currentStage 清空——
-  // ①② 幂等，崩溃残留被惰性校验兜住
+  // 迁移顺序（11 §2，02 §7 修订；#51 起 ① 为整目录 zip；STATE-SPEC §4.3.3 增 finished 日志）：
+  // ⓪ finished 日志（先于 zip：随 runDir 进归档；--no-archive 也留本地审计）→ ① runDir zip 归档
+  // （含 .state.json 与 .usage.jsonl，保留收束前最后位置，幂等覆盖）② history 追加 ③ index 移除
+  // ④ currentStage 清空——①② 幂等，崩溃残留被惰性校验兜住（ephemeral 分支在上方已 return，
+  // 日志随目录删除无意义、跳过）
+  const runDir = (state.dirs && state.dirs.runDir) || path.dirname(statePath); // 历史 state 缺 dirs 回落
+  journal.appendAudit(runDir, { event: 'finished', command: 'run finish', detail: finalStatus, at: nowIso() });
   if (!noArchive) {
-    const runDir = (state.dirs && state.dirs.runDir) || path.dirname(statePath); // 历史 state 缺 dirs 回落
     history.archiveRunZip(state.runId, runDir);
     history.append({
       runId: state.runId,
@@ -258,11 +319,21 @@ function runRollback(f) {
         archived.push(file);
       }
     }
+    // 第三形态 dirs（STATE-SPEC §4.3.2/V-6）：声明的产物目录整目录移入 _del/rollback-<n>/
+    for (const dir of stageOutputDirs(tasksDir, s)) {
+      const src = artifactPath(runDir, dir);
+      if (fs.existsSync(src)) {
+        fs.mkdirSync(delDir, { recursive: true });
+        fs.renameSync(src, path.join(delDir, path.basename(dir)));
+        archived.push(`${dir}/`);
+      }
+    }
   }
 
   const rolledBack = [];
   const pathReset = [];
   const clearedGates = [];
+  const clearedArtifacts = [];
   for (const s of reset) {
     const from = state.stages[s].status;
     state.stages[s] = { ...state.stages[s], status: 'pending', at: nowIso() };
@@ -270,15 +341,27 @@ function runRollback(f) {
       delete state.stages[s].gate; // 阶段重置 = 干净重做（07 §3.2：转移型决议/上游回滚清门）
       clearedGates.push(s);
     }
+    // E 区当前有效集语义（STATE-SPEC §3.5）：重置阶段删除登记条目（历史轨迹在 F 区日志）
+    if (state.artifacts && state.artifacts[s]) {
+      delete state.artifacts[s];
+      clearedArtifacts.push(s);
+    }
     if (s === target) rolledBack.push({ stage: s, from, to: 'pending' });
     else pathReset.push(s);
   }
+  if (state.artifacts && !Object.keys(state.artifacts).length) delete state.artifacts; // 空段不残留
   state.currentStage = [`${target}:01`];
   writeState(statePath, state);
+  // F 区：rollback 事件（note = reason；使用史不随回滚销毁，V-4）
+  journal.appendAudit(runDir, {
+    event: 'rollback', command: 'rollback', stage: target, at: nowIso(),
+    ...(f.reason ? { note: f.reason } : {}),
+  });
   if (f.reason) process.stderr.write(`[rollback] reason: ${f.reason}\n`);
   return {
     rolledBack, pathReset,
     ...(clearedGates.length ? { clearedGates } : {}),
+    ...(clearedArtifacts.length ? { clearedArtifacts } : {}),
     ...(archived.length ? { archivedTo: `_del/${path.basename(delDir)}`, archived } : {}),
     currentStage: state.currentStage,
   };
@@ -359,12 +442,22 @@ function runValidate(f) {
   const schema = loadTaskSchema(taskDir, taskName);
 
   const runDir = (state.dirs && state.dirs.runDir) || path.dirname(statePath);
-  const files = typeof decl === 'string' ? [decl] : (decl.updates || []);
+  const files = typeof decl === 'string'
+    ? [decl]
+    : (decl.updates || (Array.isArray(decl.files) ? decl.files : []));
+  const dirs = decl && Array.isArray(decl.dirs) ? decl.dirs : []; // 第三形态（STATE-SPEC §4.3.2）
   const resolved = files.map((file) => artifactPath(runDir, file)); // 防逃逸（11 §4）
   const missing = resolved.filter((abs) => !fs.existsSync(abs));
+  // dirs 声明：目录存在且非空（保持纯读；split 分册可见性检查）
+  for (const d of dirs) {
+    const abs = artifactPath(runDir, d);
+    const okDir = fs.existsSync(abs) && fs.statSync(abs).isDirectory()
+      && fs.readdirSync(abs).some((n) => fs.statSync(path.join(abs, n)).isFile());
+    if (!okDir) missing.push(abs);
+  }
 
   const errors = [];
-  if (typeof decl === 'string' && schema && !missing.length) {
+  if ((typeof decl === 'string' || Array.isArray(decl.files)) && schema && !missing.length) {
     errors.push(...validateArtifact(schema, fs.readFileSync(resolved[0], 'utf8')));
   }
 
@@ -551,7 +644,9 @@ function runStart(f) {
     runId,
     title: f.title,
     startedAt,
+    schemaVersion: 2, // v2 结构代际标记（STATE-SPEC §3.1）：只在创建时写入、只增不改（I-6）
     ...(ephemeral ? { ephemeral: true } : {}), // 临时模式标记（DEC-5）：finish 据此走删除分支
+    workflow: preset.name, // v2：物化预设名入 state（返回值早已携带，补齐 state 缺口）
     git: multiGit || gitInfo(project), // D5 推断链：单仓库=仓库推断或置空；multi=逐仓库注册（DEC-3）
     dirs: {
       projectRoot: project,
@@ -566,6 +661,11 @@ function runStart(f) {
   assertState(state);
   writeState(statePath, state);
   registry.register(runId, { statePath, startedAt });
+  // F 区首事件（STATE-SPEC §4.2）：创建日志文件 + run-started；state 成功后追加，失败仅警告
+  journal.appendAudit(runDir, {
+    event: 'run-started', command: 'run start', at: startedAt,
+    ...(currentStage.length ? { stage: stageIdOf(currentStage[0]), phase: phaseOf(currentStage[0]) } : {}),
+  });
   return {
     runId, title: state.title, statePath, workflow: preset.name, currentStage, openedGates,
     atomTasks, // 生效旋钮（defaults 预填 + --config 覆盖后的最终值）
@@ -642,6 +742,23 @@ function runNext(f) {
   const finished = [];
   const closedGates = [];
   const nextEntries = [];
+  // E 区登记（STATE-SPEC §4.3.1：仅发生在 next，登记时机=相位推进）：action 相位推进/收尾时
+  // 登记其声明 output；{updates} 声明的 human 相位在 --decision 关门时登记。先于推进计算。
+  const runDir = (state.dirs && state.dirs.runDir) || path.dirname(f.state);
+  const artifactsRecorded = [];
+  for (const entry of state.currentStage) {
+    const stageId = stageIdOf(entry);
+    const phase = phaseOf(entry);
+    const decl = phaseOutputDecl(tasksDir, stageId, phase);
+    if (!decl) continue;
+    const isHuman = phaseType(tasksDir, stageId, phase) === 'human';
+    const updatesDecl = decl && typeof decl === 'object' && Array.isArray(decl.updates);
+    if (isHuman && (!updatesDecl || decision === undefined)) continue; // human 相位仅在决议关门时登记 updates
+    const { files: regFiles, missing } = snapshotArtifacts(runDir, decl);
+    state.artifacts = state.artifacts || {};
+    state.artifacts[stageId] = [...(state.artifacts[stageId] || []), { phase, recordedAt: now, trigger: 'next', files: regFiles }];
+    artifactsRecorded.push({ stage: stageId, phase, files: regFiles.length, ...(missing.length ? { missing } : {}) });
+  }
   for (const entry of state.currentStage) {
     const stageId = stageIdOf(entry);
     if (!(stageId in state.stages)) throw new Error(`stage 不存在: ${stageId}（现有: ${Object.keys(state.stages).join(', ')}）`);
@@ -686,8 +803,28 @@ function runNext(f) {
 
   state.currentStage = nextEntries;
   writeState(f.state, state);
+  // F 区事件（STATE-SPEC §4.2，state 成功后追加；顺序 = decision → advanced → activated → artifacts-recorded）
+  for (const c of closedGates) {
+    journal.appendAudit(runDir, { event: 'decision', command: 'next', stage: c.stage, option: c.decision, at: now });
+  }
+  for (const a of advanced) {
+    journal.appendAudit(runDir, { event: 'advanced', command: 'next', stage: a.stage, detail: `${a.from} → ${a.to}`, at: now });
+  }
+  for (const id of activated) {
+    journal.appendAudit(runDir, { event: 'activated', command: 'next', stage: id, at: now });
+  }
+  for (const ra of artifactsRecorded) {
+    journal.appendAudit(runDir, {
+      event: 'artifacts-recorded', command: 'next', stage: ra.stage, phase: ra.phase, at: now,
+      detail: ra.missing ? `${ra.files} 文件（缺失: ${ra.missing.join('；')}——空登记）` : `${ra.files} 文件`,
+    });
+  }
   // 终点不自动 run finish（04 D6：生命周期唯一入口保持 run finish）
-  return { advanced, finished, activated, openedGates, closedGates, currentStage: state.currentStage, completed: nextEntries.length === 0 };
+  return {
+    advanced, finished, activated, openedGates, closedGates, currentStage: state.currentStage,
+    ...(artifactsRecorded.length ? { artifactsRecorded } : {}),
+    completed: nextEntries.length === 0,
+  };
 }
 
 // ---------------------------------------------------------------- status（07 §4.4）
@@ -761,8 +898,16 @@ function statusView(state, statePath, tasksDir) {
   for (const s of subflowViews.filter((x) => x.status === 'active')) {
     availableCommands.push({ cmd: `status --state ${s.statePath}`, desc: `查看 active 子流程 ${s.id} 当前相位（父流程阻塞中）` });
   }
+  // E 区产物登记摘要（STATE-SPEC §4.2 status 行：只读派生，不存储）：
+  // 各阶段登记条目数与文件数（当前有效集；split 分册逐文件计入）
+  const artifactsSummary = state.artifacts
+    ? Object.fromEntries(Object.entries(state.artifacts).map(([k, v]) => [
+        k, { entries: v.length, files: v.reduce((n, e) => n + (e.files ? e.files.length : 0), 0) },
+      ]))
+    : undefined;
   return {
     runId: state.runId, title: state.title, currentStage: positions, gateOptions, availableCommands,
+    ...(artifactsSummary ? { artifacts: artifactsSummary } : {}),
     ...(subflowViews.length ? { subflows: subflowViews } : {}),
     ...(state.subflow ? { subflowOf: { parentRunId: state.subflow.parentRunId, parentStatePath: state.subflow.parentStatePath, depth: state.subflow.depth } } : {}),
   };
@@ -820,6 +965,14 @@ function gatePresent(f) {
     presented.push(g.stage);
   }
   writeState(statePath, state);
+  // F 区：presented 事件（STATE-SPEC §4.3.5）——--note = agent 执行摘要，只进日志不进 state（V-8）
+  const runDir = (state.dirs && state.dirs.runDir) || path.dirname(statePath);
+  for (const g of gates) {
+    journal.appendAudit(runDir, {
+      event: 'presented', command: 'gate present', stage: g.stage, phase: g.phase, at: now,
+      ...(f.note ? { note: f.note } : {}),
+    });
+  }
   return { ...presentPayload(gates, statePath), presentedAt: now, presented };
 }
 
@@ -850,9 +1003,15 @@ function gateInteract(f) {
   }
   const now = nowIso();
   const gate = state.stages[g.stage].gate || buildGate(state.stages, g.stage, g.phase, tasksDir, now);
-  const interactions = [...((gate.interactions) || []), { option: f.option, ...(f.note ? { note: f.note } : {}), at: now }];
-  state.stages[g.stage] = { ...state.stages[g.stage], gate: { ...gate, interactions } };
+  // v2 有界化（STATE-SPEC §3.3/I-5）：停写 interactions[]，改写覆盖式标量 lastInteractedAt
+  state.stages[g.stage] = { ...state.stages[g.stage], gate: { ...gate, lastInteractedAt: now } };
   writeState(statePath, state);
+  // 顺序规则（STATE-SPEC §3.7）：interacted 先写 state 标量成功，再追加日志（崩溃→保守拦截方向）
+  const runDir = (state.dirs && state.dirs.runDir) || path.dirname(statePath);
+  journal.appendAudit(runDir, {
+    event: 'interacted', command: 'gate interact', stage: g.stage, phase: g.phase,
+    option: f.option, at: now, ...(f.note ? { note: f.note } : {}),
+  });
   return { recorded: { stage: g.stage, phase: g.phase, option: f.option, at: now } };
 }
 
@@ -1229,9 +1388,10 @@ const REGISTRY = [
   {
     name: 'gate present',
     summary: '统一交互呈现入口：开门集 payload（静态∪动态选项 + dispatch）+ 盖 presentedAt 留痕（交互协议结构闭环）',
-    usage: 'gate present --state <path> [--tasks-dir <path>]',
+    usage: 'gate present --state <path> [--note <text>] [--tasks-dir <path>]',
     options: [
       { flag: '--state', desc: '.state.json 绝对路径', required: true },
+      { flag: '--note', desc: 'agent 执行摘要（可选，两段式：做了什么+结论——进 .usage.jsonl 的 presented 事件，不进 state，V-8）' },
       { flag: '--tasks-dir', desc: '原子任务根目录（缺省仓库 atom-tasks/；测试用）' },
     ],
     run: gatePresent,
@@ -1243,7 +1403,7 @@ const REGISTRY = [
     options: [
       { flag: '--state', desc: '.state.json 绝对路径', required: true },
       { flag: '--option', desc: 'in-phase 选项名（payload 中的 name；命令型决议不走本命令）', required: true },
-      { flag: '--note', desc: '交互摘要（可选，如提问内容——进 state 供审计）' },
+      { flag: '--note', desc: '交互反馈全文（可选——v2 只进 .usage.jsonl 的 interacted 事件，不进 state）' },
       { flag: '--stage', desc: '目标 stageId（多门并发时必填，缺省要求唯一开门）' },
       { flag: '--tasks-dir', desc: '原子任务根目录（缺省仓库 atom-tasks/；测试用）' },
     ],
@@ -1409,6 +1569,33 @@ function renderCommandHelp(cmd) {
 
 // ---------------------------------------------------------------- 主流程
 
+/**
+ * R-3 白名单守卫挂点（STATE-SPEC §4.4，P-2）：DDO_STATE_STRICT=1 时对带 --state 的命令
+ * 做写后深比对，越 WRITER_ALLOWLIST 的顶层键 → stderr 报告 + exit 1（开发/测试守卫）；
+ * 缺省关闭（零运行时成本）。state 文件消失仅 ephemeral finish 的删除分支合法。
+ */
+function runGuarded(cmd, flags) {
+  const statePath = flags.state;
+  if (process.env.DDO_STATE_STRICT !== '1' || !statePath) return cmd.run(flags);
+  const before = fs.existsSync(statePath) ? readState(statePath) : null;
+  const result = cmd.run(flags);
+  if (!fs.existsSync(statePath)) {
+    if (!(before && before.ephemeral === true && cmd.name === 'run finish')) {
+      process.stderr.write(`[STRICT] 命令 ${cmd.name} 执行后 state 文件不存在（越白名单写/删）: ${statePath}\n`);
+      process.exitCode = 1;
+    }
+    return result;
+  }
+  const after = readState(statePath);
+  const violations = strictViolations(before, after, cmd.name);
+  if (violations.length) {
+    const wl = (WRITER_ALLOWLIST[cmd.name] || []).join(', ') || '∅（纯读命令）';
+    process.stderr.write(`[STRICT] 命令 ${cmd.name} 越白名单写入: ${violations.join(', ')}（白名单: ${wl}）\n`);
+    process.exitCode = 1;
+  }
+  return result;
+}
+
 function main() {
   const argv = process.argv.slice(2);
   const { positional, flags, help } = parseArgv(argv);
@@ -1425,7 +1612,7 @@ function main() {
       process.stdout.write(`${renderCommandHelp(cmd)}\n`);
       return 0;
     }
-    const result = cmd.run(flags);
+    const result = runGuarded(cmd, flags);
     if (cmd.rawOutput) process.stdout.write(`${result}\n`);
     else process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     return process.exitCode || 0; // 命令可自设 exitCode（如 validate 校验失败仍输出 JSON）

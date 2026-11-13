@@ -50,7 +50,7 @@
             "description": "action=AI 执行；human=人审点（确认门注册源）。缺省 action"
           },
           "output": {
-            "description": "产出定位符：字符串=产出文件名；{updates}=只写回清单",
+            "description": "产出定位符：字符串=产出文件名；{updates}=只写回清单；{files,dirs}=文件清单+产物目录（第三形态，split 分册声明）",
             "oneOf": [
               {
                 "type": "string",
@@ -67,6 +67,30 @@
                     "minItems": 1,
                     "items": {
                       "type": "string"
+                    }
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "required": [
+                  "files"
+                ],
+                "properties": {
+                  "files": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "dirs": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
                     }
                   }
                 }
@@ -93,7 +117,7 @@
       }
     },
     "output": {
-      "description": "顶层产出定位符（单相位任务或任务级声明；相位级优先）",
+      "description": "顶层产出定位符（单相位任务或任务级声明；相位级优先；第三形态 {files,dirs} 同 phases[].output）",
       "oneOf": [
         {
           "type": "string",
@@ -110,6 +134,30 @@
               "minItems": 1,
               "items": {
                 "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "files"
+          ],
+          "properties": {
+            "files": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "dirs": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "minLength": 1
               }
             }
           }
