@@ -22,6 +22,7 @@ const journal = require('./lib/journal');
 const { gitInfo, inferMainBranch } = require('./lib/git-info');
 const { readDependencies, checkDependencies } = require('./lib/deps');
 const { spawnSync } = require('node:child_process');
+const { createHash } = require('node:crypto');
 
 const ATOM_TASKS_DIR = path.join(__dirname, '..', 'atom-tasks');
 const WORKFLOWS_DIR = path.join(__dirname, '..', 'workflows');
@@ -85,15 +86,71 @@ function tasksDirFor(f, state) {
   return (state.dirs && state.dirs.tasksDir) || ATOM_TASKS_DIR;
 }
 
-/** 阶段的 output 声明文件全集（去重）：相位级 + 顶层。 */
-function stageOutputFiles(tasksDir, stageId) {
+/** 阶段的 output 声明文件全集（去重）：相位级 + 顶层。三形态（STATE-SPEC §4.3.2）：
+ *  string / {updates} / {files,dirs}——files 与 updates 同为文件清单；dirs 另由 stageOutputDirs 归档。 */
+function outputDecls(tasksDir, stageId) {
   const cfg = JSON.parse(fs.readFileSync(path.join(tasksDir, stageId, 'config.json'), 'utf8'));
   const decls = [];
   for (const ph of Array.isArray(cfg.phases) ? cfg.phases : []) {
     if (ph.output !== undefined) decls.push(ph.output);
   }
   if (cfg.output !== undefined) decls.push(cfg.output);
-  return [...new Set(decls.flatMap((d) => (typeof d === 'string' ? [d] : (d && d.updates) || [])))];
+  return decls;
+}
+
+function stageOutputFiles(tasksDir, stageId) {
+  return [...new Set(outputDecls(tasksDir, stageId).flatMap((d) => (
+    typeof d === 'string' ? [d] : (d && d.updates) || (d && d.files) || []
+  )))];
+}
+
+/** 阶段声明的产物目录集（第三形态 dirs）：回滚时整目录移入 _del/rollback-<n>/（V-6）。 */
+function stageOutputDirs(tasksDir, stageId) {
+  return [...new Set(outputDecls(tasksDir, stageId).flatMap((d) => (d && Array.isArray(d.dirs) ? d.dirs : [])))];
+}
+
+/** 相位级 output 声明（E 区登记取声明用；无声明返回 null）。 */
+function phaseOutputDecl(tasksDir, stageId, phase) {
+  const cfg = JSON.parse(fs.readFileSync(path.join(tasksDir, stageId, 'config.json'), 'utf8'));
+  if (Array.isArray(cfg.phases)) {
+    const entry = cfg.phases.find((p) => String(p.id).padStart(2, '0') === phase);
+    return (entry && entry.output) || null;
+  }
+  return phase === '01' ? (cfg.output || null) : null;
+}
+
+/**
+ * E 区登记快照（STATE-SPEC §5.1/A1）：解析声明→文件集 F+目录集 D→artifactPath 防逃逸→
+ * D 逐目录列举现存文件（仅一层）并入→对全集计算 {path,bytes,sha256}（I-E1：登记时刻真实存在）。
+ * 任何声明文件缺失或目录缺失/为空 → files=[]（空登记；missing 返回调用方呈现，不阻断推进）。
+ */
+function snapshotArtifacts(runDir, decl) {
+  const declared = typeof decl === 'string'
+    ? [decl]
+    : decl && Array.isArray(decl.files) ? decl.files
+      : decl && Array.isArray(decl.updates) ? decl.updates
+        : [];
+  const dirs = decl && Array.isArray(decl.dirs) ? decl.dirs : [];
+  const rel = [];
+  const seen = new Set();
+  const push = (p) => { if (!seen.has(p)) { seen.add(p); rel.push(p); } };
+  for (const f of declared) push(f);
+  const missing = [];
+  for (const d of dirs) {
+    const dirAbs = artifactPath(runDir, d);
+    if (!fs.existsSync(dirAbs) || !fs.statSync(dirAbs).isDirectory()) { missing.push(`${d}/`); continue; }
+    const names = fs.readdirSync(dirAbs).filter((n) => fs.statSync(path.join(dirAbs, n)).isFile());
+    if (!names.length) { missing.push(`${d}/（空目录）`); continue; }
+    for (const n of names.sort()) push(`${d}/${n}`);
+  }
+  const files = [];
+  for (const r of rel) {
+    const abs = artifactPath(runDir, r);
+    if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) { missing.push(r); continue; }
+    const buf = fs.readFileSync(abs);
+    files.push({ path: r, bytes: buf.length, sha256: createHash('sha256').update(buf).digest('hex') });
+  }
+  return missing.length ? { files: [], missing } : { files, missing: [] };
 }
 
 // ---------------------------------------------------------------- DAG 工具
@@ -262,11 +319,21 @@ function runRollback(f) {
         archived.push(file);
       }
     }
+    // 第三形态 dirs（STATE-SPEC §4.3.2/V-6）：声明的产物目录整目录移入 _del/rollback-<n>/
+    for (const dir of stageOutputDirs(tasksDir, s)) {
+      const src = artifactPath(runDir, dir);
+      if (fs.existsSync(src)) {
+        fs.mkdirSync(delDir, { recursive: true });
+        fs.renameSync(src, path.join(delDir, path.basename(dir)));
+        archived.push(`${dir}/`);
+      }
+    }
   }
 
   const rolledBack = [];
   const pathReset = [];
   const clearedGates = [];
+  const clearedArtifacts = [];
   for (const s of reset) {
     const from = state.stages[s].status;
     state.stages[s] = { ...state.stages[s], status: 'pending', at: nowIso() };
@@ -274,9 +341,15 @@ function runRollback(f) {
       delete state.stages[s].gate; // 阶段重置 = 干净重做（07 §3.2：转移型决议/上游回滚清门）
       clearedGates.push(s);
     }
+    // E 区当前有效集语义（STATE-SPEC §3.5）：重置阶段删除登记条目（历史轨迹在 F 区日志）
+    if (state.artifacts && state.artifacts[s]) {
+      delete state.artifacts[s];
+      clearedArtifacts.push(s);
+    }
     if (s === target) rolledBack.push({ stage: s, from, to: 'pending' });
     else pathReset.push(s);
   }
+  if (state.artifacts && !Object.keys(state.artifacts).length) delete state.artifacts; // 空段不残留
   state.currentStage = [`${target}:01`];
   writeState(statePath, state);
   // F 区：rollback 事件（note = reason；使用史不随回滚销毁，V-4）
@@ -288,6 +361,7 @@ function runRollback(f) {
   return {
     rolledBack, pathReset,
     ...(clearedGates.length ? { clearedGates } : {}),
+    ...(clearedArtifacts.length ? { clearedArtifacts } : {}),
     ...(archived.length ? { archivedTo: `_del/${path.basename(delDir)}`, archived } : {}),
     currentStage: state.currentStage,
   };
@@ -368,12 +442,22 @@ function runValidate(f) {
   const schema = loadTaskSchema(taskDir, taskName);
 
   const runDir = (state.dirs && state.dirs.runDir) || path.dirname(statePath);
-  const files = typeof decl === 'string' ? [decl] : (decl.updates || []);
+  const files = typeof decl === 'string'
+    ? [decl]
+    : (decl.updates || (Array.isArray(decl.files) ? decl.files : []));
+  const dirs = decl && Array.isArray(decl.dirs) ? decl.dirs : []; // 第三形态（STATE-SPEC §4.3.2）
   const resolved = files.map((file) => artifactPath(runDir, file)); // 防逃逸（11 §4）
   const missing = resolved.filter((abs) => !fs.existsSync(abs));
+  // dirs 声明：目录存在且非空（保持纯读；split 分册可见性检查）
+  for (const d of dirs) {
+    const abs = artifactPath(runDir, d);
+    const okDir = fs.existsSync(abs) && fs.statSync(abs).isDirectory()
+      && fs.readdirSync(abs).some((n) => fs.statSync(path.join(abs, n)).isFile());
+    if (!okDir) missing.push(abs);
+  }
 
   const errors = [];
-  if (typeof decl === 'string' && schema && !missing.length) {
+  if ((typeof decl === 'string' || Array.isArray(decl.files)) && schema && !missing.length) {
     errors.push(...validateArtifact(schema, fs.readFileSync(resolved[0], 'utf8')));
   }
 
@@ -658,6 +742,23 @@ function runNext(f) {
   const finished = [];
   const closedGates = [];
   const nextEntries = [];
+  // E 区登记（STATE-SPEC §4.3.1：仅发生在 next，登记时机=相位推进）：action 相位推进/收尾时
+  // 登记其声明 output；{updates} 声明的 human 相位在 --decision 关门时登记。先于推进计算。
+  const runDir = (state.dirs && state.dirs.runDir) || path.dirname(f.state);
+  const artifactsRecorded = [];
+  for (const entry of state.currentStage) {
+    const stageId = stageIdOf(entry);
+    const phase = phaseOf(entry);
+    const decl = phaseOutputDecl(tasksDir, stageId, phase);
+    if (!decl) continue;
+    const isHuman = phaseType(tasksDir, stageId, phase) === 'human';
+    const updatesDecl = decl && typeof decl === 'object' && Array.isArray(decl.updates);
+    if (isHuman && (!updatesDecl || decision === undefined)) continue; // human 相位仅在决议关门时登记 updates
+    const { files: regFiles, missing } = snapshotArtifacts(runDir, decl);
+    state.artifacts = state.artifacts || {};
+    state.artifacts[stageId] = [...(state.artifacts[stageId] || []), { phase, recordedAt: now, trigger: 'next', files: regFiles }];
+    artifactsRecorded.push({ stage: stageId, phase, files: regFiles.length, ...(missing.length ? { missing } : {}) });
+  }
   for (const entry of state.currentStage) {
     const stageId = stageIdOf(entry);
     if (!(stageId in state.stages)) throw new Error(`stage 不存在: ${stageId}（现有: ${Object.keys(state.stages).join(', ')}）`);
@@ -702,8 +803,7 @@ function runNext(f) {
 
   state.currentStage = nextEntries;
   writeState(f.state, state);
-  // F 区事件（STATE-SPEC §4.2，state 成功后追加；顺序 = decision → advanced → activated）
-  const runDir = (state.dirs && state.dirs.runDir) || path.dirname(f.state);
+  // F 区事件（STATE-SPEC §4.2，state 成功后追加；顺序 = decision → advanced → activated → artifacts-recorded）
   for (const c of closedGates) {
     journal.appendAudit(runDir, { event: 'decision', command: 'next', stage: c.stage, option: c.decision, at: now });
   }
@@ -713,8 +813,18 @@ function runNext(f) {
   for (const id of activated) {
     journal.appendAudit(runDir, { event: 'activated', command: 'next', stage: id, at: now });
   }
+  for (const ra of artifactsRecorded) {
+    journal.appendAudit(runDir, {
+      event: 'artifacts-recorded', command: 'next', stage: ra.stage, phase: ra.phase, at: now,
+      detail: ra.missing ? `${ra.files} 文件（缺失: ${ra.missing.join('；')}——空登记）` : `${ra.files} 文件`,
+    });
+  }
   // 终点不自动 run finish（04 D6：生命周期唯一入口保持 run finish）
-  return { advanced, finished, activated, openedGates, closedGates, currentStage: state.currentStage, completed: nextEntries.length === 0 };
+  return {
+    advanced, finished, activated, openedGates, closedGates, currentStage: state.currentStage,
+    ...(artifactsRecorded.length ? { artifactsRecorded } : {}),
+    completed: nextEntries.length === 0,
+  };
 }
 
 // ---------------------------------------------------------------- status（07 §4.4）
@@ -788,8 +898,16 @@ function statusView(state, statePath, tasksDir) {
   for (const s of subflowViews.filter((x) => x.status === 'active')) {
     availableCommands.push({ cmd: `status --state ${s.statePath}`, desc: `查看 active 子流程 ${s.id} 当前相位（父流程阻塞中）` });
   }
+  // E 区产物登记摘要（STATE-SPEC §4.2 status 行：只读派生，不存储）：
+  // 各阶段登记条目数与文件数（当前有效集；split 分册逐文件计入）
+  const artifactsSummary = state.artifacts
+    ? Object.fromEntries(Object.entries(state.artifacts).map(([k, v]) => [
+        k, { entries: v.length, files: v.reduce((n, e) => n + (e.files ? e.files.length : 0), 0) },
+      ]))
+    : undefined;
   return {
     runId: state.runId, title: state.title, currentStage: positions, gateOptions, availableCommands,
+    ...(artifactsSummary ? { artifacts: artifactsSummary } : {}),
     ...(subflowViews.length ? { subflows: subflowViews } : {}),
     ...(state.subflow ? { subflowOf: { parentRunId: state.subflow.parentRunId, parentStatePath: state.subflow.parentStatePath, depth: state.subflow.depth } } : {}),
   };
