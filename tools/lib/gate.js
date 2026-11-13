@@ -95,7 +95,7 @@ function presentPayload(gates, statePath) {
           : fillState(t.action, statePath),
       })),
     })),
-    hint: '把各门 options 原样呈现给用户（优先宿主提问工具；检测不到该工具能力时降级为文本一问一答：文本列出选项、接受选项名或编号的文字答复，同等效力）；用户选择后按 dispatch 执行；in-phase 交互处理完成后必须重新 gate present——未重新呈现前的决议会被结构拦截',
+    hint: '把各门 options 原样呈现给用户（优先宿主提问工具；检测不到该工具能力时降级为文本一问一答：文本列出选项、接受选项名或编号的文字答复，同等效力）；用户选择后按 dispatch 执行；in-phase 交互处理完成后必须重新 gate present——未重新呈现前的决议会被结构拦截；呈现时可附 --note 两段式执行摘要（做了什么+结论，进日志不进 state）',
   };
 }
 
@@ -113,8 +113,22 @@ const epochOf = (s) => {
 };
 
 /**
- * 呈现有效性判定（INV-1）：valid ⇔ presentedAt 存在且严格晚于 openedAt 与每条 interaction.at。
- * 时刻比较数值化（容忍异时区偏移的合法 ISO）；同刻按过期（保守拦截方向）。
+ * 「最后一次交互时刻」标量派生（v2 有界化，STATE-SPEC §3.3/§5.2）：
+ * 优先读 lastInteractedAt 标量；v1 state（有 interactions[] 无标量）只读折算=末元素 at
+ * （不回写）；标量缺失/数组空/时刻非法 → null（= never，不参与判定）。
+ * 判定只依赖 state 内标量，不读 .usage.jsonl（I-G1/I-J1）。
+ */
+function lastInteractedEpoch(gate) {
+  if (gate.lastInteractedAt !== undefined) return epochOf(gate.lastInteractedAt);
+  const arr = gate.interactions;
+  if (!Array.isArray(arr) || !arr.length) return null;
+  const last = arr[arr.length - 1];
+  return last ? epochOf(last.at) : null;
+}
+
+/**
+ * 呈现有效性判定（INV-1 / I-G1，v2）：valid ⇔ presentedAt 存在且严格晚于 openedAt
+ * 与 lastInteractedAt（折算存在时）。O(1) 标量比较；同刻按过期（保守拦截方向）。
  */
 function isPresentationValid(gate) {
   if (!gate) return { valid: false, reason: 'never' };
@@ -123,10 +137,8 @@ function isPresentationValid(gate) {
   if (epochOf(gate.openedAt) !== null && presented <= epochOf(gate.openedAt)) {
     return { valid: false, reason: 'stale-open' };
   }
-  for (const i of gate.interactions || []) {
-    const at = epochOf(i.at);
-    if (at === null || presented <= at) return { valid: false, reason: 'interacted' };
-  }
+  const last = lastInteractedEpoch(gate);
+  if (last !== null && presented <= last) return { valid: false, reason: 'interacted' };
   return { valid: true };
 }
 

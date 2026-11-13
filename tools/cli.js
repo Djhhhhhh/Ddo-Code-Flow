@@ -18,6 +18,7 @@ const { loadTaskSchema, validateArtifact } = require('./lib/output-schema');
 const { loadWorkflow, expandStages, phaseType, nextPhase, readyStages, statusForPhase, standardOptions, buildGate, isAdvancing, pruneStages, activateStarts } = require('./lib/workflow');
 const { subflowStart, subflowClose, activeSubflows } = require('./lib/subflow');
 const { openGates, presentPayload, renderGateOptions, fillState, isPresentationValid } = require('./lib/gate');
+const journal = require('./lib/journal');
 const { gitInfo, inferMainBranch } = require('./lib/git-info');
 const { readDependencies, checkDependencies } = require('./lib/deps');
 const { spawnSync } = require('node:child_process');
@@ -193,11 +194,14 @@ function runFinish(f) {
     registry.unregister(state.runId);
     return { finished: state.runId, finalStatus, ephemeral: true, deleted: true };
   }
-  // 迁移顺序（11 §2，02 §7 修订；#51 起 ① 为整目录 zip）：① runDir zip 归档（含 .state.json，
-  // 保留收束前最后位置，幂等覆盖）② history 追加 ③ index 移除 ④ currentStage 清空——
-  // ①② 幂等，崩溃残留被惰性校验兜住
+  // 迁移顺序（11 §2，02 §7 修订；#51 起 ① 为整目录 zip；STATE-SPEC §4.3.3 增 finished 日志）：
+  // ⓪ finished 日志（先于 zip：随 runDir 进归档；--no-archive 也留本地审计）→ ① runDir zip 归档
+  // （含 .state.json 与 .usage.jsonl，保留收束前最后位置，幂等覆盖）② history 追加 ③ index 移除
+  // ④ currentStage 清空——①② 幂等，崩溃残留被惰性校验兜住（ephemeral 分支在上方已 return，
+  // 日志随目录删除无意义、跳过）
+  const runDir = (state.dirs && state.dirs.runDir) || path.dirname(statePath); // 历史 state 缺 dirs 回落
+  journal.appendAudit(runDir, { event: 'finished', command: 'run finish', detail: finalStatus, at: nowIso() });
   if (!noArchive) {
-    const runDir = (state.dirs && state.dirs.runDir) || path.dirname(statePath); // 历史 state 缺 dirs 回落
     history.archiveRunZip(state.runId, runDir);
     history.append({
       runId: state.runId,
@@ -275,6 +279,11 @@ function runRollback(f) {
   }
   state.currentStage = [`${target}:01`];
   writeState(statePath, state);
+  // F 区：rollback 事件（note = reason；使用史不随回滚销毁，V-4）
+  journal.appendAudit(runDir, {
+    event: 'rollback', command: 'rollback', stage: target, at: nowIso(),
+    ...(f.reason ? { note: f.reason } : {}),
+  });
   if (f.reason) process.stderr.write(`[rollback] reason: ${f.reason}\n`);
   return {
     rolledBack, pathReset,
@@ -551,7 +560,9 @@ function runStart(f) {
     runId,
     title: f.title,
     startedAt,
+    schemaVersion: 2, // v2 结构代际标记（STATE-SPEC §3.1）：只在创建时写入、只增不改（I-6）
     ...(ephemeral ? { ephemeral: true } : {}), // 临时模式标记（DEC-5）：finish 据此走删除分支
+    workflow: preset.name, // v2：物化预设名入 state（返回值早已携带，补齐 state 缺口）
     git: multiGit || gitInfo(project), // D5 推断链：单仓库=仓库推断或置空；multi=逐仓库注册（DEC-3）
     dirs: {
       projectRoot: project,
@@ -566,6 +577,11 @@ function runStart(f) {
   assertState(state);
   writeState(statePath, state);
   registry.register(runId, { statePath, startedAt });
+  // F 区首事件（STATE-SPEC §4.2）：创建日志文件 + run-started；state 成功后追加，失败仅警告
+  journal.appendAudit(runDir, {
+    event: 'run-started', command: 'run start', at: startedAt,
+    ...(currentStage.length ? { stage: stageIdOf(currentStage[0]), phase: phaseOf(currentStage[0]) } : {}),
+  });
   return {
     runId, title: state.title, statePath, workflow: preset.name, currentStage, openedGates,
     atomTasks, // 生效旋钮（defaults 预填 + --config 覆盖后的最终值）
@@ -686,6 +702,17 @@ function runNext(f) {
 
   state.currentStage = nextEntries;
   writeState(f.state, state);
+  // F 区事件（STATE-SPEC §4.2，state 成功后追加；顺序 = decision → advanced → activated）
+  const runDir = (state.dirs && state.dirs.runDir) || path.dirname(f.state);
+  for (const c of closedGates) {
+    journal.appendAudit(runDir, { event: 'decision', command: 'next', stage: c.stage, option: c.decision, at: now });
+  }
+  for (const a of advanced) {
+    journal.appendAudit(runDir, { event: 'advanced', command: 'next', stage: a.stage, detail: `${a.from} → ${a.to}`, at: now });
+  }
+  for (const id of activated) {
+    journal.appendAudit(runDir, { event: 'activated', command: 'next', stage: id, at: now });
+  }
   // 终点不自动 run finish（04 D6：生命周期唯一入口保持 run finish）
   return { advanced, finished, activated, openedGates, closedGates, currentStage: state.currentStage, completed: nextEntries.length === 0 };
 }
@@ -820,6 +847,14 @@ function gatePresent(f) {
     presented.push(g.stage);
   }
   writeState(statePath, state);
+  // F 区：presented 事件（STATE-SPEC §4.3.5）——--note = agent 执行摘要，只进日志不进 state（V-8）
+  const runDir = (state.dirs && state.dirs.runDir) || path.dirname(statePath);
+  for (const g of gates) {
+    journal.appendAudit(runDir, {
+      event: 'presented', command: 'gate present', stage: g.stage, phase: g.phase, at: now,
+      ...(f.note ? { note: f.note } : {}),
+    });
+  }
   return { ...presentPayload(gates, statePath), presentedAt: now, presented };
 }
 
@@ -850,9 +885,15 @@ function gateInteract(f) {
   }
   const now = nowIso();
   const gate = state.stages[g.stage].gate || buildGate(state.stages, g.stage, g.phase, tasksDir, now);
-  const interactions = [...((gate.interactions) || []), { option: f.option, ...(f.note ? { note: f.note } : {}), at: now }];
-  state.stages[g.stage] = { ...state.stages[g.stage], gate: { ...gate, interactions } };
+  // v2 有界化（STATE-SPEC §3.3/I-5）：停写 interactions[]，改写覆盖式标量 lastInteractedAt
+  state.stages[g.stage] = { ...state.stages[g.stage], gate: { ...gate, lastInteractedAt: now } };
   writeState(statePath, state);
+  // 顺序规则（STATE-SPEC §3.7）：interacted 先写 state 标量成功，再追加日志（崩溃→保守拦截方向）
+  const runDir = (state.dirs && state.dirs.runDir) || path.dirname(statePath);
+  journal.appendAudit(runDir, {
+    event: 'interacted', command: 'gate interact', stage: g.stage, phase: g.phase,
+    option: f.option, at: now, ...(f.note ? { note: f.note } : {}),
+  });
   return { recorded: { stage: g.stage, phase: g.phase, option: f.option, at: now } };
 }
 
@@ -1229,9 +1270,10 @@ const REGISTRY = [
   {
     name: 'gate present',
     summary: '统一交互呈现入口：开门集 payload（静态∪动态选项 + dispatch）+ 盖 presentedAt 留痕（交互协议结构闭环）',
-    usage: 'gate present --state <path> [--tasks-dir <path>]',
+    usage: 'gate present --state <path> [--note <text>] [--tasks-dir <path>]',
     options: [
       { flag: '--state', desc: '.state.json 绝对路径', required: true },
+      { flag: '--note', desc: 'agent 执行摘要（可选，两段式：做了什么+结论——进 .usage.jsonl 的 presented 事件，不进 state，V-8）' },
       { flag: '--tasks-dir', desc: '原子任务根目录（缺省仓库 atom-tasks/；测试用）' },
     ],
     run: gatePresent,
@@ -1243,7 +1285,7 @@ const REGISTRY = [
     options: [
       { flag: '--state', desc: '.state.json 绝对路径', required: true },
       { flag: '--option', desc: 'in-phase 选项名（payload 中的 name；命令型决议不走本命令）', required: true },
-      { flag: '--note', desc: '交互摘要（可选，如提问内容——进 state 供审计）' },
+      { flag: '--note', desc: '交互反馈全文（可选——v2 只进 .usage.jsonl 的 interacted 事件，不进 state）' },
       { flag: '--stage', desc: '目标 stageId（多门并发时必填，缺省要求唯一开门）' },
       { flag: '--tasks-dir', desc: '原子任务根目录（缺省仓库 atom-tasks/；测试用）' },
     ],

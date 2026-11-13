@@ -270,10 +270,18 @@ test('re-ask 闭环：present → interact(提问) → 决议被拦 → 重新 p
     assert.equal(i.status, 0, i.stderr);
     assert.deepEqual(JSON.parse(i.stdout).recorded.option, '提问');
     const gate1 = readBack(sb).stages['gate-demo'].gate;
-    assert.equal(gate1.interactions.length, 1);
-    assert.equal(gate1.interactions[0].option, '提问');
-    assert.equal(gate1.interactions[0].note, '这个方案影响范围？');
-    assert.ok(gate1.interactions[0].at >= gate1.presentedAt); // 交互使呈现过期
+    // v2 有界化：state 只写 lastInteractedAt 标量，interactions[] 停写（I-5/V-3）
+    assert.ok(gate1.interactions === undefined);
+    assert.ok(gate1.lastInteractedAt >= gate1.presentedAt); // 交互使呈现过期（标量）
+    assert.ok(gate1.lastInteractedAt); // 存在即合法 ISO
+    // note 全文外置 F 区日志（V-1/V-2）
+    const jl = fs.readFileSync(path.join(sb.runDir, '.usage.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+    const interacted = jl.filter((e) => e.event === 'interacted');
+    assert.equal(interacted.length, 1);
+    assert.equal(interacted[0].option, '提问');
+    assert.equal(interacted[0].note, '这个方案影响范围？');
+    assert.equal(interacted[0].stage, 'gate-demo');
+    assert.ok(interacted[0].seq >= 1);
 
     const blocked = decide(sb, '同意');
     assert.equal(blocked.status, 1);
@@ -285,7 +293,7 @@ test('re-ask 闭环：present → interact(提问) → 决议被拦 → 重新 p
     assert.equal(ok.status, 0, ok.stderr);
     const gate2 = readBack(sb).stages['gate-demo'].gate;
     assert.equal(gate2.decision, '同意');
-    assert.ok(gate2.presentedAt > gate1.interactions[0].at);
+    assert.ok(gate2.presentedAt > gate1.lastInteractedAt);
   } finally {
     cleanup(sb);
   }
@@ -315,7 +323,11 @@ test('gate interact：动态选项名（回答BQ-1）合法记录', () => {
     const r = cli(['gate', 'interact', '--state', sb.statePath, '--option', '回答BQ-1', '--tasks-dir', REPO_ATOM_TASKS], sb);
     assert.equal(r.status, 0, r.stderr);
     assert.equal(JSON.parse(r.stdout).recorded.option, '回答BQ-1');
-    assert.equal(readBack(sb).stages.spec.gate.interactions[0].option, '回答BQ-1');
+    // v2：state 写标量，事件进 .usage.jsonl（动态选项名同样走两步）
+    assert.ok(readBack(sb).stages.spec.gate.lastInteractedAt);
+    const jl = JSON.parse(fs.readFileSync(path.join(sb.runDir, '.usage.jsonl'), 'utf8').trim().split('\n').pop());
+    assert.equal(jl.event, 'interacted');
+    assert.equal(jl.option, '回答BQ-1');
   } finally {
     cleanup(sb);
   }
