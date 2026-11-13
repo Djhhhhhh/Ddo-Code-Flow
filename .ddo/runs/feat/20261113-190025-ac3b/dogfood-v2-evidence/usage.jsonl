@@ -1,0 +1,15 @@
+{"seq":1,"at":"2026-11-13T19:30:40.888+08:00","event":"run-started","command":"run start","stage":"demo-a","phase":"01"}
+{"seq":2,"at":"2026-11-13T19:30:41.041+08:00","event":"advanced","command":"next","stage":"demo-a","detail":"demo-a:01 → demo-a:02"}
+{"seq":3,"at":"2026-11-13T19:30:41.041+08:00","event":"artifacts-recorded","command":"next","stage":"demo-a","phase":"01","detail":"3 文件"}
+{"seq":4,"at":"2026-11-13T19:30:41.105+08:00","event":"presented","command":"gate present","stage":"demo-a","phase":"02","note":"做了什么：完成 a.md 与两分册；结论：待审"}
+{"seq":5,"at":"2026-11-13T19:30:41.166+08:00","event":"interacted","command":"gate interact","stage":"demo-a","phase":"02","option":"修改","note":"反馈一：边界"}
+{"seq":6,"at":"2026-11-13T19:30:41.227+08:00","event":"interacted","command":"gate interact","stage":"demo-a","phase":"02","option":"提问","note":"反馈二：范围？"}
+{"seq":7,"at":"2026-11-13T19:30:41.284+08:00","event":"interacted","command":"gate interact","stage":"demo-a","phase":"02","option":"修改","note":"反馈三：再改"}
+{"seq":8,"at":"2026-11-13T19:30:41.346+08:00","event":"presented","command":"gate present","stage":"demo-a","phase":"02"}
+{"seq":9,"at":"2026-11-13T19:30:41.405+08:00","event":"rollback","command":"rollback","stage":"demo-a","note":"dogfood：验证回滚保留使用史"}
+{"seq":10,"at":"2026-11-13T19:30:41.515+08:00","event":"advanced","command":"next","stage":"demo-a","detail":"demo-a:01 → demo-a:02"}
+{"seq":11,"at":"2026-11-13T19:30:41.515+08:00","event":"artifacts-recorded","command":"next","stage":"demo-a","phase":"01","detail":"3 文件"}
+{"seq":12,"at":"2026-11-13T19:30:41.573+08:00","event":"presented","command":"gate present","stage":"demo-a","phase":"02","note":"做了什么：按反馈重做；结论：待审"}
+{"seq":13,"at":"2026-11-13T19:30:41.636+08:00","event":"decision","command":"next","stage":"demo-a","option":"同意"}
+{"seq":14,"at":"2026-11-13T19:30:41.636+08:00","event":"artifacts-recorded","command":"next","stage":"demo-a","phase":"02","detail":"1 文件"}
+{"seq":15,"at":"2026-11-13T19:30:41.692+08:00","event":"finished","command":"run finish","detail":"done"}
