@@ -31,6 +31,7 @@ v1.0.0 起插件把数据面**整体建立在状态文件体系之上**：不再
 | 已删工作树 / 临时 run 无处追溯 | 历史区：`runs.jsonl` 事件 + zip 归档 `unzip -p` 流式预览 |
 | 「待收束」与「已收口」不可区分 | `finalStatus` 以 history 事件为唯一依据，done / aborted / failed 徽章 |
 | 状态文件本体看不到 | 产出浏览器置顶内联 `.state.json`（JSON 结构染色）与 `.usage.jsonl` 轨迹日志 |
+| 历史只能翻、不能搜 | 历史查询页：关键词搜全量 run 的决策记录（门决议/交互反馈/执行摘要/回滚原因）与元信息，多词 AND、纯 CSS 过滤、命中高亮 |
 | 状态变更不刷新 | 三点监听（索引 / 项目运行目录 / history），300ms 去抖 |
 | 只想看、不能误动 | 全程只读，无启动 / 推进 / 收口等任何控制操作 |
 
@@ -58,6 +59,8 @@ code --install-extension ddo-code-flow-<version>.vsix
   本项目（已收口）       → 点击 → 同深度渲染六分区与产物，徽章显示 finalStatus
   历史（默认折叠）       → 点击 → zip 内 state 与产物流式预览（无 zip 时降级为历史事件卡）
 ```
+
+**历史查询**：视图标题栏搜索按钮或命令面板「历史查询：搜索决策与关键信息」→ 输入关键词（多词空格分隔，AND 匹配）→ 结果页按 run 分组呈现命中（决议/轨迹/元信息分类 + 来源过滤，纯 CSS 无脚本）→「查看详情」锚点跳转该 run 详情面板。搜索覆盖三源全量 run（不受历史区 50 条展示上限约束），决策数据降级链：磁盘 `.usage.jsonl` > zip 内 `.usage.jsonl` > zip 内 state 门对象（v1）> 旧式目录归档。
 
 产出浏览器默认选中 `.state.json`；`.usage.jsonl` 是这条 run 的完整使用轨迹。悬浮树条目可看全量信息（嫌悬浮慢可加 `"workbench.hover.delay": 300`）。
 
@@ -95,8 +98,10 @@ code --install-extension ddo-code-flow-<version>.vsix
 纯 JavaScript、零运行时依赖、无构建步骤（`main` 直接指向 `src/extension.js`），不产生 `node_modules`。
 
 ```text
-src/extension.js      激活 / 命令 / 三区树 / panel 注册表 / 三点 watcher
+src/extension.js      激活 / 命令 / 三区树 / panel 注册表 / 三点 watcher / 历史查询入口
 src/runDiscovery.js   三源聚合发现与惰性校验（数据面，只读）
+src/historySearch.js  历史查询数据面：全量记录集构建 + 多词 AND 匹配 + 高亮（只读）
+src/searchView.js     历史查询结果页渲染（分组 / 纯 CSS 过滤 / command: 锚点）
 src/stateView.js      state → 六分区视图模型（纯函数）
 src/webviewHtml.js    视图模型 → HTML（docs 同值样式快照 + JSON 结构染色）
 src/previewView.js    md 渲染 / 文件树（产出浏览器预览层）

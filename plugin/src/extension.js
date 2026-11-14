@@ -13,6 +13,8 @@ const {
 const { buildViewModel, escapeHtml } = require('./stateView');
 const { buildBrowser } = require('./artifactView');
 const { renderHtml } = require('./webviewHtml');
+const { buildSearchIndex, searchRecords } = require('./historySearch');
+const { renderSearchHtml } = require('./searchView');
 
 const DEBOUNCE_MS = 300;
 
@@ -259,6 +261,46 @@ function ensurePanel(runId) {
   });
 }
 
+// ---------------------------------------------------------------- 历史查询（plan rev 1 Part 02）
+
+let searchPanel = null; // 搜索结果页单例（无 watcher；重复搜索幂等更新）
+
+/** 搜索面板单例：零脚本 + command: 锚点跳详情（DEC-1；retainContext 防隐藏后重置）。 */
+function ensureSearchPanel() {
+  if (searchPanel) {
+    searchPanel.reveal(vscode.ViewColumn.One);
+    return searchPanel;
+  }
+  searchPanel = vscode.window.createWebviewPanel(
+    'ddo-flow.historySearch', '历史查询', vscode.ViewColumn.One,
+    { enableScripts: false, enableCommandUris: true, retainContextWhenHidden: true },
+  );
+  searchPanel.onDidDispose(() => { searchPanel = null; });
+  return searchPanel;
+}
+
+/** 命令 ddo-flow.searchHistory：InputBox → 全量索引 → 匹配 → 结果页（取消静默退出）。 */
+async function runHistorySearch() {
+  const picked = await vscode.window.showInputBox({
+    prompt: '历史查询：搜索过去的决策与关键信息（多词空格分隔，AND 匹配）',
+    placeHolder: '关键词，如：同意 修改 / 某次 run 的标题片段',
+  });
+  if (picked === undefined) return; // 取消：静默退出（plan Part 02 §2 异常流）
+  const query = picked.trim();
+  const panel = ensureSearchPanel();
+  panel.description = query ? `关键词：${query}` : '';
+  try {
+    const index = buildSearchIndex({ indexPath: configIndexPath(), projectRoots: projectRoots() });
+    const result = searchRecords(index, query);
+    panel.webview.html = renderSearchHtml(query, result);
+    if (index.indexError) log(index.indexError);
+  } catch (e) {
+    // 数据面构建异常：空态页降级（纯函数渲染不抛出）
+    log(`历史查询构建失败：${e.message}`);
+    panel.webview.html = renderSearchHtml(query, { matches: [], terms: [], truncated: false, unreadable: 0 });
+  }
+}
+
 // ---------------------------------------------------------------- 激活
 
 /** 通用监听：create→change→delete 统一去抖刷新；异常降级为手动刷新。 */
@@ -289,7 +331,8 @@ function activate(context) {
   context.subscriptions.push(
     vscode.window.registerTreeDataProvider('ddo-flow.runs', provider),
     vscode.commands.registerCommand('ddo-flow.refresh', () => provider.reload()),
-    vscode.commands.registerCommand('ddo-flow.openRun', (runId) => ensurePanel(String(runId)))
+    vscode.commands.registerCommand('ddo-flow.openRun', (runId) => ensurePanel(String(runId))),
+    vscode.commands.registerCommand('ddo-flow.searchHistory', () => runHistorySearch())
   );
 
   // 三点监听（DEC-6）：index.json + workspace .ddo/runs/**.state.json + history/runs.jsonl
@@ -319,6 +362,7 @@ function deactivate() {
     if (entry.watcher) entry.watcher.dispose();
   }
   panels.clear();
+  if (searchPanel) searchPanel.dispose();
   for (const w of extraWatchers) w.dispose();
   extraWatchers.length = 0;
   clearTimeout(bumpTimer);

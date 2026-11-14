@@ -2,7 +2,7 @@
   "name": "ddo-code-flow",
   "displayName": "Ddo-Code-Flow",
   "description": "查看 ddo-code-flow 流水的只读插件：运行中流水（存活流水）、本项目已收口 run 与全局历史——三源聚合数据面",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "license": "MIT",
   "publisher": "djhhh",
   "repository": {
@@ -46,12 +46,22 @@
         "command": "ddo-flow.openRun",
         "title": "查看流水信息",
         "icon": "$(eye)"
+      },
+      {
+        "command": "ddo-flow.searchHistory",
+        "title": "历史查询：搜索决策与关键信息",
+        "icon": "$(search)"
       }
     ],
     "menus": {
       "view/title": [
         {
           "command": "ddo-flow.refresh",
+          "when": "view == ddo-flow.runs",
+          "group": "navigation"
+        },
+        {
+          "command": "ddo-flow.searchHistory",
           "when": "view == ddo-flow.runs",
           "group": "navigation"
         }

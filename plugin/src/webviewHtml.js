@@ -398,4 +398,4 @@ ${renderBrowser(browser || { files: [], git: null })}
 </main></body></html>`;
 }
 
-module.exports = { renderHtml, renderDag, renderJsonPretty, humanBytes };
+module.exports = { renderHtml, renderDag, renderJsonPretty, humanBytes, DOCS_ROOT_VARS };
