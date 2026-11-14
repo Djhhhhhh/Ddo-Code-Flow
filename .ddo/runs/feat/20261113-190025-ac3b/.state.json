@@ -1,0 +1,146 @@
+{
+  "runId": "20261113-190025-ac3b",
+  "title": "实施 issue #86：.state.json 结构规范化 schema v2（日志外置+产物登记+门有界化，P-1..P-5）",
+  "startedAt": "2026-11-13T19:00:25.153+08:00",
+  "git": {
+    "mainBranch": "main",
+    "branch": "feat/state-schema-v2-normalization",
+    "worktreePath": "/Users/djhhh/work_area/Ddo-Code-Flow-feat-state-schema-v2-normalization"
+  },
+  "dirs": {
+    "projectRoot": "/Users/djhhh/work_area/Ddo-Code-Flow-feat-state-schema-v2-normalization",
+    "runDir": "/Users/djhhh/work_area/Ddo-Code-Flow-feat-state-schema-v2-normalization/.ddo/runs/feat/20261113-190025-ac3b",
+    "tasksDir": "/Users/djhhh/.cc-switch/skills/Ddo-Code-Flow/atom-tasks"
+  },
+  "currentStage": [],
+  "stages": {
+    "requirement": {
+      "status": "done",
+      "dependOn": [],
+      "at": "2026-11-13T19:01:30.542+08:00"
+    },
+    "spec": {
+      "status": "done",
+      "dependOn": [
+        "requirement"
+      ],
+      "at": "2026-11-13T19:07:38.447+08:00",
+      "gate": {
+        "phase": "02",
+        "openedAt": "2026-11-13T19:03:10.347+08:00",
+        "options": [
+          {
+            "name": "同意",
+            "desc": "批准当前 spec（仅当不存在未解决 BQ），本相位完成",
+            "action": "next --decision 同意"
+          },
+          {
+            "name": "驳回",
+            "desc": "回滚 spec 阶段，按意见回到相位 01 重新生成",
+            "action": "rollback --stage spec"
+          },
+          {
+            "name": "修改",
+            "desc": "把反馈作为新的需求证据更新受影响条目，展示变化摘要后重新送审",
+            "action": "in-phase"
+          },
+          {
+            "name": "提问",
+            "desc": "只读答疑，不修改 spec、不改变任何 ID 与确认状态",
+            "action": "in-phase"
+          }
+        ],
+        "presentedAt": "2026-11-13T19:07:04.357+08:00",
+        "interactions": [
+          {
+            "option": "提问",
+            "note": "提问：1）我理解规范需要落到docs里面吧；2）本次需求我还是希望将.ddo目录从项目中排除掉，本地目录下的.ddo目录中的信息打成zip放到用户目录下的.ddo/history目录下即可，然后清理掉现在本地的这些目录",
+            "at": "2026-11-13T19:06:05.507+08:00"
+          }
+        ],
+        "decision": "同意",
+        "closedAt": "2026-11-13T19:07:38.447+08:00"
+      }
+    },
+    "plan": {
+      "status": "done",
+      "dependOn": [
+        "spec"
+      ],
+      "at": "2026-11-13T19:14:07.686+08:00",
+      "gate": {
+        "phase": "02",
+        "openedAt": "2026-11-13T19:11:37.354+08:00",
+        "options": [
+          {
+            "name": "同意",
+            "desc": "批准当前 revision，本相位完成",
+            "action": "next --decision 同意"
+          },
+          {
+            "name": "驳回",
+            "desc": "回滚 plan 阶段，按意见回到相位 01 重新生成",
+            "action": "rollback --stage plan"
+          },
+          {
+            "name": "修改",
+            "desc": "反馈应用到新 revision 并重评估，展示变化摘要后重新送审",
+            "action": "in-phase"
+          },
+          {
+            "name": "提问",
+            "desc": "只答疑，不改文档、revision 与确认状态",
+            "action": "in-phase"
+          },
+          {
+            "name": "归档",
+            "desc": "按相位 01 §5 归档当前 plan；不代表批准",
+            "action": "in-phase"
+          }
+        ],
+        "presentedAt": "2026-11-13T19:11:50.291+08:00",
+        "decision": "同意",
+        "closedAt": "2026-11-13T19:14:07.686+08:00"
+      }
+    },
+    "coding": {
+      "status": "done",
+      "dependOn": [
+        "plan"
+      ],
+      "at": "2026-11-13T19:33:25.820+08:00",
+      "gate": {
+        "phase": "02",
+        "openedAt": "2026-11-13T19:31:10.729+08:00",
+        "options": [
+          {
+            "name": "同意",
+            "desc": "确认 coding 产物完成，本相位完成并放行后续阶段",
+            "action": "next --decision 同意"
+          },
+          {
+            "name": "提问",
+            "desc": "对实现内容答疑，不改变确认状态；处理后重新呈现",
+            "action": "in-phase"
+          },
+          {
+            "name": "修改",
+            "desc": "按反馈调整代码实现，完成后重新送审",
+            "action": "in-phase"
+          }
+        ],
+        "presentedAt": "2026-11-13T19:31:16.354+08:00",
+        "decision": "同意",
+        "closedAt": "2026-11-13T19:33:25.820+08:00"
+      }
+    },
+    "reporting": {
+      "status": "done",
+      "dependOn": [
+        "coding"
+      ],
+      "at": "2026-11-13T19:34:02.872+08:00"
+    }
+  },
+  "atomTasks": {}
+}

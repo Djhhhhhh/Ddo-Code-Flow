@@ -7,7 +7,7 @@
       "id": "01",
       "summary": "基于已确认 spec 生成技术 Plan",
       "type": "action",
-      "output": "plan.md"
+      "output": { "files": ["plan.md"], "dirs": ["plans"] }
     },
     {
       "id": "02",

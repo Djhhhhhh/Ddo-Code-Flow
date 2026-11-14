@@ -1,0 +1,91 @@
+{
+  "runId": "20261113-193040-74ff",
+  "title": "dogfood V1..V8 走查",
+  "startedAt": "2026-11-13T19:30:40.888+08:00",
+  "schemaVersion": 2,
+  "workflow": "demo",
+  "git": {
+    "mainBranch": ""
+  },
+  "dirs": {
+    "projectRoot": "/tmp/ddo-dogfood-VjiySS/proj",
+    "runDir": "/tmp/ddo-dogfood-VjiySS/proj/.ddo/runs/feat/df",
+    "tasksDir": "/tmp/ddo-dogfood-VjiySS/tasks"
+  },
+  "currentStage": [],
+  "stages": {
+    "demo-a": {
+      "status": "done",
+      "dependOn": [],
+      "at": "2026-11-13T19:30:41.636+08:00",
+      "gate": {
+        "phase": "02",
+        "openedAt": "2026-11-13T19:30:41.515+08:00",
+        "options": [
+          {
+            "name": "同意",
+            "desc": "通过",
+            "action": "next --decision 同意"
+          },
+          {
+            "name": "驳回",
+            "desc": "回滚",
+            "action": "rollback --stage demo-a"
+          },
+          {
+            "name": "修改",
+            "desc": "改",
+            "action": "in-phase"
+          },
+          {
+            "name": "提问",
+            "desc": "问",
+            "action": "in-phase"
+          }
+        ],
+        "presentedAt": "2026-11-13T19:30:41.573+08:00",
+        "decision": "同意",
+        "closedAt": "2026-11-13T19:30:41.636+08:00"
+      }
+    }
+  },
+  "atomTasks": {},
+  "artifacts": {
+    "demo-a": [
+      {
+        "phase": "01",
+        "recordedAt": "2026-11-13T19:30:41.515+08:00",
+        "trigger": "next",
+        "files": [
+          {
+            "path": "a.md",
+            "bytes": 12,
+            "sha256": "5ce692dc57e1740765db81cec8ce16e94c62393e7bf0d809e79b1c9d7a985763"
+          },
+          {
+            "path": "plans/01-分册.md",
+            "bytes": 5,
+            "sha256": "ac2e761f09fbfbea48ac4a9abf5c3bc6e7bab7a156e415c9cca57d0943d2e6eb"
+          },
+          {
+            "path": "plans/02-分册.md",
+            "bytes": 5,
+            "sha256": "c8f58c3dc87bb593226d39996afdd1ebac1218469a36c646a8b82e22a7ee7b47"
+          }
+        ]
+      },
+      {
+        "phase": "02",
+        "recordedAt": "2026-11-13T19:30:41.636+08:00",
+        "trigger": "next",
+        "files": [
+          {
+            "path": "a.md",
+            "bytes": 12,
+            "sha256": "5ce692dc57e1740765db81cec8ce16e94c62393e7bf0d809e79b1c9d7a985763"
+          }
+        ]
+      }
+    ]
+  }
+}

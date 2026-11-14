@@ -29,9 +29,14 @@ function validateTaskConfig(cfg, taskName) {
   return true;
 }
 
-/** output 声明防逃逸（11 §4）：文件须为 runDir 内相对路径，禁绝对路径与 .. 段。 */
+/** output 声明防逃逸（11 §4 / STATE-SPEC §4.3.2 第三形态）：文件与目录均须为
+ *  runDir 内相对路径，禁绝对路径与 .. 段。三形态：string / {updates} / {files,dirs}。 */
 function safeOutputFiles(decl, where) {
-  const files = typeof decl === 'string' ? [decl] : decl && Array.isArray(decl.updates) ? decl.updates : [];
+  const files = typeof decl === 'string'
+    ? [decl]
+    : decl && Array.isArray(decl.updates) ? decl.updates
+      : decl && Array.isArray(decl.files) ? [...decl.files, ...((Array.isArray(decl.dirs) && decl.dirs) || [])]
+        : [];
   for (const f of files) {
     if (
       typeof f !== 'string' || !f ||
@@ -39,6 +44,9 @@ function safeOutputFiles(decl, where) {
     ) {
       throw new Error(`${where} 的 output 声明非法: ${JSON.stringify(f)}（须为 runDir 内相对路径，禁绝对路径与 ..）`);
     }
+  }
+  if (decl && typeof decl === 'object' && Array.isArray(decl.files) && !decl.files.length) {
+    throw new Error(`${where} 的 output 声明非法: files 须为非空数组（第三形态 files 必填）`);
   }
 }
 

@@ -30,7 +30,9 @@ CLI 提供当前任务指令、校验产物并管理状态；代理完成实际�
 - 各任务的指令与产出契约：`exec` 组装返回的指令文本（含其 Output Contract）；
 - 启动前置与收尾动作（worktree、交付链等）：所属 atom-tasks 任务文件
   （`<有效任务目录>/<任务名>/prompt.md` 与 `config.json`）；
-- 运行位置、开门状态与可恢复 run：`status` / `resume` / `gate present` 输出与 state。
+- 运行位置、开门状态与可恢复 run：`status` / `resume` / `gate present` 输出与 state；
+- state 数据模型（schema v2 六分区、字段级契约）与各命令读写规则矩阵：
+  `<skillRoot>/tools/STATE-SPEC.md`。
 
 上述权威来源已承载的内容，不在本文件重复自述。
 
@@ -52,11 +54,10 @@ CLI 提供当前任务指令、校验产物并管理状态；代理完成实际�
   `node "<skillRoot>/tools/cli.js" <命令>`。
 - 启动项目：用户调用本 skill 时的项目；使用 worktree 时，改为创建后的工作树。
 - 启动后路径以 state 为准：文档产物统一放 `state.dirs.runDir`（目录布局与临时模式
-  语义见 `run start --help`，归档与收口语义见 `run finish --help`）；
-  代码工作目录为 `git.worktreePath`，未设置时用 `dirs.projectRoot`；
-  多仓库隔离 run 以 `git.repos` 为准（容器根 `git.container`）。
-- 有效任务目录：本次命令显式指定的 `--tasks-dir` 优先，其次 `state.dirs.tasksDir`，
-  再次 `<skillRoot>/atom-tasks`；所有直接读取的任务文件均使用其下的绝对路径。
+  语义见 `run start --help`，归档与收口语义见 `run finish --help`）；代码工作目录与
+  多仓库隔离的路径解析按 state 环境字段（`git`/`dirs` 字段语义见 STATE-SPEC §3.2）。
+- 有效任务目录三级取值与解析规则见 STATE-SPEC §3.2；所有直接读取的任务文件均
+  使用其下的绝对路径。
 - `.state.json` 是执行状态的唯一事实源，只通过 CLI 更新，不手工编辑。
 
 ## 问询呈现

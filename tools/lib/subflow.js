@@ -11,6 +11,7 @@ const path = require('path');
 const { readState, writeState, assertState } = require('./state');
 const { loadWorkflow, expandStages, pruneStages, activateStarts } = require('./workflow');
 const { applyConfigOverrides } = require('./assemble');
+const journal = require('./journal');
 
 const MAX_DEPTH = 3; // 总深度：父=1，子=2，孙=3（含顶层数法，spec 解释表）
 const SUBFLOWS_DIR = 'subflows';
@@ -118,6 +119,8 @@ function subflowStart({ parentStatePath, atStage, title, workflow = 'basic', con
     runId: `${parent.runId}-${id}`,
     title,
     startedAt: at,
+    schemaVersion: 2, // v2（STATE-SPEC §3.1）：子 state 创建形态同 run start
+    workflow: preset.name,
     git: parent.git, // 同一仓库/工作树上下文，随父
     dirs: {
       projectRoot: parent.dirs.projectRoot,
@@ -136,7 +139,12 @@ function subflowStart({ parentStatePath, atStage, title, workflow = 'basic', con
     },
   };
   assertState(child);
+  // 双 state 写序（STATE-SPEC §4.3.4）：先物化子 state（子目录+子日志首事件）→ 父日志 → 父 state
   writeState(childStatePath, child);
+  journal.appendAudit(childRunDir, {
+    event: 'subflow-started', command: 'subflow start', stage: atStage, at,
+    detail: `${id}（depth=${depth}，父 ${parent.runId}）`,
+  });
 
   // 注册父侧（I-S1 防逃逸复核：childStatePath 由本函数构造，必在 <runDir>/subflows/ 下）
   const base = path.join(parentRunDir, SUBFLOWS_DIR);
@@ -147,6 +155,10 @@ function subflowStart({ parentStatePath, atStage, title, workflow = 'basic', con
   const entry = { id, title, workflow: preset.name, atStage, statePath: childStatePath, status: 'active', startedAt: at };
   parent.subflows = [...(parent.subflows || []), entry];
   assertState(parent);
+  journal.appendAudit(parentRunDir, {
+    event: 'subflow-started', command: 'subflow start', stage: atStage, at,
+    detail: `${id}（depth=${depth}，子 state ${childStatePath}）`,
+  });
   writeState(parentStatePath, parent);
   return {
     subflowId: id,
@@ -194,6 +206,12 @@ function subflowClose({ parentStatePath, id, abandon = false, at }) {
   parent.subflows = [...existing];
   assertState(parent);
   writeState(parentStatePath, parent);
+  // F 区：subflow-closed（父侧日志，state 写成功后追加）
+  const parentRunDir2 = (parent.dirs && parent.dirs.runDir) || path.dirname(parentStatePath);
+  journal.appendAudit(parentRunDir2, {
+    event: 'subflow-closed', command: 'subflow close', stage: entry.atStage, option: id, at,
+    detail: abandon ? 'abandoned' : 'completed',
+  });
   return { closed: { id, abandoned: abandon === true, closedAt: at, statePath: entry.statePath }, subflows: parent.subflows };
 }
 
