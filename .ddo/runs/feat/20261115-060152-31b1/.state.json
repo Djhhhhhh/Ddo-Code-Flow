@@ -1,0 +1,232 @@
+{
+  "runId": "20261115-060152-31b1",
+  "title": "VS Code 插件 history 决策查询页面",
+  "startedAt": "2026-11-15T06:01:52.804+08:00",
+  "schemaVersion": 2,
+  "workflow": "basic",
+  "git": {
+    "mainBranch": "main"
+  },
+  "dirs": {
+    "projectRoot": "/Users/djhhh/work_area/Ddo-Code-Flow",
+    "runDir": "/Users/djhhh/work_area/Ddo-Code-Flow/.ddo/runs/feat/20261115-060152-31b1",
+    "tasksDir": "/Users/djhhh/.cc-switch/skills/Ddo-Code-Flow/atom-tasks"
+  },
+  "currentStage": [],
+  "stages": {
+    "requirement": {
+      "status": "done",
+      "dependOn": [],
+      "at": "2026-11-15T06:02:14.153+08:00"
+    },
+    "spec": {
+      "status": "done",
+      "dependOn": [
+        "requirement"
+      ],
+      "at": "2026-11-15T06:05:30.435+08:00",
+      "gate": {
+        "phase": "02",
+        "openedAt": "2026-11-15T06:04:36.482+08:00",
+        "options": [
+          {
+            "name": "同意",
+            "desc": "批准当前 spec（仅当不存在未解决 BQ），本相位完成",
+            "action": "next --decision 同意"
+          },
+          {
+            "name": "驳回",
+            "desc": "回滚 spec 阶段，按意见回到相位 01 重新生成",
+            "action": "rollback --stage spec"
+          },
+          {
+            "name": "修改",
+            "desc": "把反馈作为新的需求证据更新受影响条目，展示变化摘要后重新送审",
+            "action": "in-phase"
+          },
+          {
+            "name": "提问",
+            "desc": "只读答疑，不修改 spec、不改变任何 ID 与确认状态",
+            "action": "in-phase"
+          }
+        ],
+        "presentedAt": "2026-11-15T06:04:42.270+08:00",
+        "decision": "同意",
+        "closedAt": "2026-11-15T06:05:30.435+08:00"
+      }
+    },
+    "plan": {
+      "status": "done",
+      "dependOn": [
+        "spec"
+      ],
+      "at": "2026-11-15T06:14:41.836+08:00",
+      "gate": {
+        "phase": "02",
+        "openedAt": "2026-11-15T06:12:28.758+08:00",
+        "options": [
+          {
+            "name": "同意",
+            "desc": "批准当前 revision，本相位完成",
+            "action": "next --decision 同意"
+          },
+          {
+            "name": "驳回",
+            "desc": "回滚 plan 阶段，按意见回到相位 01 重新生成",
+            "action": "rollback --stage plan"
+          },
+          {
+            "name": "修改",
+            "desc": "反馈应用到新 revision 并重评估，展示变化摘要后重新送审",
+            "action": "in-phase"
+          },
+          {
+            "name": "提问",
+            "desc": "只答疑，不改文档、revision 与确认状态",
+            "action": "in-phase"
+          },
+          {
+            "name": "归档",
+            "desc": "按相位 01 §5 归档当前 plan；不代表批准",
+            "action": "in-phase"
+          }
+        ],
+        "presentedAt": "2026-11-15T06:12:33.485+08:00",
+        "decision": "同意",
+        "closedAt": "2026-11-15T06:14:41.836+08:00"
+      }
+    },
+    "coding": {
+      "status": "done",
+      "dependOn": [
+        "plan"
+      ],
+      "at": "2026-11-15T06:25:54.401+08:00",
+      "gate": {
+        "phase": "02",
+        "openedAt": "2026-11-15T06:19:18.192+08:00",
+        "options": [
+          {
+            "name": "同意",
+            "desc": "确认 coding 产物完成，本相位完成并放行后续阶段",
+            "action": "next --decision 同意"
+          },
+          {
+            "name": "提问",
+            "desc": "对实现内容答疑，不改变确认状态；处理后重新呈现",
+            "action": "in-phase"
+          },
+          {
+            "name": "修改",
+            "desc": "按反馈调整代码实现，完成后重新送审",
+            "action": "in-phase"
+          }
+        ],
+        "presentedAt": "2026-11-15T06:24:05.521+08:00",
+        "lastInteractedAt": "2026-11-15T06:23:14.078+08:00",
+        "decision": "同意",
+        "closedAt": "2026-11-15T06:25:54.401+08:00"
+      }
+    },
+    "reporting": {
+      "status": "done",
+      "dependOn": [
+        "coding"
+      ],
+      "at": "2026-11-15T06:26:35.652+08:00"
+    }
+  },
+  "atomTasks": {},
+  "artifacts": {
+    "requirement": [
+      {
+        "phase": "01",
+        "recordedAt": "2026-11-15T06:02:14.153+08:00",
+        "trigger": "next",
+        "files": [
+          {
+            "path": "requirement.md",
+            "bytes": 443,
+            "sha256": "01d09757bc1f86863fad79b944ed0753aea2f86000da2f5c83827272220d7c2b"
+          }
+        ]
+      }
+    ],
+    "spec": [
+      {
+        "phase": "01",
+        "recordedAt": "2026-11-15T06:04:36.482+08:00",
+        "trigger": "next",
+        "files": [
+          {
+            "path": "spec.md",
+            "bytes": 6575,
+            "sha256": "870133199eb97613ceb4b49514eaf385dd4b566e47ea3d57f559d4c20010772c"
+          }
+        ]
+      },
+      {
+        "phase": "02",
+        "recordedAt": "2026-11-15T06:05:30.435+08:00",
+        "trigger": "next",
+        "files": [
+          {
+            "path": "spec.md",
+            "bytes": 6575,
+            "sha256": "870133199eb97613ceb4b49514eaf385dd4b566e47ea3d57f559d4c20010772c"
+          }
+        ]
+      }
+    ],
+    "plan": [
+      {
+        "phase": "01",
+        "recordedAt": "2026-11-15T06:12:28.758+08:00",
+        "trigger": "next",
+        "files": [
+          {
+            "path": "plan.md",
+            "bytes": 15815,
+            "sha256": "11b3d9797eb6f757e54acf55cd3344a65e54b4e6606232277c3a21e06acff76a"
+          },
+          {
+            "path": "plans/01-search-datasurface.md",
+            "bytes": 6411,
+            "sha256": "2792bf4d0a677e906223268f49649d20f54bc56108b987b81c4981a06759b85c"
+          },
+          {
+            "path": "plans/02-search-page-design.md",
+            "bytes": 5887,
+            "sha256": "eee20eed4932bbba2094775c5e277826309bc905148306e3c259cdb5d9126acf"
+          }
+        ]
+      },
+      {
+        "phase": "02",
+        "recordedAt": "2026-11-15T06:14:41.836+08:00",
+        "trigger": "next",
+        "files": [
+          {
+            "path": "plan.md",
+            "bytes": 15815,
+            "sha256": "11b3d9797eb6f757e54acf55cd3344a65e54b4e6606232277c3a21e06acff76a"
+          }
+        ]
+      }
+    ],
+    "reporting": [
+      {
+        "phase": "01",
+        "recordedAt": "2026-11-15T06:26:35.652+08:00",
+        "trigger": "next",
+        "files": [
+          {
+            "path": "execution-report.md",
+            "bytes": 4939,
+            "sha256": "e04162e6d4f3286df0f9efaa83082167424914dfbeccfad0ec1b4fe88e060b09"
+          }
+        ]
+      }
+    ]
+  }
+}
