@@ -19,8 +19,9 @@ function escapeHtml(s) {
   }[c]));
 }
 
-/** B1 头部：A 标识区 + B 环境（dirs/git 摘要）。 */
-function buildHeader(state, statePath) {
+/** B1 头部：A 标识区 + B 环境（dirs/git 摘要）+ 多源徽章数据（plan Part 02：source/finalStatus/endedAt）。 */
+function buildHeader(state, opts) {
+  const o = opts || {};
   const s = state;
   const runDir = s.dirs.runDir || '';
   const segs = runDir.replace(/\\/g, '/').split('/').filter(Boolean);
@@ -44,8 +45,11 @@ function buildHeader(state, statePath) {
     startedAt: s.startedAt,
     projectRoot: s.dirs.projectRoot || '',
     runDir,
-    statePath: statePath || '',
+    statePath: o.statePath || '',
     gitSummary,
+    source: o.source || '',
+    finalStatus: o.finalStatus || '',
+    endedAt: o.endedAt || '',
   };
 }
 
@@ -140,7 +144,9 @@ function buildEnv(state) {
 function buildViewModel(state, opts) {
   const o = opts || {};
   return {
-    header: buildHeader(state, o.statePath),
+    header: buildHeader(state, {
+      statePath: o.statePath, source: o.source, finalStatus: o.finalStatus, endedAt: o.endedAt,
+    }),
     progress: buildProgress(state),
     artifacts: buildArtifacts(state),
     subflows: buildSubflows(state),

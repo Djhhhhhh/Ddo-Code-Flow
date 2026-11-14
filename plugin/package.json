@@ -1,11 +1,14 @@
 {
   "name": "ddo-code-flow",
-  "displayName": "Ddo-Code-Flow 存活流水",
-  "description": "查看 ddo-code-flow 全局运行中流水（存活流水）与六分区流水信息（只读）",
-  "version": "0.2.17",
+  "displayName": "Ddo-Code-Flow",
+  "description": "查看 ddo-code-flow 流水的只读插件：运行中流水（存活流水）、本项目已收口 run 与全局历史——三源聚合数据面",
+  "version": "1.0.0",
   "license": "MIT",
   "publisher": "djhhh",
-  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Djhhhhhh/Ddo-Code-Flow"
+  },
   "engines": {
     "vscode": "^1.75.0"
   },

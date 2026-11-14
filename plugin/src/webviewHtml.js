@@ -10,7 +10,7 @@
 
 const { escapeHtml } = require('./stateView');
 const { LIVE_STAR } = require('./svgAssets');
-const { renderMarkdown, renderJsonTree, buildTree } = require('./previewView');
+const { renderMarkdown, buildTree } = require('./previewView');
 
 /** docs :root 变量区快照（L38–53，基础色板）。 */
 const DOCS_ROOT_VARS = `:root {
@@ -69,6 +69,8 @@ body { color: var(--ink); font-family: var(--font-body); font-size: 13px; line-h
 .hline .st { font-family: var(--font-mono); font-size: 10.5px; padding: 1px 10px; border-radius: 99px; border: 1px solid; }
 .st.run { color: var(--cyan); border-color: var(--cyan); box-shadow: var(--glow-cyan); }
 .st.wait { color: var(--warn); border-color: var(--warn); }
+.st.ok { color: var(--ok); border-color: var(--ok); }
+.st.danger { color: var(--danger); border-color: var(--danger); }
 .ititle { flex: 0 0 auto; font-family: var(--font-display); font-size: 15px; font-weight: 600; line-height: 1.5; color: var(--ink); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .hbadges { display: flex; gap: 6px; flex-wrap: wrap; flex: 0 0 auto; }
 .badge { font-family: var(--font-mono); font-size: 10.5px; padding: 1px 9px; border: 1px solid rgba(0,255,204,.35); border-radius: 99px; color: var(--cyan); background: var(--code-bg); box-shadow: inset 0 0 12px rgba(0,255,204,.08); }
@@ -226,9 +228,16 @@ function renderDag(p, subflows) {
 
 function renderInfo(h, progress) {
   const waiting = progress.gates.length > 0;
-  const dotCls = waiting ? 'wait' : 'run';
-  const stCls = waiting ? 'st wait' : 'st run';
-  const stText = waiting ? '等待确认门' : '运行中';
+  // 状态胶囊：已收口（finalStatus 唯一依据，DEC-4）> 待收束（位置空未收口）> 等待门/运行中
+  let stHtml;
+  if (h.finalStatus) {
+    const cls = h.finalStatus === 'done' ? 'ok' : h.finalStatus === 'failed' ? 'danger' : 'wait';
+    stHtml = `<span class="st ${cls}">已收口 · ${esc(h.finalStatus)}</span>`;
+  } else if (progress.completable) {
+    stHtml = '<span class="st wait">待收束</span>';
+  } else {
+    stHtml = `<span class="st ${waiting ? 'wait' : 'run'}">${waiting ? '等待确认门' : '运行中'}</span>`;
+  }
   const posBig = progress.positions.length
     ? progress.positions.map((s) => `${esc(s.stage)}:${esc(s.phase)}`).join('　')
     : '—';
@@ -237,6 +246,7 @@ function renderInfo(h, progress) {
     h.workflow ? `<span class="badge">${esc(h.workflow)}</span>` : '',
     `<span class="badge dim">v${esc(h.schemaVersion)}</span>`,
     h.ephemeral ? '<span class="badge dim">ephemeral</span>' : '',
+    h.source ? `<span class="badge dim">${esc(h.source === 'history' ? '历史归档' : h.source === 'project' ? '本项目' : 'index')}</span>` : '',
   ].filter(Boolean).join('');
   const shortPath = (p) => {
     const s = String(p || '');
@@ -246,11 +256,12 @@ function renderInfo(h, progress) {
   const meta = [
     ['runId', h.runId, h.runId],
     ['启动', h.startedAt, h.startedAt],
+    ...(h.finalStatus ? [['收口', h.endedAt || h.finalStatus, h.endedAt]] : []),
     ['项目', shortPath(h.projectRoot), h.projectRoot],
     ['git', h.gitSummary || '—', h.gitSummary || ''],
   ].filter(([, v]) => v).map(([k, v, full]) => `<span class="k">${esc(k)}</span><span class="v" title="${esc(full || v)}">${esc(v)}</span>`).join('');
   return `<aside class="info">
-<div class="hline"><span class="dot ${dotCls}"></span><span class="pos">${progress.completable ? '全部相位完成' : posBig}</span><span class="${stCls}">${progress.completable ? '待收束' : stText}</span></div>
+<div class="hline"><span class="dot ${waiting ? 'wait' : 'run'}"></span><span class="pos">${progress.completable ? '全部相位完成' : posBig}</span>${stHtml}</div>
 <div class="ititle" title="${esc(h.title)}">${esc(h.title)}</div>
 <div class="hbadges">${badges}</div>
 <div class="imeta">${meta}</div></aside>`;
@@ -265,6 +276,35 @@ function treeNodeHtml(node, idOf) {
   return dirs + files;
 }
 
+/** JSON 正常结构渲染：格式化 + 语法染色（键/字符串/数字/布尔/null 分色；用户修订 2026-11-15，替代折叠树）。 */
+function renderJsonPretty(text) {
+  let obj;
+  try { obj = JSON.parse(text); } catch { return null; }
+  const pretty = JSON.stringify(obj, null, 2);
+  const re = /("(?:[^"\\]|\\.)*")(\s*:)?|\b(?:true|false|null)\b|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g;
+  let out = '';
+  let last = 0;
+  let m;
+  while ((m = re.exec(pretty))) {
+    out += esc(pretty.slice(last, m.index));
+    const full = m[0];
+    if (m[1] !== undefined) {
+      out += m[2] !== undefined
+        ? `<span class="jk">${esc(m[1])}</span>${m[2]}`
+        : `<span class="j-str">${esc(m[1])}</span>`;
+    } else if (full === 'true' || full === 'false') {
+      out += `<span class="j-bool">${full}</span>`;
+    } else if (full === 'null') {
+      out += '<span class="j-null">null</span>';
+    } else {
+      out += `<span class="j-num">${esc(full)}</span>`;
+    }
+    last = re.lastIndex;
+  }
+  out += esc(pretty.slice(last));
+  return `<div class="jtree"><pre class="plain">${out}</pre></div>`;
+}
+
 /** 单文件 → 预览面板体（md/json/纯文本/降级说明）；md 标题 id 带文件前缀防串线。 */
 function filePaneBody(f, fid) {
   if (f.content === null) return `<div class="note">${esc(f.note || '不内联')}</div>`;
@@ -277,8 +317,8 @@ function filePaneBody(f, fid) {
     return `<div class="mdcols">${nav}<div class="mdbody">${html}</div></div>`;
   }
   if (name.endsWith('.json')) {
-    const tree = renderJsonTree(f.content);
-    if (tree) return `<div class="jtree">${tree}</div>`;
+    const pretty = renderJsonPretty(f.content);
+    if (pretty) return pretty;
     return `<pre class="plain">${esc(f.content)}</pre>`;
   }
   return `<pre class="plain">${esc(f.content)}</pre>`;
@@ -339,9 +379,11 @@ function renderBrowser(browser) {
 /* ------------------------------------------------------------------ 总装 */
 
 function renderHtml(vm, browser) {
-  const completableRow = vm.progress.completable
-    ? `<div class="completable">${LIVE_STAR}<span>待收束：run finish --status done 可收口</span></div>`
-    : '';
+  const completableRow = vm.header.finalStatus
+    ? `<div class="completable" style="color:${vm.header.finalStatus === 'failed' ? 'var(--danger)' : 'var(--ok)'};justify-content:center"><span>已收口 · ${esc(vm.header.finalStatus)}${vm.header.endedAt ? ` · ${esc(vm.header.endedAt)}` : ''}</span></div>`
+    : vm.progress.completable
+      ? `<div class="completable">${LIVE_STAR}<span>待收束：run finish --status done 可收口</span></div>`
+      : '';
   return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
@@ -356,4 +398,4 @@ ${renderBrowser(browser || { files: [], git: null })}
 </main></body></html>`;
 }
 
-module.exports = { renderHtml, renderDag, humanBytes };
+module.exports = { renderHtml, renderDag, renderJsonPretty, humanBytes };
