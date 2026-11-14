@@ -1,0 +1,12 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "运行 Ddo-Code-Flow 插件（F5）",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": ["--extensionDevelopmentPath=${workspaceFolder}/plugin"],
+      "outFiles": []
+    }
+  ]
+}

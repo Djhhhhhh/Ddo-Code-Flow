@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="20 33 54 37" role="img" aria-label="Ddo 产品族图标：节点链" style="color: #E6F1FF">
+                            <g fill="currentColor">
+                                <circle cx="32" cy="60" r="6.5"/>
+                                <circle cx="50" cy="44" r="6.5"/>
+                                <circle cx="66" cy="56" r="3.5" opacity="1"/>
+                                <circle cx="23" cy="46" r="2" opacity="1"/>
+                                <circle cx="72" cy="38" r="1.8" opacity="1"/>
+                            </g>
+                            <g fill="none" stroke="currentColor" stroke-width="2" opacity="1" stroke-linecap="round">
+                                <path d="M37.5 56 C42 51 44 49 45.3 47.8"/>
+                                <path d="M54.5 48.5 C59 52 61.5 54 63 55"/>
+                            </g>
+                        </svg>

@@ -1,0 +1,75 @@
+{
+  "name": "ddo-code-flow",
+  "displayName": "Ddo-Code-Flow 存活流水",
+  "description": "查看 ddo-code-flow 全局运行中流水（存活流水）与六分区流水信息（只读）",
+  "version": "0.2.17",
+  "license": "MIT",
+  "publisher": "djhhh",
+  "private": true,
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./src/extension.js",
+  "icon": "media/icon.png",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "ddo-flow",
+          "title": "Ddo-Code-Flow",
+          "icon": "media/icons/activity.svg"
+        }
+      ]
+    },
+    "views": {
+      "ddo-flow": [
+        {
+          "id": "ddo-flow.runs",
+          "name": "存活流水"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "ddo-flow.refresh",
+        "title": "刷新存活流水",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "ddo-flow.openRun",
+        "title": "查看流水信息",
+        "icon": "$(eye)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "ddo-flow.refresh",
+          "when": "view == ddo-flow.runs",
+          "group": "navigation"
+        }
+      ],
+      "view/item": [
+        {
+          "command": "ddo-flow.openRun",
+          "when": "view == ddo-flow.runs && viewItem == run",
+          "group": "inline"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Ddo-Code-Flow",
+      "properties": {
+        "ddo-flow.indexPath": {
+          "type": "string",
+          "default": "~/.ddo/index.json",
+          "description": "全局 run 索引文件绝对路径（支持 ~ 前缀）"
+        }
+      }
+    }
+  }
+}
