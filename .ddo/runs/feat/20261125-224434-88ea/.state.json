@@ -1,0 +1,244 @@
+{
+  "runId": "20261125-224434-88ea",
+  "title": "实现 eval/bench/model-quick-eval 模型能力评测流水线",
+  "startedAt": "2026-11-25T22:44:34.188+08:00",
+  "schemaVersion": 2,
+  "workflow": "basic",
+  "git": {
+    "mainBranch": "main"
+  },
+  "dirs": {
+    "projectRoot": "/Users/djhhh/work_area/Ddo-Code-Flow",
+    "runDir": "/Users/djhhh/work_area/Ddo-Code-Flow/.ddo/runs/feat/20261125-224434-88ea",
+    "tasksDir": "/Users/djhhh/.cc-switch/skills/Ddo-Code-Flow/atom-tasks"
+  },
+  "currentStage": [],
+  "stages": {
+    "requirement": {
+      "status": "done",
+      "dependOn": [],
+      "at": "2026-11-25T22:46:22.752+08:00"
+    },
+    "spec": {
+      "status": "done",
+      "dependOn": [
+        "requirement"
+      ],
+      "at": "2026-11-25T22:53:58.910+08:00",
+      "gate": {
+        "phase": "02",
+        "openedAt": "2026-11-25T22:48:54.648+08:00",
+        "options": [
+          {
+            "name": "同意",
+            "desc": "批准当前 spec（仅当不存在未解决 BQ），本相位完成",
+            "action": "next --decision 同意"
+          },
+          {
+            "name": "驳回",
+            "desc": "回滚 spec 阶段，按意见回到相位 01 重新生成",
+            "action": "rollback --stage spec"
+          },
+          {
+            "name": "修改",
+            "desc": "把反馈作为新的需求证据更新受影响条目，展示变化摘要后重新送审",
+            "action": "in-phase"
+          },
+          {
+            "name": "提问",
+            "desc": "只读答疑，不修改 spec、不改变任何 ID 与确认状态",
+            "action": "in-phase"
+          }
+        ],
+        "presentedAt": "2026-11-25T22:53:41.337+08:00",
+        "lastInteractedAt": "2026-11-25T22:52:53.559+08:00",
+        "decision": "同意",
+        "closedAt": "2026-11-25T22:53:58.910+08:00"
+      }
+    },
+    "plan": {
+      "status": "done",
+      "dependOn": [
+        "spec"
+      ],
+      "at": "2026-11-25T23:09:41.835+08:00",
+      "gate": {
+        "phase": "02",
+        "openedAt": "2026-11-25T23:02:33.356+08:00",
+        "options": [
+          {
+            "name": "同意",
+            "desc": "批准当前 revision，本相位完成",
+            "action": "next --decision 同意"
+          },
+          {
+            "name": "驳回",
+            "desc": "回滚 plan 阶段，按意见回到相位 01 重新生成",
+            "action": "rollback --stage plan"
+          },
+          {
+            "name": "修改",
+            "desc": "反馈应用到新 revision 并重评估，展示变化摘要后重新送审",
+            "action": "in-phase"
+          },
+          {
+            "name": "提问",
+            "desc": "只答疑，不改文档、revision 与确认状态",
+            "action": "in-phase"
+          },
+          {
+            "name": "归档",
+            "desc": "按相位 01 §5 归档当前 plan；不代表批准",
+            "action": "in-phase"
+          }
+        ],
+        "presentedAt": "2026-11-25T23:09:19.658+08:00",
+        "lastInteractedAt": "2026-11-25T23:07:50.186+08:00",
+        "decision": "同意",
+        "closedAt": "2026-11-25T23:09:41.835+08:00"
+      }
+    },
+    "coding": {
+      "status": "done",
+      "dependOn": [
+        "plan"
+      ],
+      "at": "2026-11-26T00:07:27.015+08:00",
+      "gate": {
+        "phase": "02",
+        "openedAt": "2026-11-25T23:41:35.879+08:00",
+        "options": [
+          {
+            "name": "同意",
+            "desc": "确认 coding 产物完成，本相位完成并放行后续阶段",
+            "action": "next --decision 同意"
+          },
+          {
+            "name": "提问",
+            "desc": "对实现内容答疑，不改变确认状态；处理后重新呈现",
+            "action": "in-phase"
+          },
+          {
+            "name": "修改",
+            "desc": "按反馈调整代码实现，完成后重新送审",
+            "action": "in-phase"
+          }
+        ],
+        "presentedAt": "2026-11-26T00:02:38.601+08:00",
+        "lastInteractedAt": "2026-11-25T23:59:30.688+08:00",
+        "decision": "同意",
+        "closedAt": "2026-11-26T00:07:27.015+08:00"
+      }
+    },
+    "reporting": {
+      "status": "done",
+      "dependOn": [
+        "coding"
+      ],
+      "at": "2026-11-26T00:08:45.641+08:00"
+    }
+  },
+  "atomTasks": {},
+  "artifacts": {
+    "requirement": [
+      {
+        "phase": "01",
+        "recordedAt": "2026-11-25T22:46:22.752+08:00",
+        "trigger": "next",
+        "files": [
+          {
+            "path": "requirement.md",
+            "bytes": 22292,
+            "sha256": "fca1fcbd820d186216d3be6e5eac38af5b07d02349baee5f5fa833cb3aa5485a"
+          }
+        ]
+      }
+    ],
+    "spec": [
+      {
+        "phase": "01",
+        "recordedAt": "2026-11-25T22:48:54.648+08:00",
+        "trigger": "next",
+        "files": [
+          {
+            "path": "spec.md",
+            "bytes": 14856,
+            "sha256": "bbe4c56ff21a334b0af6717378895e7d8771c1ac110b9accfbef7979f570962d"
+          }
+        ]
+      },
+      {
+        "phase": "02",
+        "recordedAt": "2026-11-25T22:53:58.910+08:00",
+        "trigger": "next",
+        "files": [
+          {
+            "path": "spec.md",
+            "bytes": 15265,
+            "sha256": "2c977d8b2f723a3b0cf8316f3e2c2069b7d8afeab26a7e93cf7908f437095a1b"
+          }
+        ]
+      }
+    ],
+    "plan": [
+      {
+        "phase": "01",
+        "recordedAt": "2026-11-25T23:02:33.356+08:00",
+        "trigger": "next",
+        "files": [
+          {
+            "path": "plan.md",
+            "bytes": 19555,
+            "sha256": "eb1969e3639e772e586e99a9606d35ab243048f36c7e1f34cd1b636d8f3a6ac6"
+          },
+          {
+            "path": "plans/01-engine-auto-gate.md",
+            "bytes": 7935,
+            "sha256": "f024cc4b9e982b8bb971db760c3c9f4bf999ee377f362b1016a84019ed643e65"
+          },
+          {
+            "path": "plans/02-orchestrator-sandbox.md",
+            "bytes": 7427,
+            "sha256": "e180ab8b40fff26e959a6f5163f1f562ed9b830e895f3c3b047c228babccb0f8"
+          },
+          {
+            "path": "plans/03-bank-probes-metrics.md",
+            "bytes": 9568,
+            "sha256": "d4b73e2b6aa75c2aeec4fb095584fecc25a0c48aa3015cb3d04a8c2e3428f526"
+          },
+          {
+            "path": "plans/04-report-delivery.md",
+            "bytes": 6010,
+            "sha256": "48ab3d5d650790ddde169fae05fbb39d7e2bb5098e8b366d1c02087443b041c3"
+          }
+        ]
+      },
+      {
+        "phase": "02",
+        "recordedAt": "2026-11-25T23:09:41.835+08:00",
+        "trigger": "next",
+        "files": [
+          {
+            "path": "plan.md",
+            "bytes": 21708,
+            "sha256": "4dadc6cfbde61d0c226a88397b4a5839d49ac5e0be5e2b4f93810cdc223cad5b"
+          }
+        ]
+      }
+    ],
+    "reporting": [
+      {
+        "phase": "01",
+        "recordedAt": "2026-11-26T00:08:45.641+08:00",
+        "trigger": "next",
+        "files": [
+          {
+            "path": "execution-report.md",
+            "bytes": 6874,
+            "sha256": "faee4bcc002e248cc3aa0fdc5a05b51ccef9ad63f33d4e55788965b549d42951"
+          }
+        ]
+      }
+    ]
+  }
+}
