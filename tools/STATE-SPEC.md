@@ -19,7 +19,7 @@ state 顶层按职责分为六区。分区是**规范概念**（JSON 无物理�
 |---|---|---|---|---|
 | A 标识区 | run 身份，创建后不可变 | `runId` `title` `startedAt` `schemaVersion` `ephemeral?` `workflow?` | 创建时定稿 | 仅 run start / subflow start（创建） |
 | B 环境区 | 运行环境与旋钮，创建后不可变 | `git` `dirs` `atomTasks` | 创建时定稿 | 仅 run start / subflow start（创建） |
-| C 进度区 | 权威机器状态（控制流唯一事实源） | `currentStage` `stages`（含 `gate` 协议子对象） | 随推进变更 | next / gate present / gate interact / rollback / run finish |
+| C 进度区 | 权威机器状态（控制流唯一事实源） | `currentStage` `stages`（含 `gate` 协议子对象） | 随推进变更 | next / gate present / gate interact / gate auto / rollback / run finish |
 | D 编排区 | 子流程注册与溯源 | `subflows?` `subflow?` | 运行期变更 | subflow start / subflow close |
 | E 产物区 | 各阶段产物文件登记（当前有效集） | `artifacts?` | 相位推进时追加/回滚时清除 | next / rollback |
 | F 使用日志区 | 使用痕迹（**移出 state**） | —（独立文件 `.usage.jsonl`） | 仅追加 | 全部变更型命令 |
@@ -196,7 +196,7 @@ state 顶层按职责分为六区。分区是**规范概念**（JSON 无物理�
 - **R-5 日志随写**：变更型命令在 state 写成功后按 §3.7 顺序规则追加 `.usage.jsonl`。
 - **R-6 外部副作用边界**：index（~/.ddo/index.json）、history（~/.ddo/history/runs.jsonl 与 zip）、runDir 产物文件、`_del/` 归档目录均**不是 state 字段**，其写入时机在 §4.2 矩阵逐命令注明，防止与 state 写入次序混淆。
 
-### 4.2 矩阵总表（覆盖 `tools/cli.js` REGISTRY 全部 13 命令，无遗漏）
+### 4.2 矩阵总表（覆盖 `tools/cli.js` REGISTRY 全部 14 命令，无遗漏）
 
 | 命令 | 读 | 写 state | 写日志（事件） | 外部副作用 |
 |---|---|---|---|---|
@@ -205,6 +205,7 @@ state 顶层按职责分为六区。分区是**规范概念**（JSON 无物理�
 | `validate` | state、任务 config、产物文件 | — | — | — |
 | `next` | state、任务 config（相位/门声明）、产物文件（E 区登记快照） | `currentStage`、`stages[].status/at`、`gate.decision/closedAt`、`artifacts`（相位推进时登记） | `decision`、`advanced`、`activated`、`artifacts-recorded` | — |
 | `gate present` | state、任务 config、present 钩子 | `gate.presentedAt`；隐式门物化（`gate` 整对象补全） | `presented`（可含 `--note` agent 执行摘要，§4.3.5） | — |
+| `gate auto` | state、任务 config、present 钩子、策略文件（`--policy` 或 `DDO_GATE_AUTO_POLICY`） | `gate.presentedAt`、`gate.lastInteractedAt`（in-phase 分支）；推进分支内部走 `next` 决议写入路径（§4.3.6） | `presented`(note 含 `auto:命中<规则id>`)、`interacted`(auto 应答文本)、`decision`/`advanced`/`activated`/`artifacts-recorded`（经 next 路径，command 标 `gate auto`） | — |
 | `gate interact` | state、任务 config、present 钩子 | `gate.lastInteractedAt`（v2；v1 写 `interactions[]` 追加） | `interacted`（含 note 全文） | — |
 | `rollback` | state、任务 config（output 声明）、`_del/` 扫描 | `stages[reset].status='pending'/at`、**删除** `gate`、**删除** `artifacts[reset]` 条目、`currentStage=[target:01]` | `rollback`（含 reason） | 产物移动至 `_del/rollback-<n>/`（次序：先归档文件再写 state） |
 | `status` | state、任务 config | — | — | — |
@@ -245,6 +246,15 @@ state 顶层按职责分为六区。分区是**规范概念**（JSON 无物理�
 - 提示注入点（单点）：`gate present` 输出 payload 的 `hint` 文本增补一行「呈现时可附 `--note` 两段式执行摘要（做了什么+结论）」——agent 在提交时刻被提示，无需在 exec 指令做条件注入。
 - 边界：无 human 相位的阶段（如 reporting 类收尾阶段）无呈现时刻，其过程记录仍由产物文档 + E 区登记（`artifacts-recorded`）承载；`interacted`（用户反馈）与 `presented`（agent 摘要）的 note 语义分离，复盘时按 `event` 区分。
 
+#### 4.3.6 gate auto：策略驱动的自动门决议（评测/auto 场景，第 14 命令）
+
+- 前置：策略文件（`--policy <path>`，回退 `DDO_GATE_AUTO_POLICY`）为 JSON `{rules:[{id,match:{stage,phase?},prefer?:[name…],inPhase?:{name:应答文本}}],defaults?:{prefer?:[name…]}}`；缺失两者 → exit 2（用法错误）；文件不可读/非法 JSON/结构不合法 → exit 1。
+- 匹配（`tools/lib/gate.js` `applyPolicy`，纯函数）：精确 `(stage[,phase])` 规则 → `defaults`；同一门内 **inPhase 命中优先于 prefer**（BQ 未清先应答）；`prefer` 按序取第一个「当前选项集中存在且为推进型」的名字；无命中 → exit 1 硬错并列出选项名——**引擎不做任何回退选择、不生成应答文本**（红线：不替用户/模型决策）。
+- 写序（崩溃一致性沿用 §3.7）：①对全部开门位执行 present 语义（物化隐式门 + `presentedAt`，一次 state 写）→ 日志 `presented`（note 标 `auto:命中<规则id>`）；②in-phase 分支：再写 `lastInteractedAt`（晚于①的时刻）→ 日志 `interacted`（note = `auto:命中<规则id>｜应答：<既定文本>`），stdout 返回该选项的行为契约（调用方完成写回后**重新调用 gate auto**）；③推进分支：内部复用 `next` 决议路径（decision/closedAt + 推进 + E 区登记 + `decision/advanced/activated/artifacts-recorded` 事件，`command` 标 `gate auto`，note 含命中规则 id）。②会使①的呈现过期（I-G1 保守方向）——重调 gate auto 重新呈现，语义自洽。
+- 多门并发：全部开门位的既定 in-phase 应答先处理（本调用只做①②，不推进）；全部为推进型时要求选项名一致（一次 next 决议作用于所有门），不一致 → exit 1 说明（多门混合决议不支持单次自动，调整策略或分流）。
+- `manual 模式 = 不调用本命令`：`gate present`/`gate interact`/`next --decision` 人工路径零改动（可关闭语义的落点）。
+- 不新增 state 顶层键与事件类型；写白名单见 §4.4。
+
 ### 4.4 `WRITER_ALLOWLIST` 定义（R-3 的实现契约）
 
 ```js
@@ -253,6 +263,7 @@ const WRITER_ALLOWLIST = {
   'run start':      ['*create*'],                                  // 全量创建（A/B/C/E 空骨架）
   'next':           ['currentStage', 'stages', 'artifacts'],
   'gate present':   ['stages.*.gate.presentedAt', 'stages.*.gate'],// 隐式门物化限 gate 整对象
+  'gate auto':      ['stages.*.gate.presentedAt', 'stages.*.gate.lastInteractedAt', 'currentStage', 'stages', 'artifacts'],// present/interact 语义 + next 决议路径（§4.3.6）
   'gate interact':  ['stages.*.gate.lastInteractedAt'],
   'rollback':       ['currentStage', 'stages', 'artifacts'],
   'subflow start':  ['*create*child*', 'subflows'],                // 子创建+父注册

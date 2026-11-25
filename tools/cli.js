@@ -5,7 +5,7 @@
 // （stdout=JSON / stderr=人话 / exit 0·1·2 / 状态文件现读不缓存）。
 // 命令在归属的设计轮次登记（03 plan §3.4 命名空间政策）；
 // 当前登记：run start（06）、run finish、rollback（04）、exec、validate（05）、next（06）、status（07）、resume（08）、list tasks / list workflows（10）、
-// gate present / gate interact、guide（交互协议结构闭环）、subflow start / close（子流程编排）。
+// gate present / gate interact、guide（交互协议结构闭环）、subflow start / close（子流程编排）、gate auto（策略驱动自动门决议，STATE-SPEC §4.3.6）。
 // （工具链精简 run：subflow list 并入 status 的 subflows 视图——重叠观测面合并，见 runDir evaluation.md CS-1）
 
 const path = require('path');
@@ -18,7 +18,7 @@ const { loadTaskSchema, validateArtifact } = require('./lib/output-schema');
 const { expandStages, phaseType, nextPhase, readyStages, statusForPhase, standardOptions, buildGate, isAdvancing, pruneStages, activateStarts } = require('./lib/workflow');
 const sources = require('./lib/sources');
 const { subflowStart, subflowClose, activeSubflows } = require('./lib/subflow');
-const { openGates, presentPayload, renderGateOptions, fillState, isPresentationValid } = require('./lib/gate');
+const { openGates, presentPayload, renderGateOptions, fillState, isPresentationValid, applyPolicy } = require('./lib/gate');
 const journal = require('./lib/journal');
 const { gitInfo, inferMainBranch } = require('./lib/git-info');
 const { readDependencies, checkDependencies } = require('./lib/deps');
@@ -682,7 +682,7 @@ function runStart(f) {
   };
 }
 
-function runNext(f) {
+function runNext(f, meta) {
   const state = readState(f.state);
   assertState(state);
   if (!state.currentStage.length) throw new Error('无待推进阶段（run 已结束或未启动）');
@@ -813,14 +813,19 @@ function runNext(f) {
   state.currentStage = nextEntries;
   writeState(f.state, state);
   // F 区事件（STATE-SPEC §4.2，state 成功后追加；顺序 = decision → advanced → activated → artifacts-recorded）
+  // meta（gate auto 内部调用注入）：command 溯源标 + decision note（命中规则 id）；缺省（人工 next）行为不变
+  const evtCmd = (meta && meta.command) || 'next';
   for (const c of closedGates) {
-    journal.appendAudit(runDir, { event: 'decision', command: 'next', stage: c.stage, option: c.decision, at: now });
+    journal.appendAudit(runDir, {
+      event: 'decision', command: evtCmd, stage: c.stage, option: c.decision, at: now,
+      ...((meta && meta.note) ? { note: meta.note } : {}),
+    });
   }
   for (const a of advanced) {
-    journal.appendAudit(runDir, { event: 'advanced', command: 'next', stage: a.stage, detail: `${a.from} → ${a.to}`, at: now });
+    journal.appendAudit(runDir, { event: 'advanced', command: evtCmd, stage: a.stage, detail: `${a.from} → ${a.to}`, at: now });
   }
   for (const id of activated) {
-    journal.appendAudit(runDir, { event: 'activated', command: 'next', stage: id, at: now });
+    journal.appendAudit(runDir, { event: 'activated', command: evtCmd, stage: id, at: now });
   }
   for (const ra of artifactsRecorded) {
     journal.appendAudit(runDir, {
@@ -1022,6 +1027,101 @@ function gateInteract(f) {
     option: f.option, at: now, ...(f.note ? { note: f.note } : {}),
   });
   return { recorded: { stage: g.stage, phase: g.phase, option: f.option, at: now } };
+}
+
+/**
+ * gate auto（STATE-SPEC §4.3.6）：策略驱动的自动门决议——对当前开门位完成
+ * 「呈现（present 语义）+ 策略匹配 + 决议/交互」。策略未命中硬错，不做回退选择、
+ * 不生成应答文本（红线：不替用户/模型决策）。manual 路径零改动（不调用本命令即关闭）。
+ * 写序：①presentedAt（一次 state 写）→ presented 日志；②in-phase：lastInteractedAt →
+ * interacted 日志（应答为策略既定文本回放），返回行为契约（调用方写回后重调）；
+ * ③推进：内部走 runNext 决议路径（meta 溯源 command=gate auto + 命中规则 id note）。
+ */
+function gateAuto(f) {
+  const state = readState(f.state);
+  assertState(state);
+  if (!state.currentStage.length) throw new Error('无待处理的确认门（run 已结束或未启动）');
+  const statePath = f.state;
+  const tasksDir = tasksDirFor(f, state);
+  const policyPath = f.policy || process.env.DDO_GATE_AUTO_POLICY;
+  if (!policyPath) {
+    throw new UsageError('gate auto: 缺少 --policy（或环境变量 DDO_GATE_AUTO_POLICY）——策略文件是自动决议的唯一应答来源');
+  }
+  let policy;
+  try {
+    policy = JSON.parse(fs.readFileSync(path.resolve(policyPath), 'utf8'));
+  } catch (e) {
+    throw new Error(`gate auto: 策略文件不可读或非法 JSON（${policyPath}）: ${e.message}`);
+  }
+  const gates = openGates(state, statePath, tasksDir);
+  if (!gates.length) {
+    process.stderr.write('[无开门] 当前位置没有等待决议的确认门（用 status 查看位置）\n');
+    process.exitCode = 1;
+    return { auto: 0 };
+  }
+  // 策略匹配（纯函数，全部命中才继续——任一未命中即硬错，不做部分自动）
+  const picks = gates.map((g) => ({ gate: g, pick: applyPolicy(g, policy) }));
+  const runDir = (state.dirs && state.dirs.runDir) || path.dirname(statePath);
+
+  // ① present 语义：物化隐式门 + 盖 presentedAt（与 gate present 同一写法，满足 I-G1）
+  const nowP = nowIso();
+  const presented = [];
+  for (const { gate: g } of picks) {
+    const gate = state.stages[g.stage].gate || buildGate(state.stages, g.stage, g.phase, tasksDir, nowP);
+    state.stages[g.stage] = { ...state.stages[g.stage], gate: { ...gate, presentedAt: nowP } };
+    presented.push(g.stage);
+  }
+  writeState(statePath, state);
+  for (const { gate: g, pick } of picks) {
+    journal.appendAudit(runDir, {
+      event: 'presented', command: 'gate auto', stage: g.stage, phase: g.phase, at: nowP,
+      note: `auto:命中${pick.ruleId}（策略呈现，非人工）`,
+    });
+  }
+
+  // ② in-phase 分支：存在既定 in-phase 应答时，本调用只做交互留痕并返回行为契约（不推进）
+  const inPhasePicks = picks.filter((p) => p.pick.kind === 'in-phase');
+  if (inPhasePicks.length) {
+    const nowI = nowIso();
+    const contracts = [];
+    for (const { gate: g, pick } of inPhasePicks) {
+      const gate = state.stages[g.stage].gate;
+      state.stages[g.stage] = { ...state.stages[g.stage], gate: { ...gate, lastInteractedAt: nowI } };
+      const hit = g.options.find((t) => t.name === pick.option);
+      contracts.push({
+        stage: g.stage, phase: g.phase, option: pick.option,
+        action: hit.action,
+        应答文本: pick.answer,
+        行为契约: `按 ${g.stage} 相位 prompt 中「${pick.option}」的行为定义处理：将应答文本写回受影响产物后，重新执行 gate auto --state ${statePath} --policy ${policyPath}`,
+      });
+    }
+    writeState(statePath, state);
+    for (const { gate: g, pick } of inPhasePicks) {
+      journal.appendAudit(runDir, {
+        event: 'interacted', command: 'gate auto', stage: g.stage, phase: g.phase,
+        option: pick.option, at: nowI, note: `auto:命中${pick.ruleId}｜应答：${pick.answer}`,
+      });
+    }
+    return {
+      mode: 'in-phase', presented, inPhase: contracts,
+      提示: '已记录相位内交互（auto 应答为策略既定文本回放）；完成写回后必须重新调用 gate auto（呈现已过期，I-G1）',
+    };
+  }
+
+  // ③ 推进分支：全部开门位须为同一决议名（一次 next 决议作用于所有门；不一致即硬错）
+  const names = [...new Set(picks.map((p) => p.pick.option))];
+  if (names.length > 1) {
+    throw new Error(
+      `gate auto: 多门并发且既定决议不一致（${picks.map((p) => `${p.gate.stage}→${p.pick.option}`).join('；')}）——单次自动决议要求一致；调整策略或先关闭其中一门`
+    );
+  }
+  const decision = names[0];
+  const ruleIds = picks.map((p) => p.pick.ruleId).join(',');
+  const next = runNext(
+    { state: statePath, decision, ...(f['tasks-dir'] ? { 'tasks-dir': f['tasks-dir'] } : {}) },
+    { command: 'gate auto', note: `auto:命中${ruleIds}（策略既定决议，非人工）` }
+  );
+  return { mode: 'advance', presented, decision, ruleIds: picks.map((p) => p.pick.ruleId), next };
 }
 
 /** guide 的 worktree 场景问（WTT 旋钮）：选项 name 固定四场景（机制名稳定），缺省值与机制
@@ -1440,6 +1540,17 @@ const REGISTRY = [
       { flag: '--tasks-dir', desc: '原子任务根目录（缺省仓库 atom-tasks/；测试用）' },
     ],
     run: gateInteract,
+  },
+  {
+    name: 'gate auto',
+    summary: '策略驱动的自动门决议：present 语义 + 策略匹配 + 决议/交互（STATE-SPEC §4.3.6；评测/auto 场景，manual 路径零改动）',
+    usage: 'gate auto --state <path> [--policy <file>] [--tasks-dir <path>]',
+    options: [
+      { flag: '--state', desc: '.state.json 绝对路径', required: true },
+      { flag: '--policy', desc: '策略文件路径（缺省取环境变量 DDO_GATE_AUTO_POLICY）：{rules:[{id,match:{stage,phase?},prefer?:[],inPhase?:{名:应答}}],defaults:{prefer:[]}}——未命中硬错，引擎不回退、不生成应答' },
+      { flag: '--tasks-dir', desc: '原子任务根目录（缺省仓库 atom-tasks/；测试用）' },
+    ],
+    run: gateAuto,
   },
   {
     name: 'subflow start',

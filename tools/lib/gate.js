@@ -145,6 +145,48 @@ function isPresentationValid(gate) {
   return { valid: true };
 }
 
+/**
+ * 策略匹配（STATE-SPEC §4.3.6，gate auto）：对单个开门位，按策略文件选出既定动作。
+ * 纯函数——不读 state、不写 state、不生成任何文本（inPhase 应答为策略既定内容的回放）。
+ * 匹配序：精确 (stage[,phase]) 规则 → defaults；同一门内 inPhase 命中优先于 prefer
+ * （未清 BQ 先应答）；prefer 按序取第一个「存在且推进型」的名字；无命中抛错（列出选项名）。
+ */
+function applyPolicy(gate, policy) {
+  const where = `gate auto 策略（${gate.stage}:${gate.phase}）`;
+  const opts = gate.options || [];
+  if (!policy || typeof policy !== 'object') throw new Error(`${where}: 策略文件结构非法（须为对象）`);
+  const rules = Array.isArray(policy.rules) ? policy.rules : [];
+  for (const r of rules) {
+    if (!r || typeof r !== 'object' || !r.match || typeof r.match !== 'object') {
+      throw new Error(`${where}: rules[] 条目结构非法（须含 match 对象）`);
+    }
+  }
+  const rule = rules.find((r) => r.match.stage === gate.stage && (r.match.phase === undefined || r.match.phase === gate.phase));
+  const prefer = (rule && Array.isArray(rule.prefer) && rule.prefer.length)
+    ? rule.prefer
+    : (policy.defaults && Array.isArray(policy.defaults.prefer) ? policy.defaults.prefer : []);
+  const inPhase = (rule && rule.inPhase && typeof rule.inPhase === 'object') ? rule.inPhase : {};
+  const ruleId = (rule && rule.id) || 'defaults';
+  // 1) inPhase 命中优先：选项名在 inPhase 表中且为 in-phase 型
+  for (const t of opts) {
+    if (t.action === 'in-phase' && Object.prototype.hasOwnProperty.call(inPhase, t.name)) {
+      const answer = inPhase[t.name];
+      if (typeof answer !== 'string' || !answer) {
+        throw new Error(`${where}: inPhase[${t.name}] 应答须为非空字符串（引擎不生成应答文本）`);
+      }
+      return { kind: 'in-phase', option: t.name, answer, ruleId };
+    }
+  }
+  // 2) prefer：按序取第一个「存在且推进型」的名字（in-phase 名不在 inPhase 表 → 视为不匹配，继续取下一个）
+  for (const name of prefer) {
+    const hit = opts.find((t) => t.name === name);
+    if (hit && hit.action !== 'in-phase') return { kind: 'advance', option: hit.name, ruleId };
+  }
+  throw new Error(
+    `${where}: 策略未命中（规则 ${ruleId} 的 prefer/inPhase 均无可用选项）——引擎不做回退选择。当前选项: ${opts.map((t) => `${t.name}(${t.action === 'in-phase' ? 'in-phase' : '推进'})`).join(', ')}`
+  );
+}
+
 module.exports = {
-  openGates, presentPayload, renderGateOptions, fillState, isPresentationValid, loadPresentHook,
+  openGates, presentPayload, renderGateOptions, fillState, isPresentationValid, loadPresentHook, applyPolicy,
 };
