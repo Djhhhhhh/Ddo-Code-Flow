@@ -1,0 +1,29 @@
+{
+  "name": "eval-prepare",
+  "version": "1.0.0",
+  "desc": "收集并校验 model-quick-eval 评测参数（model/双 sid/题单/报告形式），产出 eval-config.json",
+  "phases": [
+    {
+      "id": "01",
+      "summary": "问询收集评测参数并写 eval-config.json（runDir 内）",
+      "type": "action",
+      "output": "eval-config.json"
+    }
+  ],
+  "defaults": {
+    "rules": [
+      "参数以用户答复或启动 --config 预填为准，不得代填、推断或使用示例值",
+      "baseline_sid 与 ddo_sid 必须不同（A/B 控变量硬约束）",
+      "题单须满足题组规则：2–3 题、题 1 页面题、核心集 ≥1（题库见 ddo-code-flow 仓库 eval/bench/bank/）",
+      "dry_run=true 时 token 为模拟值，报告自动带 dry-run 标注"
+    ]
+  },
+  "configurable": [
+    { "key": "model", "desc": "被测模型名（可缺省 = 两臂不带 --model，直接用本地 claude 已配置的模型；真实模型名从会话回执自动解析进报告）" },
+    { "key": "baseline_sid", "desc": "baseline 臂会话 ID（≠ ddo_sid；token 按 session_id 分组的前提）" },
+    { "key": "ddo_sid", "desc": "ddo 臂会话 ID（≠ baseline_sid）" },
+    { "key": "tasks", "desc": "题单（2–3 题逗号连接；题 1 页面题；核心集 ≥1）" },
+    { "key": "reports", "desc": "报告形式子集（注册表 card/sheet/summary/wechat/xiaohongshu；缺省 card+sheet+summary）" },
+    { "key": "dry_run", "desc": "true = stub 会话链路自验（token 模拟值）", "default": false }
+  ]
+}

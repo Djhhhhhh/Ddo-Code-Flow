@@ -1,0 +1,85 @@
+{
+  "description": "eval-result.json 输出规范：eval-run 阶段执行 model-quick-eval 评测的留痕（命令、轮次、每题增益、发布目录）。",
+  "outputFormat": "json",
+  "document": {
+    "title": "评测执行结果",
+    "titleFormat": "固定文本",
+    "description": "一次 model-quick-eval 轮次的执行留痕与产物定位。",
+    "separators": false
+  },
+  "jsonFields": [
+    {
+      "name": "version",
+      "type": "string",
+      "required": true,
+      "description": "格式版本号",
+      "example": "1.0.0"
+    },
+    {
+      "name": "command",
+      "type": "string",
+      "required": true,
+      "description": "实际执行的编排器命令（参数与 eval-config.json 一致）"
+    },
+    {
+      "name": "round_id",
+      "type": "string",
+      "required": true,
+      "description": "编排器轮次 ID（runs/<round_id>）"
+    },
+    {
+      "name": "dry_run",
+      "type": "boolean",
+      "required": true,
+      "description": "是否 dry-run（token 为模拟值）"
+    },
+    {
+      "name": "questions",
+      "type": "array",
+      "required": true,
+      "description": "每题结果（来自编排器 stdout JSON 的 questions 字段，原样保留 delta，含无差异/负增益）",
+      "example": [
+        { "q": "q_threejs-orbit-scene", "delta": "6/19 → 19/19" },
+        { "q": "q_export-command", "delta": "2/7 → 2/7；回归 3/3 → 3/3" }
+      ]
+    },
+    {
+      "name": "publish_dir",
+      "type": "string",
+      "required": true,
+      "description": "发布产物目录（reports/<round_id>，含 summary.md、卡片与平台物料）"
+    },
+    {
+      "name": "notes",
+      "type": "array",
+      "required": false,
+      "description": "如实备注（preflight 拦截重试、探针回退、异常等）"
+    }
+  ],
+  "sections": [
+    {
+      "heading": "执行留痕",
+      "level": 2,
+      "required": true,
+      "format": "table",
+      "columns": ["字段", "值"],
+      "extensible": false,
+      "description": "命令 / 轮次 / dry_run / 发布目录逐行渲染"
+    },
+    {
+      "heading": "每题增益",
+      "level": 2,
+      "required": true,
+      "format": "table",
+      "columns": ["题", "Δ（baseline → ddo）"],
+      "extensible": false,
+      "description": "questions 数组逐行渲染；无差异与负增益原样呈现"
+    }
+  ],
+  "rules": [
+    "questions 与编排器 stdout JSON 逐字一致，不得修饰 delta 文本",
+    "dry_run=true 时 notes 须含「token 为 dry-run 模拟值」",
+    "publish_dir 必须真实存在且含 summary.md"
+  ],
+  "example": "{\n  \"version\": \"1.0.0\",\n  \"command\": \"node eval/bench/cli.js run --model test-model --tasks q_threejs-orbit-scene,q_regression-trap --baseline-sid s1 --ddo-sid s2 --dry-run\",\n  \"round_id\": \"2026112515402-test-model\",\n  \"dry_run\": true,\n  \"questions\": [{ \"q\": \"q_threejs-orbit-scene\", \"delta\": \"6/19 → 19/19\" }],\n  \"publish_dir\": \"eval/bench/reports/2026112515402-test-model\",\n  \"notes\": [\"token 为 dry-run 模拟值\"]\n}"
+}
