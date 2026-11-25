@@ -81,5 +81,5 @@
     "dry_run=true 时 notes 须含「token 为 dry-run 模拟值」",
     "publish_dir 必须真实存在且含 summary.md"
   ],
-  "example": "{\n  \"version\": \"1.0.0\",\n  \"command\": \"node eval/bench/cli.js run --model test-model --tasks q_threejs-orbit-scene,q_regression-trap --baseline-sid s1 --ddo-sid s2 --dry-run\",\n  \"round_id\": \"2026112515402-test-model\",\n  \"dry_run\": true,\n  \"questions\": [{ \"q\": \"q_threejs-orbit-scene\", \"delta\": \"6/19 → 19/19\" }],\n  \"publish_dir\": \"eval/bench/reports/2026112515402-test-model\",\n  \"notes\": [\"token 为 dry-run 模拟值\"]\n}"
+  "example": "{\n  \"version\": \"1.0.0\",\n  \"command\": \"node eval/bench/cli.js run --model test-model --tasks q_threejs-orbit-scene,q_regression-trap --baseline-sid s1 --ddo-sid s2 --dry-run\",\n  \"round_id\": \"2026112515402-test-model\",\n  \"dry_run\": true,\n  \"questions\": [{ \"q\": \"q_threejs-orbit-scene\", \"delta\": \"6/19 → 19/19\" }],\n  \"publish_dir\": \".ddo/eval/reports/2026112515402-test-model\",\n  \"notes\": [\"token 为 dry-run 模拟值\"]\n}"
 }

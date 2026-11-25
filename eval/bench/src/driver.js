@@ -11,6 +11,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { lookupAnswer } = require('./policy');
+const { SANDBOX_SETTINGS } = require('./sandbox');
 
 const QUESTION_RE = /(澄清|确认一下|请问|需要明确|是否应该|要不要|哪种|还是|？|\?)/;
 const MAX_TURNS = 3;
@@ -35,11 +36,12 @@ function runArm({ arm, sandboxDir, streamOutDir, promptText, model, sessionId, t
     '-p',
     '--session-id', sessionId,
     '--permission-mode', 'acceptEdits',
+    '--settings', JSON.stringify(SANDBOX_SETTINGS), // headless 未信任工作区会忽略沙箱 settings.json，改由 CLI 参数注入（两臂同配置）
     '--input-format', 'stream-json',
     '--output-format', 'stream-json',
     '--verbose',
   ];
-  if (model) baseArgs.splice(2, 0, '--model', model); // 缺省 = 本地 claude 已配置模型
+  if (model) baseArgs.splice(1, 0, '--model', model); // 缺省 = 本地 claude 已配置模型（索引 1：成对插在 -p 后，不挤占 --session-id 的取值槽位）
   let status = 'completed';
 
   return new Promise((resolve) => {

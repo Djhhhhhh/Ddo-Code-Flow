@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 'use strict';
-// q_threejs-orbit-scene 页面题探针（plan Part 03 §3，FR-6/AC-6）。
+// q_threejs-orbit-scene 页面题探针 v2（难度升级：视觉质感 + 交互深度）。
 // 用法：node bank/core/q_threejs-orbit-scene/acceptance/probe.js <index.html 绝对路径> <输出目录> [--rotate-drag <px>]
 // 输出：<outdir>/probe.json（达标项/总项 + 逐项 {id,判定,实测,期望}）+ shots/（初始/拖拽旋转/窄屏/两帧）。
-// 依赖：eval/bench devDependency playwright（chromium）。A1–E2 共 19 项为达标分母；F1 参考档单列；axe 附加观测。
+// 依赖：eval/bench devDependency playwright（chromium）。
+// 计分项 A1–I3 共 33 项为达标分母；F1 帧率 / F2 reduced-motion 为参考档单列；axe 附加观测。
+// 健壮性约定：产物缺字段（如 __app.satellites 不存在）记该项失败，不让探针崩溃。
 
 const path = require('node:path');
 const fs = require('node:fs');
@@ -28,23 +30,26 @@ async function main() {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   const checks = [];
   const record = (id, pass, actual, expected) => checks.push({ id, pass: Boolean(pass), actual, expected });
+  const safe = async (fn, fallback) => { try { return await fn(); } catch { return fallback; } };
 
   await page.goto('file://' + pageFile, { waitUntil: 'load' });
   await page.waitForFunction(() => window.__app && window.__app.scene && window.__app.galaxy, null, { timeout: 15000 });
   await page.waitForTimeout(800); // 首帧渲染稳定
 
-  // ---- 场景遍历（A/B 组）
+  // ---- 场景遍历（A/B 组 + v2 新增结构）
   const probe = await page.evaluate(() => {
     const app = window.__app;
-    const meshes = []; const lines = []; const lights = [];
+    const meshes = []; const lines = []; const lights = []; const points = [];
     app.scene.traverse((o) => {
       if (o.isMesh) meshes.push(o);
       if (o.isLine) lines.push(o);
       if (o.isLight) lights.push(o);
+      if (o.isPoints) points.push(o);
     });
-    const center = meshes.find((m) => m.geometry && m.geometry.type === 'IcosahedronGeometry');
+    const center = meshes.find((m) => m.geometry && m.geometry.type === 'IcosahedronGeometry' && !m.material.wireframe);
+    const wire = meshes.find((m) => m.geometry && m.geometry.type === 'IcosahedronGeometry' && m.material.wireframe);
     const spheres = meshes.filter((m) => m.geometry && m.geometry.type === 'SphereGeometry');
-    const torus = meshes.find((m) => m.geometry && m.geometry.type === 'TorusGeometry');
+    const tori = meshes.filter((m) => m.geometry && m.geometry.type === 'TorusGeometry');
     const colorCount = {};
     const sphereInfo = [];
     spheres.forEach((s) => {
@@ -54,6 +59,8 @@ async function main() {
         pos: s.getWorldPosition(new (Object.getPrototypeOf(app.camera.position).constructor)()).toArray(),
         rot: [s.rotation.x, s.rotation.y, s.rotation.z],
         castShadow: !!s.castShadow,
+        emissive: s.material.emissive ? '#' + s.material.emissive.getHexString() : null,
+        emissiveIntensity: s.material.emissiveIntensity !== undefined ? s.material.emissiveIntensity : null,
       });
     });
     const dir = lights.find((l) => l.isDirectionalLight);
@@ -65,17 +72,30 @@ async function main() {
         metalness: center.material.metalness, roughness: center.material.roughness,
         color: '#' + center.material.color.getHexString(),
         castShadow: !!center.castShadow, receiveShadow: !!center.receiveShadow,
+        posY: center.position.y,
       },
+      wire: wire && { radius: wire.geometry.parameters.radius, opacity: wire.material.opacity },
       sphereCount: spheres.length, colorCount, sphereInfo,
       lineCount: lines.length,
       lineColors: lines.map((l) => '#' + l.material.color.getHexString()),
-      torus: torus && { radius: torus.geometry.parameters.radius, tube: torus.geometry.parameters.tube },
+      tori: tori.map((t) => ({ radius: t.geometry.parameters.radius, tube: t.geometry.parameters.tube, rotX: t.rotation.x, opacity: t.material.opacity })),
+      starPoints: points.reduce((n, p) => n + (p.geometry && p.geometry.attributes && p.geometry.attributes.position ? p.geometry.attributes.position.count : 0), 0),
       lightKinds: lights.map((l) => l.type),
+      pointLights: lights.filter((l) => l.type === 'PointLight').map((l) => ({ color: '#' + l.color.getHexString(), intensity: l.intensity })),
       dirCast: dir ? !!dir.castShadow : false,
       shadowEnabled: !!app.renderer.shadowMap.enabled,
       damping: !!app.controls.enableDamping,
       minD: app.controls.minDistance, maxD: app.controls.maxDistance,
       galaxyRotY: app.galaxy.rotation.y,
+      composer: !!app.composer,
+      bloom: (() => {
+        if (!app.composer || !app.composer.passes) return null;
+        const p = app.composer.passes.find((x) => x.constructor && /unrealbloom/i.test(x.constructor.name)) ||
+          app.composer.passes.find((x) => typeof x.strength === 'number');
+        return p ? { strength: p.strength, radius: p.radius } : null;
+      })(),
+      satellites: Array.isArray(app.satellites) ? app.satellites.length : null,
+      pixelRatio: app.renderer.getPixelRatio ? app.renderer.getPixelRatio() : null,
     };
   });
 
@@ -86,7 +106,7 @@ async function main() {
   record('A2', probe.center && probe.center.type === 'IcosahedronGeometry'
     && Math.abs((probe.center.params.detail || 0) - 0) < 1e-9
     && Math.abs(probe.center.params.radius - 1) < 0.05,
-    probe.center && `${probe.center.type} r=${probe.center.params && probe.center.params.radius} d=${probe.center.params && probe.center.params.detail}`,
+    probe.center && `${probe.center.type} r=${probe.center.params && probe.center.params.radius} d=${probe.center.params && probe.center.detail}`,
     'IcosahedronGeometry / 1 / 0');
   // A3 卫星数量
   record('A3', probe.sphereCount === 8, `${probe.sphereCount}`, '8');
@@ -111,9 +131,10 @@ async function main() {
   // A6 连接线（按颜色计数：场景可能含网格等辅助线，仅统计 #334155 连接线）
   const connCount = (probe.lineColors || []).filter((c) => c === '#334155').length;
   record('A6', connCount === 8, `${probe.lineCount} 条线中 #334155=${connCount}`, '8 条 #334155');
-  // A7 轨道环
-  record('A7', probe.torus && Math.abs(probe.torus.radius - 3.2) < 1e-6 && Math.abs(probe.torus.tube - 0.02) < 1e-6,
-    probe.torus && `r=${probe.torus.radius} tube=${probe.torus.tube}`, '3.2 / 0.02');
+  // A7 轨道环（内环）
+  const innerTorus = (probe.tori || []).find((t) => Math.abs(t.radius - 3.2) < 1e-6);
+  record('A7', innerTorus && Math.abs(innerTorus.tube - 0.02) < 1e-6,
+    innerTorus && `r=${innerTorus.radius} tube=${innerTorus.tube}`, '3.2 / 0.02');
   // A8 中心材质
   record('A8', probe.center && Math.abs(probe.center.metalness - 0.8) <= 0.05 && Math.abs(probe.center.roughness - 0.2) <= 0.05
     && probe.center.color.toLowerCase() === '#4a90d9',
@@ -122,6 +143,14 @@ async function main() {
   const want = { '#22c55e': 3, '#ef4444': 2, '#3b82f6': 2, '#9ca3af': 1 };
   const colorOk = Object.keys(want).every((k) => (probe.colorCount[k] || 0) === want[k]);
   record('A9', colorOk, JSON.stringify(probe.colorCount), JSON.stringify(want));
+  // A10（v2）中心线框叠加
+  record('A10', probe.wire && Math.abs(probe.wire.radius - 1.04) <= 0.08 && probe.wire.opacity <= 0.45,
+    probe.wire && `r=${probe.wire.radius} opacity=${probe.wire.opacity}`, '线框 Icosahedron r≈1.04 / opacity ≤ 0.45');
+  // A11（v2）外环（倾斜 60°、半透明）
+  const outer = (probe.tori || []).find((t) => Math.abs(t.radius - 4.6) <= 0.1);
+  const outerDeg = outer ? (outer.rotX * 180) / Math.PI : null;
+  record('A11', outer && Math.abs(outerDeg - 60) <= 6 && outer.opacity <= 0.5,
+    outer && `r=${outer.radius} rotX=${outerDeg.toFixed(1)}° opacity=${outer.opacity}`, 'r≈4.6 / 绕 x 倾斜 60°（±6°）/ opacity ≤ 0.5');
   // B1 光源构成
   const kinds = probe.lightKinds;
   record('B1', kinds.includes('AmbientLight') && kinds.includes('DirectionalLight') && kinds.includes('PointLight'), kinds.join(','), '三类各 ≥ 1');
@@ -130,6 +159,9 @@ async function main() {
   // B3 投影/接收
   record('B3', probe.center && probe.center.castShadow && probe.center.receiveShadow && probe.dirCast,
     `center cast=${probe.center && probe.center.castShadow} receive=${probe.center && probe.center.receiveShadow} dirCast=${probe.dirCast}`, '全真');
+  // B4（v2）底部冷色补光（第二盏 PointLight，#38BDF8）
+  const rim = (probe.pointLights || []).find((l) => l.color === '#38bdf8' && l.intensity > 0.1);
+  record('B4', !!rim, JSON.stringify(probe.pointLights), '存在 #38BDF8 冷色 PointLight');
   // C1 阻尼 / C2 缩放范围
   record('C1', probe.damping === true, String(probe.damping), 'true');
   record('C2', Math.abs(probe.minD - 4) <= 0.1 && Math.abs(probe.maxD - 12) <= 0.1, `${probe.minD} / ${probe.maxD}`, '4 / 12（±0.1）');
@@ -140,16 +172,28 @@ async function main() {
   // ---- D1/D2 动画（500ms 两次读）
   const rot1 = await page.evaluate(() => ({
     g: window.__app.galaxy.rotation.y,
+    cy: (window.__app.galaxy.children.find((o) => o.geometry && o.geometry.type === 'IcosahedronGeometry' && !o.material.wireframe) || {}).position ? window.__app.galaxy.children.find((o) => o.geometry && o.geometry.type === 'IcosahedronGeometry' && !o.material.wireframe).position.y : null,
     s: window.__app.galaxy.children.filter((o) => o.isMesh && o.geometry.type === 'SphereGeometry').map((o) => o.rotation.x + o.rotation.y + o.rotation.z),
+    f: (window.__app.galaxy.children.filter((o) => o.isMesh && o.geometry.type === 'SphereGeometry').find((o) => '#' + o.material.color.getHexString() === '#ef4444') || {}).material
+      ? window.__app.galaxy.children.filter((o) => o.isMesh && o.geometry.type === 'SphereGeometry').find((o) => '#' + o.material.color.getHexString() === '#ef4444').material.emissiveIntensity : null,
   }));
   await page.waitForTimeout(500);
   const rot2 = await page.evaluate(() => ({
     g: window.__app.galaxy.rotation.y,
     s: window.__app.galaxy.children.filter((o) => o.isMesh && o.geometry.type === 'SphereGeometry').map((o) => o.rotation.x + o.rotation.y + o.rotation.z),
+    cy: (window.__app.galaxy.children.find((o) => o.geometry && o.geometry.type === 'IcosahedronGeometry' && !o.material.wireframe) || {}).position ? window.__app.galaxy.children.find((o) => o.geometry && o.geometry.type === 'IcosahedronGeometry' && !o.material.wireframe).position.y : null,
+    f: (window.__app.galaxy.children.filter((o) => o.isMesh && o.geometry.type === 'SphereGeometry').find((o) => '#' + o.material.color.getHexString() === '#ef4444') || {}).material
+      ? window.__app.galaxy.children.filter((o) => o.isMesh && o.geometry.type === 'SphereGeometry').find((o) => '#' + o.material.color.getHexString() === '#ef4444').material.emissiveIntensity : null,
   }));
   record('D1', rot2.g > rot1.g, `Δgalaxy=${(rot2.g - rot1.g).toFixed(4)}`, '> 0');
   const satDelta = rot1.s.map((v, i) => rot2.s[i] - v);
   record('D2', satDelta.some((d) => d > 0), `卫星自转增量=[${satDelta.map((d) => d.toFixed(4)).join(',')}]`, '存在 > 0');
+  // D3（v2）中心浮动
+  record('D3', rot1.cy !== null && rot2.cy !== null && Math.abs(rot2.cy - rot1.cy) > 1e-4,
+    `y ${rot1.cy && rot1.cy.toFixed(4)} → ${rot2.cy && rot2.cy.toFixed(4)}`, '|Δy| > 1e-4');
+  // D4（v2）失败卫星闪烁（emissiveIntensity 变化）
+  record('D4', rot1.f !== null && rot1.f !== undefined && Math.abs(rot2.f - rot1.f) > 1e-3,
+    `emissiveIntensity ${rot1.f && rot1.f.toFixed(3)} → ${rot2.f && rot2.f.toFixed(3)}`, '|Δ| > 1e-3');
 
   // ---- E1 标题与图例
   const e1 = await page.evaluate(() => {
@@ -184,6 +228,95 @@ async function main() {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.waitForTimeout(300);
 
+  // ---- H 组（v2 交互深度）----
+  // 投影挑选一颗「成功」卫星：在相机前方、视口中央区域、远离画面中心（避免被中心体遮挡）
+  const pick = await safe(async () => page.evaluate(() => {
+    const app = window.__app;
+    const v = new (Object.getPrototypeOf(app.camera.position).constructor)();
+    for (let i = 0; i < app.satellites.length; i++) {
+      const s = app.satellites[i];
+      const mesh = s.mesh || s;
+      if (s.status && s.status !== '成功' && '#' + mesh.material.color.getHexString() !== '#22c55e') continue;
+      if ('#' + mesh.material.color.getHexString() !== '#22c55e') continue;
+      mesh.getWorldPosition(v);
+      const world = v.clone();
+      v.project(app.camera);
+      if (v.z >= 1) continue;
+      const x = (v.x * 0.5 + 0.5) * window.innerWidth;
+      const y = (-v.y * 0.5 + 0.5) * window.innerHeight;
+      const dc = Math.hypot(x - window.innerWidth / 2, y - window.innerHeight / 2);
+      if (dc < 150 || x < 60 || y < 60 || x > window.innerWidth - 60 || y > window.innerHeight - 60) continue;
+      return { x, y, index: i, world: world.toArray() };
+    }
+    return null;
+  }), null);
+
+  const textBefore = await safe(() => page.evaluate(() => document.body.innerText), '');
+  // H1 悬停：放大 + emissive 提亮 + tooltip 文本出现
+  if (pick) {
+    await page.mouse.move(pick.x, pick.y);
+    await page.waitForTimeout(500);
+    const h1 = await safe(() => page.evaluate((idx) => {
+      const app = window.__app;
+      const s = app.satellites[idx];
+      const mesh = s.mesh || s;
+      return { scale: mesh.scale.x, ei: mesh.material.emissiveIntensity };
+    }, pick.index), {});
+    const textHover = await safe(() => page.evaluate(() => document.body.innerText), '');
+    record('H1', h1.scale > 1.2 && (h1.ei === null || h1.ei === undefined || h1.ei >= 0.6) && textHover !== textBefore,
+      `scale=${h1.scale && h1.scale.toFixed(2)} emissiveIntensity=${h1.ei} 文本${textHover !== textBefore ? '有新增' : '无变化'}`,
+      'scale > 1.2 且 emissiveIntensity ≥ 0.6 且 tooltip 文本出现');
+    // H2 点击聚焦：controls.target 过渡 + 详情文本
+    await page.mouse.click(pick.x, pick.y);
+    await page.waitForTimeout(1100);
+    const h2 = await safe(() => page.evaluate(() => {
+      const t = window.__app.controls.target;
+      return { target: [t.x, t.y, t.z] };
+    }), {});
+    const dTarget = Math.hypot(h2.target[0] - pick.world[0], h2.target[1] - pick.world[1], h2.target[2] - pick.world[2]);
+    const textClick = await safe(() => page.evaluate(() => document.body.innerText), '');
+    record('H2', dTarget < 0.8 && textClick !== textBefore,
+      `target距卫星=${dTarget.toFixed(3)} 文本${textClick !== textBefore ? '有新增' : '无变化'}`,
+      'controls.target 距被点卫星 < 0.8 且详情文本出现');
+    await page.mouse.move(30, 400); // 移出卫星，避免后续误悬停
+    await page.waitForTimeout(300);
+  } else {
+    record('H1', false, '未找到可交互的「成功」卫星投影', '—');
+    record('H2', false, '未找到可交互的「成功」卫星投影', '—');
+  }
+
+  // H3 图例过滤：点击「成功」图例 → 3 颗隐藏；再点恢复
+  const h3 = await safe(async () => {
+    const legend = page.getByText('成功', { exact: true }).first();
+    await legend.click();
+    await page.waitForTimeout(400);
+    const hidden = await page.evaluate(() => window.__app.satellites.filter((s) => {
+      const m = s.mesh || s;
+      return '#' + m.material.color.getHexString() === '#22c55e' && m.visible === false;
+    }).length);
+    await legend.click();
+    await page.waitForTimeout(300);
+    const restored = await page.evaluate(() => window.__app.satellites.filter((s) => {
+      const m = s.mesh || s;
+      return '#' + m.material.color.getHexString() === '#22c55e' && m.visible === true;
+    }).length);
+    return { hidden, restored };
+  }, null);
+  record('H3', h3 && h3.hidden === 3 && h3.restored === 3,
+    h3 ? `隐藏=${h3.hidden} 恢复=${h3.restored}` : '图例不可点或 satellites 未暴露', '隐藏 3 / 恢复 3');
+
+  // H4 空格暂停：动画停摆（controls 不受影响不测）
+  const h4 = await safe(async () => {
+    await page.keyboard.press(' ');
+    const a = await page.evaluate(() => window.__app.galaxy.rotation.y);
+    await page.waitForTimeout(500);
+    const b = await page.evaluate(() => window.__app.galaxy.rotation.y);
+    const delta = b - a;
+    await page.keyboard.press(' ');
+    return { delta };
+  }, null);
+  record('H4', h4 && Math.abs(h4.delta) < 1e-6, h4 ? `暂停期间Δgalaxy=${h4.delta.toFixed(8)}` : '按键未生效', '|Δ| < 1e-6');
+
   // ---- E2 画面有效（亮度与非纯色）：截图 buffer → 辅助页解码统计（WebGL 画布页内回读会被清屏）
   const shotBuf = await page.screenshot({ type: 'png' });
   const e2 = await (async () => {
@@ -202,7 +335,7 @@ async function main() {
         for (let i = 0; i < d.length; i += 4) {
           const lum = 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
           sum += lum;
-          seen.add(`${d[i]},${d[i + 1]},${d[i + 2]}`);
+          seen.add(`${d[i]},${d[i+1]},${d[i+2]}`);
         }
         return { avg: sum / (d.length / 4), colors: seen.size };
       }, dataUrl);
@@ -215,6 +348,33 @@ async function main() {
   record('E2', e2 && !e2.err && e2.avg > 10 && e2.avg < 245 && e2.colors > 1,
     e2 && !e2.err ? `avg=${e2.avg.toFixed(1)} colors=${e2.colors}` : String(e2 && e2.err), '亮度 ∈ (10,245) 且非纯色');
 
+  // ---- G 组（v2 视觉质感）
+  record('G1', probe.starPoints >= 800, `${probe.starPoints} 点`, '≥ 800');
+  record('G2', probe.bloom && probe.bloom.strength >= 0.3 && probe.bloom.strength <= 0.9 && probe.composer,
+    probe.bloom ? `bloom strength=${probe.bloom.strength}` : 'composer/bloom 未暴露', 'composer + UnrealBloomPass strength ∈ [0.3, 0.9]');
+
+  // ---- I 组（v2 HUD 与渲染质量）
+  const i1 = await safe(async () => {
+    const read = () => page.evaluate(() => {
+      const els = Array.from(document.querySelectorAll('body *')).filter((e) => /fps/i.test(e.textContent || '') && e.children.length === 0);
+      return els.length ? els[0].textContent.trim() : null;
+    });
+    const a = await read();
+    await page.waitForTimeout(700);
+    const b = await read();
+    return { a, b };
+  }, null);
+  record('I1', i1 && i1.a && i1.b && i1.a !== i1.b, i1 ? `${i1.a} → ${i1.b}` : 'FPS 计数未找到/未更新', '两次读数不同');
+  record('I2', probe.pixelRatio && probe.pixelRatio <= 2, `pixelRatio=${probe.pixelRatio}`, '≤ 2');
+  const i3 = await safe(() => page.evaluate(() => {
+    const hit = Array.from(document.querySelectorAll('body *')).find((e) => {
+      const cs = getComputedStyle(e);
+      return (cs.backdropFilter || cs.webkitBackdropFilter || '').includes('blur');
+    });
+    return hit ? (getComputedStyle(hit).backdropFilter || getComputedStyle(hit).webkitBackdropFilter) : null;
+  }), null);
+  record('I3', !!i3, i3 || '无 backdrop-filter blur', 'HUD 卡片 backdrop-filter 含 blur');
+
   // ---- 两帧差分（证动画运行）
   await page.screenshot({ path: path.join(outDir, 'shots', 'frame-a.png') });
   await page.waitForTimeout(300);
@@ -226,6 +386,20 @@ async function main() {
     (function loop() { n++; if (performance.now() - t0 < 3000) requestAnimationFrame(loop); else resolve(n / 3); })();
   }));
 
+  // ---- F2（v2 参考档）prefers-reduced-motion：自转停用（单开页面模拟）
+  let reduced = { status: 'skipped' };
+  try {
+    const rp = await browser.newPage({ viewport: { width: 1280, height: 800 }, reducedMotion: 'reduce' });
+    await rp.goto('file://' + pageFile, { waitUntil: 'load' });
+    await rp.waitForFunction(() => window.__app && window.__app.galaxy, null, { timeout: 15000 });
+    await rp.waitForTimeout(800);
+    const a = await rp.evaluate(() => window.__app.galaxy.rotation.y);
+    await rp.waitForTimeout(600);
+    const b = await rp.evaluate(() => window.__app.galaxy.rotation.y);
+    reduced = { status: 'ok', paused: Math.abs(b - a) < 1e-6, delta: b - a };
+    await rp.close();
+  } catch { /* 如实记 skipped */ }
+
   // ---- axe-core 附加观测（CDN 注入；离线则 skipped）
   let axe = { status: 'skipped', issues: null };
   try {
@@ -236,20 +410,23 @@ async function main() {
 
   await browser.close();
 
-  const scored = checks; // A1–E2 全部计入分母（F1 参考档单列）
+  const scored = checks; // A1–I3 全部计入分母（F1/F2 参考档单列）
   const pass = scored.filter((c) => c.pass).length;
   const out = {
     page: pageFile,
     pass, total: scored.length,
     rate: `${pass}/${scored.length}`,
     checks: scored,
-    reference: { fps: Math.round(fps * 10) / 10, expect: '≥ 45（参考档，不计入达标率）' },
+    reference: {
+      fps: Math.round(fps * 10) / 10, expect: '≥ 45（参考档，不计入达标率）',
+      reducedMotion: reduced, expectReduced: '自转停用（参考档，不计入达标率）',
+    },
     axe,
     shots: ['initial.png', 'rotated.png', 'narrow.png', 'frame-a.png', 'frame-b.png'].map((s) => `shots/${s}`),
     generatedAt: new Date().toISOString(),
   };
   fs.writeFileSync(path.join(outDir, 'probe.json'), JSON.stringify(out, null, 2) + '\n');
-  process.stdout.write(JSON.stringify({ pass: out.pass, total: out.total, rate: out.rate, fps: out.reference.fps, axe: axe.status }, null, 2) + '\n');
+  process.stdout.write(JSON.stringify({ pass: out.pass, total: out.total, rate: out.rate, fps: out.reference.fps, reduced: reduced.status, axe: axe.status }, null, 2) + '\n');
 }
 
-main().catch((e) => { console.error(String(e && e.message || e)); process.exit(1); });
+main().catch((e) => { console.error(String((e && e.stack) || e)); process.exit(1); });

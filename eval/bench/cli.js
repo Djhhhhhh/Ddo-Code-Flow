@@ -20,8 +20,13 @@ const collectToken = require('./src/collect/token');
 const { renderCard, renderSummary, renderHtmlForm, exportPng, fmtK } = require('./src/report/render');
 
 const BENCH_ROOT = __dirname;
-const RUNS_ROOT = path.join(BENCH_ROOT, 'runs');
-const ENGINE_CLI = path.join(BENCH_ROOT, '..', '..', 'tools', 'cli.js');
+const REPO_ROOT = path.join(BENCH_ROOT, '..', '..');
+// 运行产物统一隔离在仓库 .ddo/eval/ 下（不落 eval/bench/ 源码树）：
+//   .ddo/eval/runs/<roundId>/    沙箱、事件流、指标与每题报告（工作区，可 clean）
+//   .ddo/eval/reports/<roundId>/ 发布产物（summary/卡片/sheet 等最终交付物）
+const RUNS_ROOT = path.join(REPO_ROOT, '.ddo', 'eval', 'runs');
+const PUBLISH_ROOT = path.join(REPO_ROOT, '.ddo', 'eval', 'reports');
+const ENGINE_CLI = path.join(REPO_ROOT, 'tools', 'cli.js');
 const THREE_LOCK = '0.160.0';
 
 function usageError(msg) { process.stderr.write(`[用法错误] ${msg}\n`); process.exit(2); }
@@ -260,7 +265,7 @@ async function runCmd(flags) {
   }
 
   // ⑤ 汇总 + 平台物料
-  const publishDir = path.join(BENCH_ROOT, 'reports', roundId);
+  const publishDir = path.join(PUBLISH_ROOT, roundId);
   fs.mkdirSync(publishDir, { recursive: true });
   if (profile.reports.includes('summary')) {
     const readJson = (p) => { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return {}; } };
@@ -317,17 +322,26 @@ async function runCmd(flags) {
 
   round.finishedAt = new Date().toISOString();
   fs.writeFileSync(path.join(roundDir, 'round.json'), JSON.stringify(round, null, 2) + '\n');
-  process.stderr.write(`轮次完成。runs/ 含沙箱大目录，提交前自行处理（不自动清理；显式清理：cli.js clean --run ${roundId}）。\n`);
+  // 产物位置一屏说清（可发现性：全部在 .ddo/eval/ 下，不进源码树）
+  const summaryPath = path.join(publishDir, 'summary.md');
+  process.stderr.write([
+    '轮次完成。产物位置（均在 .ddo/eval/ 下，不进源码树）：',
+    ...(fs.existsSync(summaryPath) ? [`  汇总页    ${summaryPath}`] : ['  汇总页    （本轮 reports 未含 summary）']),
+    ...round.questions.map((q) => `  卡片      ${path.join(publishDir, `card-${q.qName}.md`)}`),
+    `  每题详情  ${roundDir}/<题名>/{report,metrics}`,
+    `  沙箱根    ${roundDir}`,
+    `（沙箱为工作区大目录；显式清理：cli.js clean --run ${roundId}，同时删除 runs/ 与 reports/ 下该轮次）`,
+  ].join('\n') + '\n');
   outJson({
     roundId, dryRun, model: modelLabel, tasks: round.tasks,
     questions: round.questions.map((q) => ({ q: q.qName, delta: q.resultDelta, reportDir: q.reportDir })),
-    publishDir,
+    publishDir, summaryPath, runsDir: roundDir,
   });
 }
 
 function cleanCmd(flags) {
   if (!flags.run) usageError('clean: 缺少 --run <轮次Id>');
-  outJson(sandboxLib.cleanRound(RUNS_ROOT, flags.run));
+  outJson(sandboxLib.cleanRound(RUNS_ROOT, flags.run, PUBLISH_ROOT));
 }
 
 async function main() {

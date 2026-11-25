@@ -3,3 +3,7 @@
 .claude/settings.local.json
 .DS_Store
 .env*
+
+# model-quick-eval 运行产物（沙箱/事件流/报告，可再生的本地材料）
+.ddo/eval/
+eval/bench/node_modules/

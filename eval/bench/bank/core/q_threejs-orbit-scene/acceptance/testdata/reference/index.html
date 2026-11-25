@@ -10,12 +10,35 @@
   .overlay-card {
     position: fixed; padding: 10px 14px; border-radius: 10px;
     background: rgba(15, 23, 42, 0.55); color: #E2E8F0; font: 13px/1.6 system-ui, sans-serif;
-    backdrop-filter: blur(4px); border: 1px solid rgba(148, 163, 184, 0.2);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(148, 163, 184, 0.2);
   }
   #title { top: 16px; left: 16px; font-size: 16px; font-weight: 600; }
+  #title .sub { font-size: 12px; font-weight: 400; opacity: 0.75; }
   #legend { top: 16px; right: 16px; }
-  #legend .item { display: flex; align-items: center; gap: 8px; }
+  #legend .item { display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+  #legend .item.off { opacity: 0.35; filter: grayscale(0.8); }
   #legend .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  #fps { bottom: 16px; left: 16px; font-variant-numeric: tabular-nums; }
+  #pauseBadge { bottom: 16px; left: 110px; color: #FBBF24; }
+  #resetBtn {
+    position: fixed; bottom: 16px; right: 16px; padding: 8px 16px; border-radius: 8px;
+    background: rgba(30, 41, 59, 0.7); color: #E2E8F0; border: 1px solid rgba(148, 163, 184, 0.3);
+    backdrop-filter: blur(10px); cursor: pointer; font: 13px system-ui, sans-serif;
+  }
+  #tooltip {
+    position: fixed; display: none; pointer-events: none; padding: 6px 10px; border-radius: 6px;
+    background: rgba(2, 6, 23, 0.85); color: #E2E8F0; font: 12px system-ui, sans-serif;
+    border: 1px solid rgba(148, 163, 184, 0.35); z-index: 10; white-space: nowrap;
+  }
+  #detail {
+    position: fixed; top: 50%; right: 16px; transform: translateY(-50%); display: none;
+    padding: 14px 18px; border-radius: 12px; min-width: 180px;
+    background: rgba(15, 23, 42, 0.65); color: #E2E8F0; font: 13px/1.8 system-ui, sans-serif;
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(148, 163, 184, 0.25); z-index: 9;
+  }
+  #detail h3 { margin: 0 0 6px; font-size: 15px; }
   canvas { display: block; }
 </style>
 <script type="importmap">
@@ -28,26 +51,43 @@
 </script>
 </head>
 <body>
-<div id="title" class="overlay-card">任务星系</div>
+<div id="title" class="overlay-card">任务星系<br><span class="sub">8 颗任务卫星 · 实时运行</span></div>
 <div id="legend" class="overlay-card">
-  <div class="item"><span class="dot" style="background:#22C55E"></span>成功</div>
-  <div class="item"><span class="dot" style="background:#EF4444"></span>失败</div>
-  <div class="item"><span class="dot" style="background:#3B82F6"></span>进行中</div>
-  <div class="item"><span class="dot" style="background:#9CA3AF"></span>待定</div>
+  <div class="item" data-status="成功"><span class="dot" style="background:#22C55E"></span><span class="label">成功</span><span>3</span></div>
+  <div class="item" data-status="失败"><span class="dot" style="background:#EF4444"></span><span class="label">失败</span><span>2</span></div>
+  <div class="item" data-status="进行中"><span class="dot" style="background:#3B82F6"></span><span class="label">进行中</span><span>2</span></div>
+  <div class="item" data-status="待定"><span class="dot" style="background:#9CA3AF"></span><span class="label">待定</span><span>1</span></div>
 </div>
+<div id="fps" class="overlay-card">-- FPS</div>
+<div id="pauseBadge" class="overlay-card" style="display:none">已暂停</div>
+<button id="resetBtn" type="button">复位</button>
+<div id="tooltip"></div>
+<div id="detail"></div>
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+/* 显式参数假设：
+   - 星系自转 0.05 rad/s（缓慢）；卫星自转 0.8 rad/s；星空反向 0.008 rad/s
+   - 中心浮动：幅度 0.15、周期 4s；失败卫星闪烁：0.15–0.6、周期 1.2s；连线呼吸：0.35–0.6、周期 2s */
+const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+const GALAXY_SPEED = reduced.matches ? 0 : 0.05;
+const SAT_SPEED = 0.8;
+const STAR_SPEED = -0.008;
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
-camera.position.set(0, 3.5, 8);
+const CAM_HOME = new THREE.Vector3(0, 3.5, 8);
+camera.position.copy(CAM_HOME);
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
@@ -55,7 +95,7 @@ controls.dampingFactor = 0.05;
 controls.minDistance = 4;
 controls.maxDistance = 12;
 
-// 背景：深色渐变（#0B1220 → #020617）做进场景（WebGL 画布会遮住 CSS 背景）
+// 背景：深色渐变（#0B1220 → #020617）
 const bgCanvas = document.createElement('canvas');
 bgCanvas.width = 2; bgCanvas.height = 256;
 const bgCtx = bgCanvas.getContext('2d');
@@ -67,12 +107,33 @@ bgCtx.fillRect(0, 0, 2, 256);
 scene.background = new THREE.CanvasTexture(bgCanvas);
 scene.background.colorSpace = THREE.SRGBColorSpace;
 
-// 网格地面（题面「可加」项，提升空间参照）
+// 网格地面（题面「可加」项）
 const grid = new THREE.GridHelper(40, 40, 0x1E3A5F, 0x111C33);
 grid.position.y = -5;
 scene.add(grid);
 
-// 光照
+// 星空：远/近两层 Points（600 + 300）
+const starGroup = new THREE.Group();
+function makeStars(count, rMin, rMax, size, color) {
+  const pos = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    const r = rMin + Math.random() * (rMax - rMin);
+    const t = Math.random() * Math.PI * 2;
+    const u = Math.acos(2 * Math.random() - 1);
+    pos[i * 3] = r * Math.sin(u) * Math.cos(t);
+    pos[i * 3 + 1] = r * Math.cos(u);
+    pos[i * 3 + 2] = r * Math.sin(u) * Math.sin(t);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const mat = new THREE.PointsMaterial({ size, color, sizeAttenuation: true, transparent: true, opacity: 0.9 });
+  return new THREE.Points(geo, mat);
+}
+starGroup.add(makeStars(600, 22, 40, 0.07, 0xCBD5E1));
+starGroup.add(makeStars(300, 12, 20, 0.14, 0x7DD3FC));
+scene.add(starGroup);
+
+// 光照：环境 + 主方向（开阴影）+ 顶部点光 + 底部冷色补光
 scene.add(new THREE.AmbientLight(0xffffff, 0.3));
 const dir = new THREE.DirectionalLight(0xffffff, 1.2);
 dir.position.set(5, 8, 4);
@@ -81,11 +142,14 @@ scene.add(dir);
 const point = new THREE.PointLight(0xffffff, 0.8, 0, 2);
 point.position.set(0, 5, 0);
 scene.add(point);
+const rim = new THREE.PointLight(0x38BDF8, 0.4, 0, 2);
+rim.position.set(0, -4, 0);
+scene.add(rim);
 
 const galaxy = new THREE.Group();
 scene.add(galaxy);
 
-// 中心
+// 中心 + 线框叠加
 const center = new THREE.Mesh(
   new THREE.IcosahedronGeometry(1, 0),
   new THREE.MeshStandardMaterial({ color: 0x4A90D9, metalness: 0.8, roughness: 0.2 })
@@ -93,14 +157,15 @@ const center = new THREE.Mesh(
 center.castShadow = true;
 center.receiveShadow = true;
 galaxy.add(center);
+const wire = new THREE.Mesh(
+  new THREE.IcosahedronGeometry(1.04, 1),
+  new THREE.MeshBasicMaterial({ color: 0x7DD3FC, wireframe: true, transparent: true, opacity: 0.25 })
+);
+galaxy.add(wire);
 
-// 卫星：斐波那契球面均匀分布（显式参数假设：golden-angle 递增，半径 3）
-const STATUSES = [
-  0x22C55E, 0x22C55E, 0x22C55E, // 成功 ×3
-  0xEF4444, 0xEF4444,            // 失败 ×2
-  0x3B82F6, 0x3B82F6,            // 进行中 ×2
-  0x9CA3AF,                      // 待定 ×1
-];
+// 卫星：斐波那契球面均匀分布（golden-angle，半径 3）
+const STATUSES = ['成功', '成功', '成功', '失败', '失败', '进行中', '进行中', '待定'];
+const COLORS = { '成功': 0x22C55E, '失败': 0xEF4444, '进行中': 0x3B82F6, '待定': 0x9CA3AF };
 const satellites = [];
 const lineMat = new THREE.LineBasicMaterial({ color: 0x334155, transparent: true, opacity: 0.6 });
 for (let i = 0; i < 8; i++) {
@@ -114,44 +179,175 @@ for (let i = 0; i < 8; i++) {
   );
   const sat = new THREE.Mesh(
     new THREE.SphereGeometry(0.18, 24, 24),
-    new THREE.MeshStandardMaterial({ color: STATUSES[i] })
+    new THREE.MeshStandardMaterial({ color: COLORS[STATUSES[i]], emissive: COLORS[STATUSES[i]], emissiveIntensity: 0.35 })
   );
   sat.position.copy(pos);
   sat.castShadow = true;
   galaxy.add(sat);
-  satellites.push(sat);
+  satellites.push({ mesh: sat, status: STATUSES[i], name: `SAT-${i + 1}` });
   const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), pos]);
   galaxy.add(new THREE.Line(geo, lineMat));
 }
 
-// 轨道环
+// 轨道环：内环平放 + 外环倾斜 60°
 const ring = new THREE.Mesh(
   new THREE.TorusGeometry(3.2, 0.02, 8, 128),
   new THREE.MeshBasicMaterial({ color: 0x1E293B })
 );
 ring.rotation.x = Math.PI / 2;
 galaxy.add(ring);
+const outerRing = new THREE.Mesh(
+  new THREE.TorusGeometry(4.6, 0.012, 8, 128),
+  new THREE.MeshBasicMaterial({ color: 0x334155, transparent: true, opacity: 0.35 })
+);
+outerRing.rotation.x = Math.PI / 3;
+galaxy.add(outerRing);
 
-// 响应式
+// 后处理：bloom
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.55, 0.6, 0.72);
+composer.addPass(bloom);
+
+// 响应式（相机 / 渲染器 / composer 同步）
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  composer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// 动画（显式参数假设：星系自转 0.1 rad/s，卫星自转 0.8 rad/s）
+// ---- 交互状态
+const state = { paused: false, hiddenStatuses: [] };
+const tooltip = document.getElementById('tooltip');
+const detail = document.getElementById('detail');
+const pauseBadge = document.getElementById('pauseBadge');
+const mouse = { x: -1e9, y: -1e9 };
+let hovered = null;
+let focusIdx = null;
+let resetting = false;
+
+window.addEventListener('pointermove', (e) => { mouse.x = e.clientX; mouse.y = e.clientY; });
+
+/** 屏幕空间邻近拾取：返回距 (x,y) 36px 内最近的可见卫星索引（小目标容差拾取）。 */
+function pickSatellite(x, y) {
+  const v = new THREE.Vector3();
+  let best = null; let bestD = 36;
+  satellites.forEach((s, i) => {
+    if (!s.mesh.visible) return;
+    s.mesh.getWorldPosition(v);
+    v.project(camera);
+    if (v.z >= 1) return;
+    const sx = (v.x * 0.5 + 0.5) * window.innerWidth;
+    const sy = (-v.y * 0.5 + 0.5) * window.innerHeight;
+    const d = Math.hypot(sx - x, sy - y);
+    if (d < bestD) { bestD = d; best = i; }
+  });
+  return best;
+}
+
+renderer.domElement.addEventListener('click', (e) => {
+  const i = pickSatellite(e.clientX, e.clientY);
+  if (i !== null) { focusIdx = i; resetting = false; showDetail(i); }
+});
+document.getElementById('resetBtn').addEventListener('click', resetView);
+function resetView() { focusIdx = null; resetting = true; detail.style.display = 'none'; }
+
+function showDetail(i) {
+  const s = satellites[i];
+  const p = s.mesh.position;
+  detail.innerHTML = `<h3>${s.name}</h3><p>状态 · ${s.status}</p><p>坐标 (${p.x.toFixed(2)}, ${p.y.toFixed(2)}, ${p.z.toFixed(2)})</p>`;
+  detail.style.display = 'block';
+}
+
+// 图例过滤：切换状态组显隐
+document.querySelectorAll('#legend .item').forEach((item) => {
+  item.addEventListener('click', () => {
+    const st = item.dataset.status;
+    const off = state.hiddenStatuses.includes(st);
+    state.hiddenStatuses = off ? state.hiddenStatuses.filter((x) => x !== st) : [...state.hiddenStatuses, st];
+    item.classList.toggle('off', !off);
+    for (const s of satellites) if (s.status === st) s.mesh.visible = off;
+  });
+});
+
+// 空格暂停 / 恢复
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'Space') {
+    e.preventDefault();
+    state.paused = !state.paused;
+    pauseBadge.style.display = state.paused ? 'block' : 'none';
+  }
+});
+
+// FPS 计数（每 500ms 更新）
+const fpsEl = document.getElementById('fps');
+let frames = 0; let fpsT0 = performance.now();
+function tickFps() {
+  frames++;
+  const now = performance.now();
+  if (now - fpsT0 >= 500) {
+    fpsEl.textContent = `${(frames * 1000 / (now - fpsT0)).toFixed(1)} FPS`;
+    frames = 0; fpsT0 = now;
+  }
+}
+
+// 动画主循环
 const clock = new THREE.Clock();
+const tmpV = new THREE.Vector3();
 function animate() {
   const dt = clock.getDelta();
-  galaxy.rotation.y += 0.1 * dt;
-  for (const s of satellites) s.rotation.y += 0.8 * dt;
+  const t = clock.elapsedTime;
+
+  // 悬停判定（屏幕空间邻近）
+  const hi = pickSatellite(mouse.x, mouse.y);
+  if (hi !== null && hi !== hovered && focusIdx === null) { /* 悬停不受聚焦影响地切换 */ }
+  hovered = hi;
+  satellites.forEach((s, i) => {
+    const target = i === hovered ? 1.35 : 1;
+    s.mesh.scale.lerp(new THREE.Vector3(target, target, target), 1 - Math.exp(-14 * dt));
+    const base = s.status === '失败' ? 0.375 + 0.225 * Math.sin((2 * Math.PI * t) / 1.2) : 0.35;
+    const eiTarget = i === hovered ? 0.9 : base;
+    s.mesh.material.emissiveIntensity += (eiTarget - s.mesh.material.emissiveIntensity) * (1 - Math.exp(-14 * dt));
+  });
+  if (hovered !== null) {
+    tooltip.style.display = 'block';
+    tooltip.style.left = `${mouse.x + 14}px`;
+    tooltip.style.top = `${mouse.y + 10}px`;
+    tooltip.textContent = `${satellites[hovered].status} · ${satellites[hovered].name}`;
+  } else {
+    tooltip.style.display = 'none';
+  }
+
+  if (!state.paused && !reduced.matches) {
+    galaxy.rotation.y += GALAXY_SPEED * dt;
+    starGroup.rotation.y += STAR_SPEED * dt;
+    center.position.y = 0.15 * Math.sin((2 * Math.PI * t) / 4);
+    wire.position.y = center.position.y;
+    for (const s of satellites) s.mesh.rotation.y += SAT_SPEED * dt;
+    lineMat.opacity = 0.475 + 0.125 * Math.sin((2 * Math.PI * t) / 2);
+  }
+
+  // 聚焦 / 复位过渡（每帧追踪卫星实时世界坐标）
+  if (focusIdx !== null) {
+    satellites[focusIdx].mesh.getWorldPosition(tmpV);
+    controls.target.lerp(tmpV, 1 - Math.exp(-5 * dt));
+    const dirV = camera.position.clone().sub(tmpV).normalize().multiplyScalar(4.5);
+    camera.position.lerp(tmpV.clone().add(dirV), 1 - Math.exp(-5 * dt));
+  } else if (resetting) {
+    controls.target.lerp(new THREE.Vector3(0, 0, 0), 1 - Math.exp(-5 * dt));
+    camera.position.lerp(CAM_HOME, 1 - Math.exp(-5 * dt));
+    if (camera.position.distanceTo(CAM_HOME) < 0.05) resetting = false;
+  }
+
   controls.update();
-  renderer.render(scene, camera);
+  composer.render();
+  tickFps();
   requestAnimationFrame(animate);
 }
 animate();
 
-window.__app = { scene, camera, renderer, controls, galaxy };
+window.__app = { scene, camera, renderer, controls, galaxy, composer, satellites, state };
 </script>
 </body>
 </html>

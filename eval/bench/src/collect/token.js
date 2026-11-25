@@ -7,9 +7,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const DEFAULT_DB_CANDIDATES = [
+  () => process.env.HOME && path.join(process.env.HOME, '.cc-switch', 'cc-switch.db'),
+  () => process.env.HOME && path.join(process.env.HOME, '.cc-switch', 'cc-switch.sqlite'),
+  () => process.env.HOME && path.join(process.env.HOME, 'Library', 'Application Support', 'cc-switch', 'cc-switch.db'),
   () => process.env.HOME && path.join(process.env.HOME, 'Library', 'Application Support', 'cc-switch', 'cc-switch.sqlite'),
   () => process.env.HOME && path.join(process.env.HOME, 'Library', 'Application Support', 'cc-switch', 'database.sqlite'),
-  () => process.env.HOME && path.join(process.env.HOME, '.cc-switch', 'cc-switch.sqlite'),
 ];
 
 function resolveDbPath(explicit) {

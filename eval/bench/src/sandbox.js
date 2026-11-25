@@ -11,7 +11,10 @@ const BENCH_ROOT = path.join(__dirname, '..');
 const BANK_ROOT = path.join(BENCH_ROOT, 'bank');
 
 const SANDBOX_SETTINGS = {
-  // 沙箱内放开常用工具（隔离环境；两臂完全一致，唯一变量是 prompt 指令）
+  // 沙箱内放开常用工具（隔离环境；两臂完全一致，唯一变量是 prompt 指令）。
+  // 注意：headless（-p）模式下未信任工作区的 .claude/settings.json 会被忽略
+  // （trust 对话框被跳过），因此本配置由 driver 以 --settings <json> 显式注入，
+  // 不再落盘沙箱 settings.json（避免「Ignoring N permissions.allow」告警与失效配置）。
   permissions: { allow: ['Bash', 'Read', 'Write', 'Edit', 'MultiEdit', 'Glob', 'Grep', 'WebFetch', 'WebSearch'] },
 };
 
@@ -52,9 +55,8 @@ function prepareArmSandbox({ roundDir, qName, arm, meta }) {
   } else {
     fs.writeFileSync(path.join(dir, 'README.workspace.md'), `# 评测工作区（${qName} / ${arm}）\n\n被测任务的工作目录。按题面要求在此交付。\n`);
   }
-  // 沙箱级 settings（两臂同配置）
-  fs.mkdirSync(path.join(dir, '.claude'), { recursive: true });
-  fs.writeFileSync(path.join(dir, '.claude', 'settings.json'), JSON.stringify(SANDBOX_SETTINGS, null, 2) + '\n');
+  // 沙箱级 settings 不再落盘（headless 未信任工作区会忽略该文件）；
+  // 权限预放行由 driver.js 以 --settings <json> 注入，两臂同配置。
   // git 基线（改动范围提取）
   if (kind === 'code' && meta.fixture && meta.fixture.git) {
     const git = (args) => execFileSync('git', args, { cwd: dir, encoding: 'utf8', env: { ...process.env, GIT_AUTHOR_NAME: 'eval-bench', GIT_AUTHOR_EMAIL: 'eval@bench.local', GIT_COMMITTER_NAME: 'eval-bench', GIT_COMMITTER_EMAIL: 'eval@bench.local' } });
@@ -78,12 +80,17 @@ function environmentFingerprint({ model, extra = {} }) {
   };
 }
 
-/** 显式清理一轮沙箱（clean 子命令；不自动触发）。 */
-function cleanRound(runsRoot, roundId) {
+/** 显式清理一轮沙箱与发布产物（clean 子命令；不自动触发）。 */
+function cleanRound(runsRoot, roundId, publishRoot) {
+  const cleaned = [];
   const dir = path.join(runsRoot, roundId);
-  if (!fs.existsSync(dir)) throw new Error(`轮次目录不存在: ${dir}`);
-  fs.rmSync(dir, { recursive: true, force: true });
-  return { cleaned: dir };
+  if (fs.existsSync(dir)) { fs.rmSync(dir, { recursive: true, force: true }); cleaned.push(dir); }
+  if (publishRoot) {
+    const pub = path.join(publishRoot, roundId);
+    if (fs.existsSync(pub)) { fs.rmSync(pub, { recursive: true, force: true }); cleaned.push(pub); }
+  }
+  if (!cleaned.length) throw new Error(`轮次目录不存在: ${dir}（publish 同不存在）`);
+  return { cleaned };
 }
 
-module.exports = { resolvePack, prepareArmSandbox, environmentFingerprint, cleanRound, BANK_ROOT, BENCH_ROOT };
+module.exports = { resolvePack, prepareArmSandbox, environmentFingerprint, cleanRound, SANDBOX_SETTINGS, BANK_ROOT, BENCH_ROOT };

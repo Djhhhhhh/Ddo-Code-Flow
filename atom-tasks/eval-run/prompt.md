@@ -16,10 +16,13 @@
      [--model <model>] \
      --tasks <tasks 逗号连接> \
      --baseline-sid <baseline_sid> --ddo-sid <ddo_sid> \
+     [--arm-timeout <分钟>] \
      [--dry-run]
    ```
 
    `model` 缺省时不传 `--model`（两臂用本地 claude 已配置模型，真实模型名由回执解析）。
+   `--arm-timeout` 缺省 30 分钟；题单含页面题时建议 60（ddo 臂流程文档纵深大，
+   30 分钟实测不够走完全程，超时臂判「不可比」）。
 
    `reports` 缺省集（card/sheet/summary）之外有追加时：先在 runDir 写 `eval-profile.json`
    （`{"reports": [...]}`），命令追加 `--profile <runDir>/eval-profile.json`。
@@ -40,5 +43,6 @@
 ## 边界
 
 - 不改评测题目、验收工具与判定口径；发现编排器缺陷如实记录进 notes，不就地绕过。
-- 发布目录（`eval/bench/reports/<轮次>/`）与沙箱（`runs/`）是评测运行产物，
-  不并入本 run 的交付清单。
+- 运行产物统一隔离在 `<仓库根>/.ddo/eval/` 下：发布产物（summary/卡片/sheet）在
+  `.ddo/eval/reports/<轮次>/`，沙箱与事件流在 `.ddo/eval/runs/<轮次>/`；两者是评测
+  运行产物，不并入本 run 的交付清单，也不进源码树。
