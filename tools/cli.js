@@ -15,7 +15,8 @@ const registry = require('./lib/index-registry');
 const history = require('./lib/history');
 const { assemble, mergeConfig, applyConfigOverrides } = require('./lib/assemble');
 const { loadTaskSchema, validateArtifact } = require('./lib/output-schema');
-const { loadWorkflow, expandStages, phaseType, nextPhase, readyStages, statusForPhase, standardOptions, buildGate, isAdvancing, pruneStages, activateStarts } = require('./lib/workflow');
+const { expandStages, phaseType, nextPhase, readyStages, statusForPhase, standardOptions, buildGate, isAdvancing, pruneStages, activateStarts } = require('./lib/workflow');
+const sources = require('./lib/sources');
 const { subflowStart, subflowClose, activeSubflows } = require('./lib/subflow');
 const { openGates, presentPayload, renderGateOptions, fillState, isPresentationValid } = require('./lib/gate');
 const journal = require('./lib/journal');
@@ -89,7 +90,7 @@ function tasksDirFor(f, state) {
 /** 阶段的 output 声明文件全集（去重）：相位级 + 顶层。三形态（STATE-SPEC §4.3.2）：
  *  string / {updates} / {files,dirs}——files 与 updates 同为文件清单；dirs 另由 stageOutputDirs 归档。 */
 function outputDecls(tasksDir, stageId) {
-  const cfg = JSON.parse(fs.readFileSync(path.join(tasksDir, stageId, 'config.json'), 'utf8'));
+  const cfg = sources.readTaskConfig(tasksDir, stageId); // 经 sources 合并解析（run 20261125-221045-c6ec FC-2）
   const decls = [];
   for (const ph of Array.isArray(cfg.phases) ? cfg.phases : []) {
     if (ph.output !== undefined) decls.push(ph.output);
@@ -111,7 +112,7 @@ function stageOutputDirs(tasksDir, stageId) {
 
 /** 相位级 output 声明（E 区登记取声明用；无声明返回 null）。 */
 function phaseOutputDecl(tasksDir, stageId, phase) {
-  const cfg = JSON.parse(fs.readFileSync(path.join(tasksDir, stageId, 'config.json'), 'utf8'));
+  const cfg = sources.readTaskConfig(tasksDir, stageId); // 经 sources 合并解析（run 20261125-221045-c6ec FC-2）
   if (Array.isArray(cfg.phases)) {
     const entry = cfg.phases.find((p) => String(p.id).padStart(2, '0') === phase);
     return (entry && entry.output) || null;
@@ -390,7 +391,13 @@ function phaseContext(f, state, verb) {
     if (phase !== cur) throw new Error(`执行位置不符：当前位置 ${taskName}:${cur}，不能${verb} ${taskName}:${phase}`);
   }
 
-  const taskDir = path.join(tasksDirFor(f, state), taskName);
+  // 任务目录经 sources 合并解析（run 20261125-221045-c6ec FC-2）：primary→user fallback，同名冲突拦截
+  const primary = tasksDirFor(f, state);
+  const taskDir = sources.findTaskDir(primary, taskName);
+  if (!taskDir) {
+    const extra = path.resolve(primary) === sources.BUILTIN_TASKS_DIR ? ` 与 ${sources.userTasksDir()}` : '';
+    throw new Error(`原子任务不存在或结构不完整: ${taskName}（查找: ${primary}${extra}；可用任务见 list tasks）`);
+  }
   if (!fs.existsSync(path.join(taskDir, 'prompt.md')) || !fs.existsSync(path.join(taskDir, 'config.json'))) {
     throw new Error(`原子任务不存在或结构不完整: ${taskDir}（需含 prompt.md + config.json；可用任务见 list tasks）`);
   }
@@ -482,7 +489,7 @@ function depsCheck(f) {
   let taskNames;
   if (f.task !== undefined) {
     if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(f.task)) throw new UsageError(`--task 非法: ${f.task}`);
-    if (!fs.existsSync(path.join(tasksDir, f.task, 'config.json'))) {
+    if (!sources.findTaskDir(tasksDir, f.task)) { // 经 sources 合并解析（run 20261125-221045-c6ec）
       throw new Error(`原子任务不存在: ${f.task}（目录 ${tasksDir}/${f.task}；可用任务见 list tasks）`);
     }
     taskNames = [f.task];
@@ -593,7 +600,9 @@ function runStart(f) {
     multiGit = buildMultiGit(f['multi-repos'], project);
   }
 
-  const preset = loadWorkflow(workflowsDir, workflowName); // fail fast（06 §2.2），不产生半截 run
+  // 预设经 sources 合并解析（run 20261125-221045-c6ec DEC-1/DEC-2）：显式 --workflows-dir 为密闭单源通道，
+  // 缺省合并 ddoHome()/workflows 用户本地注册源；同名冲突 fail-fast，不遮蔽内置
+  const preset = sources.loadWorkflowMerged(f['workflows-dir'] ? workflowsDir : null, workflowName); // fail fast（06 §2.2），不产生半截 run
   const startedAt = nowIso();
   const runId = registry.freshRunId();
 
@@ -602,7 +611,7 @@ function runStart(f) {
   const atomTasks = {};
   for (const s of preset.stages) {
     try {
-      const cfg = JSON.parse(fs.readFileSync(path.join(tasksDir, s.task, 'config.json'), 'utf8'));
+      const cfg = sources.readTaskConfig(tasksDir, s.task); // 经 sources 合并解析（run 20261125-221045-c6ec FC-2）
       for (const c of Array.isArray(cfg.configurable) ? cfg.configurable : []) {
         if (c && c.key && c.default !== undefined) {
           atomTasks[s.task] = { ...(atomTasks[s.task] || {}), [c.key]: c.default };
@@ -929,7 +938,7 @@ function subflowStartCmd(f) {
     config: f.config,
     at: nowIso(),
     tasksDir: tasksDirFor(f, parent),
-    workflowsDir: f['workflows-dir'] ? path.resolve(f['workflows-dir']) : WORKFLOWS_DIR,
+    workflowsDir: f['workflows-dir'] ? path.resolve(f['workflows-dir']) : null, // null → sources 合并解析（DEC-6）
   });
 }
 
@@ -1024,7 +1033,7 @@ function guideWorktreeQuestion(tasksDir) {
   let modeNote = '';
   let def = 'none';
   try {
-    const cfg = JSON.parse(fs.readFileSync(path.join(tasksDir, 'git-worktree', 'config.json'), 'utf8'));
+    const cfg = sources.readTaskConfig(tasksDir, 'git-worktree'); // 经 sources 合并解析（run 20261125-221045-c6ec FC-2）
     const mode = (cfg.configurable || []).find((c) => c.key === 'mode');
     if (mode) {
       if (typeof mode.desc === 'string') modeNote = mode.desc;
@@ -1243,25 +1252,48 @@ function listTasks(f) {
   return { tasks };
 }
 
+/** 预设清单（run 20261125-221045-c6ec FC-2/DEC-2/DEC-5）：
+ *  显式 --workflows-dir → 单源现状语义；缺省 → 内置 + ddoHome()/workflows 加性合并，
+ *  user 源行附 source:"user"（builtin 行保持原样，AC-3/AC-5）；跨源同名冲突 fail-fast（不遮蔽内置）。
+ *  等价性：用户源不存在/为空时输出与现状逐字段一致（源内保持文件名排序，内置块在前）。 */
 function listWorkflows(f) {
-  const workflowsDir = f['workflows-dir'] ? path.resolve(f['workflows-dir']) : WORKFLOWS_DIR;
+  const explicit = f['workflows-dir'] ? path.resolve(f['workflows-dir']) : null;
+  const srcList = sources.workflowSources(explicit);
   const workflows = [];
-  if (fs.existsSync(workflowsDir)) {
-    for (const file of fs.readdirSync(workflowsDir).sort()) {
+  const seen = new Map(); // name → { kind, file }（跨源同名检测；同源重名维持现状列出行为）
+  const conflicts = new Map(); // name → [先出现路径, 后出现路径]
+  for (const src of srcList) {
+    let files = [];
+    try {
+      files = fs.readdirSync(src.dir).sort();
+    } catch {
+      continue; // 源目录不存在 → 跳过（未部署 ~/.ddo 行为等价）
+    }
+    for (const file of files) {
       if (!file.endsWith('.json')) continue;
       try {
-        const wf = JSON.parse(fs.readFileSync(path.join(workflowsDir, file), 'utf8'));
+        const wf = JSON.parse(fs.readFileSync(path.join(src.dir, file), 'utf8'));
+        const prev = seen.get(wf.name);
+        if (prev && prev.kind !== src.kind && !conflicts.has(wf.name)) {
+          conflicts.set(wf.name, `${prev.kind}: ${prev.file}；${src.kind}: ${path.join(src.dir, file)}`); // 跨源同名 → 冲突
+        }
+        if (!prev) seen.set(wf.name, { kind: src.kind, file: path.join(src.dir, file) });
         workflows.push({
           name: wf.name,
           version: wf.version,
           ...(wf.description ? { description: wf.description } : {}),
           stages: (Array.isArray(wf.stages) ? wf.stages : []).map((s) => s.task),
           ...(wf.startup ? { startup: wf.startup } : {}), // 启动追问声明（guide 消费；结构由 loadWorkflow 校验）
+          ...(src.kind === 'user' ? { source: src.kind } : {}), // source 仅标 user 行：builtin 行与显式通道保持原样（AC-3/AC-5 等价性）
         });
       } catch {
         // 解析失败的预设不在发现层报错——run start 加载时 fail fast
       }
     }
+  }
+  if (conflicts.size) {
+    const detail = [...conflicts.entries()].map(([name, where]) => `${name}（${where}）`).join('，');
+    throw new Error(`workflow 预设同名冲突: ${detail}——重命名或删除其一，内置预设不被遮蔽`);
   }
   return { workflows };
 }

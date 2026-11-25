@@ -6,14 +6,15 @@
 const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('node:child_process');
+const { findTaskDir } = require('./sources');
 
 const TIMEOUT_MS = 60000;
 
 /** 读单任务依赖声明；任务不存在返回 null（由调用方决定报错），无声明返回 []。 */
 function readDependencies(tasksDir, taskName) {
-  const cfgFile = path.join(tasksDir, taskName, 'config.json');
-  if (!fs.existsSync(cfgFile)) return null;
-  const cfg = JSON.parse(fs.readFileSync(cfgFile, 'utf8'));
+  const taskDir = findTaskDir(tasksDir, taskName); // 经 sources 合并解析（run 20261125-221045-c6ec）
+  if (!taskDir) return null;
+  const cfg = JSON.parse(fs.readFileSync(path.join(taskDir, 'config.json'), 'utf8'));
   return Array.isArray(cfg.dependencies) ? cfg.dependencies : [];
 }
 
@@ -24,7 +25,7 @@ function readDependencies(tasksDir, taskName) {
  */
 function checkDependencies(tasksDir, taskName, deps) {
   return deps.map((d) => {
-    const script = path.join(tasksDir, taskName, d.check || '');
+    const script = path.join(findTaskDir(tasksDir, taskName) || path.join(tasksDir, taskName), d.check || '');
     let supported = false;
     let detail = '';
     if (!d.check || !fs.existsSync(script)) {

@@ -5,6 +5,7 @@
 const fs = require('fs');
 const path = require('path');
 const { loadTaskSchema, renderContract } = require('./output-schema');
+const { readTaskConfig } = require('./sources');
 
 const PHASE_RE = /<!-- @phase:(\d{2}) -->\r?\n([\s\S]*?)<!-- \/phase:\1 -->/g;
 const INTERACT_RE = /<!-- @interact:required/;
@@ -160,7 +161,7 @@ function applyConfigOverrides(flagVal, preset, tasksDir, atomTasks) {
     }
     let cfg;
     try {
-      cfg = JSON.parse(fs.readFileSync(path.join(tasksDir, task, 'config.json'), 'utf8'));
+      cfg = readTaskConfig(tasksDir, task); // 经 sources 合并解析（run 20261125-221045-c6ec FC-4）
     } catch (err) {
       throw new Error(`--config 目标任务的 config.json 不可读: ${task}（${err.message}）`);
     }
