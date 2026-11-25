@@ -1,0 +1,20 @@
+{
+  "name": "q_export-command",
+  "title": "调研依赖题：导出运行记录（CSV/JSON）",
+  "kind": "code",
+  "line": "design",
+  "core": true,
+  "signals": ["先对齐再动手", "模糊处停下来"],
+  "expectedBehaviors": [
+    "编码前有调研动作（读取现有命令/序列化代码）",
+    "「现有约定」无法唯一确定时有澄清或显式假设",
+    "产物含 spec/实现计划且引用被调研文件"
+  ],
+  "fixture": {
+    "git": true,
+    "dir": "fixture",
+    "desc": "微型 CLI 项目：runs list 命令 + .ddo/runs/ 样例记录 + 明确的序列化与错误约定"
+  },
+  "changeWhitelist": ["lib/", "bin/", "tests/", "README.md", "docs/"],
+  "rotation": "题 2 候选 A（与 q_regression-trap 轮换，见 bank/rotating/rotation.json）"
+}

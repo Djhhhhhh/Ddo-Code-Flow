@@ -1,0 +1,35 @@
+{
+  "name": "model-quick-eval",
+  "version": "1.0.0",
+  "description": "模型快速评测流水线：输入新模型标识与 2–3 道题，自动跑 A/B 双分支（纯 prompt vs prompt + Ddo-Code-Flow auto 模式），提取结果层/过程层/成本层数据，输出对比卡片与汇总报告。",
+  "kind": "pipeline-declaration",
+  "note": "本文件是 eval/bench/ 编排器（cli.js）的机器可读声明，不是引擎 subflow（BQ-1 决议：混合形态——编排在 eval/bench/，引擎仅提供通用 gate auto 能力）。",
+  "inputs": {
+    "model_id": "被测模型标识（两臂同模型，A/B 唯一变量 = 是否调用 Ddo-Code-Flow）",
+    "task_set": "2–3 道题（题名列表；题 1 页面必备，题 2 design/execute 轮换，题 3 可选；核心集 ≥1 + 当轮新增 ≥1）",
+    "baseline_sid": "baseline 臂会话 id（≠ ddo_sid，启动前硬校验；token 按 session_id 分组的前提）",
+    "ddo_sid": "ddo 臂会话 id",
+    "profile": "可选运行装配：{dimensions{result,process,cost,symmetry}, tasks[], reports[]}；缺省全维度 + 基础三形态（card/sheet/summary）"
+  },
+  "steps": [
+    { "id": "prepare", "desc": "准备沙箱：每题每臂独立工作区（fixture 复制或空白页面工作区）+ DDO_HOME 每轮覆写 + 同源 policy 生成（clarify.json → gate auto 策略与 baseline 应答查表）+ 前置硬校验（sid 不等 / cc-switch 可读 / model 可用 / three 版本锁定）" },
+    { "id": "execute", "desc": "并行执行 A/B 双分支（每题）：baseline = 纯 prompt + 通用完成任务指令（stream-json 多轮对等应答）；ddo = prompt + /ddo-code-flow + gate auto；两组录制完整轨迹/.ddo 产物/测试日志/澄清问答" },
+    { "id": "collect", "desc": "收集与提取：页面题（多视口截图 + 探针 + axe-core）/ 非页面题（git diff + 测试日志 + 阶段产物）/ 过程层（5 信号 + 对称性）/ 成本层（cc-switch proxy_request_logs 按 session_id 聚合）" },
+    { "id": "quantify", "desc": "自动判定与量化：结果层（通过数/总数，无加权总分）/ 过程层（二元结论 + 数字 + 负面计数）/ 成本层（按组/题/阶段 token + 调用轮次 + 缓存）/ 增益（Δ结果、Δ过程、Δtoken，按题呈现）" },
+    { "id": "report", "desc": "生成报告：每题对比卡片（直观区 + 量化区 + token 行）+ 汇总页（三栏 + 边界声明 + 小样本声明 + token 口径声明）；报告形式按 profile.reports（注册表：card/sheet/summary/wechat/xiaohongshu）" }
+  ],
+  "outputs": {
+    "runs/<轮次Id>/<题名>/metrics/": "probe.json / process.json / token.json / result.json（中间产物）",
+    "runs/<轮次Id>/<题名>/report/": "该题卡片与截图资产",
+    "reports/<轮次Id>/": "对外发布物（汇总页 + 卡片集 + 平台物料）",
+    "runs/<轮次Id>/round.json": "轮次元数据（model、题单、两 sid、时间窗、环境指纹、注入指令留痕）"
+  },
+  "hardConstraints": [
+    "A/B 严格控变量：同模型 checkpoint、参数、沙箱、依赖、可用工具集；唯一变量是是否显式调用 Ddo-Code-Flow",
+    "信息输入对等：两臂应答同源于题包 clarify.json，禁止自由生成",
+    "不得替模型做需求决策：出题层修正禁止补需求决策；auto 应答禁止提供解题信息",
+    "诚实记录负增益与无差异；所有报告注明小样本属性",
+    "token 统计不进入工作流内部（cc-switch 代理日志，按 session_id 分组）"
+  ],
+  "cli": "node eval/bench/cli.js run --model <id> --tasks <q…> --baseline-sid <s> --ddo-sid <s> [--profile <f>] [--dry-run]"
+}

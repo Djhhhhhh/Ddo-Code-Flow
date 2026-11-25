@@ -1,0 +1,12 @@
+{
+  "runId": "20261103-140000-ex02",
+  "type": "fix",
+  "title": "修复 list 排序不稳定",
+  "status": "done",
+  "startedAt": "2026-11-03T14:00:00+08:00",
+  "finishedAt": "2026-11-03T14:25:00+08:00",
+  "stages": ["requirement", "spec", "coding", "reporting"],
+  "artifacts": {
+    "spec.md": 1980
+  }
+}

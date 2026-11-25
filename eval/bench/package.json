@@ -1,0 +1,13 @@
+{
+  "name": "ddo-model-quick-eval",
+  "version": "1.0.0",
+  "private": true,
+  "description": "model-quick-eval 评测编排器：A/B 双分支（纯 prompt vs prompt + Ddo-Code-Flow）快速评测流水线。运行时零依赖（Node 内建模块）；Playwright 仅为探针/拼图的 devDependency。",
+  "scripts": {
+    "probe": "node bank/core/q_threejs-orbit-scene/acceptance/probe.js",
+    "test": "node --test 'tests/**/*.test.js'"
+  },
+  "devDependencies": {
+    "playwright": "^1.49.0"
+  }
+}

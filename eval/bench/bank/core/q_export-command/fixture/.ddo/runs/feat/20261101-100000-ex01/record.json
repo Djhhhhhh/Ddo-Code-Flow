@@ -1,0 +1,13 @@
+{
+  "runId": "20261101-100000-ex01",
+  "type": "feat",
+  "title": "为 runs 命令补充 tabular 输出",
+  "status": "done",
+  "startedAt": "2026-11-01T10:00:00+08:00",
+  "finishedAt": "2026-11-01T11:30:00+08:00",
+  "stages": ["requirement", "spec", "plan", "coding", "reporting"],
+  "artifacts": {
+    "spec.md": 4210,
+    "plan.md": 8105
+  }
+}

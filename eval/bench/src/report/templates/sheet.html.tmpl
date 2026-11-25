@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+  body { margin:0; font-family: system-ui; background:#0B1220; color:#E2E8F0; padding:16px; }
+  h1 { font-size:16px; }
+  .grid { display:flex; gap:12px; }
+  .col { flex:1; text-align:center; }
+  .col img { width:100%; border:1px solid #334155; border-radius:8px; }
+  .tag { display:inline-block; padding:2px 10px; border-radius:12px; margin:4px; font-size:12px; }
+  .b { background:#1e293b; } .d { background:#172554; }
+</style></head><body>
+<h1>{{title}}</h1>
+<div class="grid">
+  <div class="col"><span class="tag b">纯 prompt</span><br><img src="{{baselineShot}}"></div>
+  <div class="col"><span class="tag d">+ Ddo</span><br><img src="{{ddoShot}}"></div>
+</div>
+</body></html>

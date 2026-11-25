@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>任务星系</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #020617; }
+  body { background: linear-gradient(180deg, #0B1220 0%, #020617 100%); }
+  .overlay-card {
+    position: fixed; padding: 10px 14px; border-radius: 10px;
+    background: rgba(15, 23, 42, 0.55); color: #E2E8F0; font: 13px/1.6 system-ui, sans-serif;
+    backdrop-filter: blur(4px); border: 1px solid rgba(148, 163, 184, 0.2);
+  }
+  #title { top: 16px; left: 16px; font-size: 16px; font-weight: 600; }
+  #legend { top: 16px; right: 16px; }
+  #legend .item { display: flex; align-items: center; gap: 8px; }
+  #legend .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  canvas { display: block; }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<div id="title" class="overlay-card">任务星系</div>
+<div id="legend" class="overlay-card">
+  <div class="item"><span class="dot" style="background:#22C55E"></span>成功</div>
+  <div class="item"><span class="dot" style="background:#EF4444"></span>失败</div>
+  <div class="item"><span class="dot" style="background:#3B82F6"></span>进行中</div>
+  <div class="item"><span class="dot" style="background:#9CA3AF"></span>待定</div>
+</div>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.shadowMap.enabled = true;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(0, 3.5, 8);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.05;
+controls.minDistance = 4;
+controls.maxDistance = 12;
+
+// 背景：深色渐变（#0B1220 → #020617）做进场景（WebGL 画布会遮住 CSS 背景）
+const bgCanvas = document.createElement('canvas');
+bgCanvas.width = 2; bgCanvas.height = 256;
+const bgCtx = bgCanvas.getContext('2d');
+const grad = bgCtx.createLinearGradient(0, 0, 0, 256);
+grad.addColorStop(0, '#0B1220');
+grad.addColorStop(1, '#020617');
+bgCtx.fillStyle = grad;
+bgCtx.fillRect(0, 0, 2, 256);
+scene.background = new THREE.CanvasTexture(bgCanvas);
+scene.background.colorSpace = THREE.SRGBColorSpace;
+
+// 网格地面（题面「可加」项，提升空间参照）
+const grid = new THREE.GridHelper(40, 40, 0x1E3A5F, 0x111C33);
+grid.position.y = -5;
+scene.add(grid);
+
+// 光照
+scene.add(new THREE.AmbientLight(0xffffff, 0.3));
+const dir = new THREE.DirectionalLight(0xffffff, 1.2);
+dir.position.set(5, 8, 4);
+dir.castShadow = true;
+scene.add(dir);
+const point = new THREE.PointLight(0xffffff, 0.8, 0, 2);
+point.position.set(0, 5, 0);
+scene.add(point);
+
+const galaxy = new THREE.Group();
+scene.add(galaxy);
+
+// 中心
+const center = new THREE.Mesh(
+  new THREE.IcosahedronGeometry(1, 0),
+  new THREE.MeshStandardMaterial({ color: 0x4A90D9, metalness: 0.8, roughness: 0.2 })
+);
+center.castShadow = true;
+center.receiveShadow = true;
+galaxy.add(center);
+
+// 卫星：斐波那契球面均匀分布（显式参数假设：golden-angle 递增，半径 3）
+const STATUSES = [
+  0x22C55E, 0x22C55E, 0x22C55E, // 成功 ×3
+  0xEF4444, 0xEF4444,            // 失败 ×2
+  0x3B82F6, 0x3B82F6,            // 进行中 ×2
+  0x9CA3AF,                      // 待定 ×1
+];
+const satellites = [];
+const lineMat = new THREE.LineBasicMaterial({ color: 0x334155, transparent: true, opacity: 0.6 });
+for (let i = 0; i < 8; i++) {
+  const phi = Math.acos(1 - 2 * (i + 0.5) / 8);
+  const theta = Math.PI * (1 + Math.sqrt(5)) * i;
+  const r = 3;
+  const pos = new THREE.Vector3(
+    r * Math.sin(phi) * Math.cos(theta),
+    r * Math.cos(phi),
+    r * Math.sin(phi) * Math.sin(theta)
+  );
+  const sat = new THREE.Mesh(
+    new THREE.SphereGeometry(0.18, 24, 24),
+    new THREE.MeshStandardMaterial({ color: STATUSES[i] })
+  );
+  sat.position.copy(pos);
+  sat.castShadow = true;
+  galaxy.add(sat);
+  satellites.push(sat);
+  const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), pos]);
+  galaxy.add(new THREE.Line(geo, lineMat));
+}
+
+// 轨道环
+const ring = new THREE.Mesh(
+  new THREE.TorusGeometry(3.2, 0.02, 8, 128),
+  new THREE.MeshBasicMaterial({ color: 0x1E293B })
+);
+ring.rotation.x = Math.PI / 2;
+galaxy.add(ring);
+
+// 响应式
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// 动画（显式参数假设：星系自转 0.1 rad/s，卫星自转 0.8 rad/s）
+const clock = new THREE.Clock();
+function animate() {
+  const dt = clock.getDelta();
+  galaxy.rotation.y += 0.1 * dt;
+  for (const s of satellites) s.rotation.y += 0.8 * dt;
+  controls.update();
+  renderer.render(scene, camera);
+  requestAnimationFrame(animate);
+}
+animate();
+
+window.__app = { scene, camera, renderer, controls, galaxy };
+</script>
+</body>
+</html>

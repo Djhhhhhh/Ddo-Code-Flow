@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>任务星系</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #020617; }
+  #title { position: fixed; top: 16px; left: 16px; color: #E2E8F0; font: 16px system-ui; }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<div id="title">任务星系</div>
+<script type="module">
+// 缺陷变体（探针黄金样例的对照）：无阴影 / 无阻尼 / 无缩放范围 / 无响应式 /
+// 卫星挤在一圈（A5 失败）/ 7 个卫星（A3 失败）/ 无连接线（A6 失败）/ 无图例（E1 失败）。
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(0, 3, 8);
+const controls = new OrbitControls(camera, renderer.domElement);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.3));
+const dir = new THREE.DirectionalLight(0xffffff, 1.2);
+dir.position.set(5, 8, 4);
+scene.add(dir);
+scene.add(new THREE.PointLight(0xffffff, 0.8, 0, 2).translateY(5));
+
+const galaxy = new THREE.Group();
+scene.add(galaxy);
+const center = new THREE.Mesh(
+  new THREE.IcosahedronGeometry(1, 0),
+  new THREE.MeshStandardMaterial({ color: 0x4A90D9, metalness: 0.8, roughness: 0.2 })
+);
+galaxy.add(center);
+
+const COLORS = [0x22C55E, 0x22C55E, 0x22C55E, 0xEF4444, 0xEF4444, 0x3B82F6, 0x9CA3AF];
+const satellites = [];
+for (let i = 0; i < COLORS.length; i++) {
+  const a = (i / COLORS.length) * Math.PI * 2;
+  const sat = new THREE.Mesh(
+    new THREE.SphereGeometry(0.18, 16, 16),
+    new THREE.MeshStandardMaterial({ color: COLORS[i] })
+  );
+  sat.position.set(3 * Math.cos(a), 0, 3 * Math.sin(a)); // 同一平面一圈——不均匀
+  galaxy.add(sat);
+  satellites.push(sat);
+}
+const ring = new THREE.Mesh(new THREE.TorusGeometry(3.2, 0.02, 8, 128), new THREE.MeshBasicMaterial({ color: 0x1E293B }));
+ring.rotation.x = Math.PI / 2;
+galaxy.add(ring);
+
+const clock = new THREE.Clock();
+(function animate() {
+  const dt = clock.getDelta();
+  galaxy.rotation.y += 0.1 * dt;
+  controls.update();
+  renderer.render(scene, camera);
+  requestAnimationFrame(animate);
+})();
+
+window.__app = { scene, camera, renderer, controls, galaxy };
+</script>
+</body>
+</html>

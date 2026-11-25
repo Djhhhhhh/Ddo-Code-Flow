@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+  body { margin:0; font-family: system-ui; }
+  .card { width:810px; height:1080px; background:linear-gradient(160deg,#0B1220,#1e3a8a); color:#fff; padding:48px; box-sizing:border-box; }
+  h1 { font-size:52px; margin:0 0 8px; }
+  .sub { font-size:22px; opacity:.8; margin-bottom:28px; }
+  .vs { display:flex; gap:20px; }
+  .side { flex:1; background:rgba(255,255,255,.08); border-radius:20px; padding:22px; text-align:center; }
+  .side .big { font-size:64px; font-weight:800; }
+  .side.d .big { color:#38bdf8; }
+  .side .lab { font-size:20px; opacity:.85; }
+  img { width:100%; border-radius:14px; margin-top:24px; }
+  .tags { margin-top:22px; font-size:20px; }
+  .tags span { background:rgba(255,255,255,.14); border-radius:999px; padding:6px 16px; margin-right:10px; }
+  .decl { margin-top:18px; font-size:14px; opacity:.75; line-height:1.6; }
+</style></head><body>
+<div class="card">
+  <h1>{{title}}</h1>
+  <div class="sub">{{subtitle}}</div>
+  <div class="vs">
+    <div class="side"><div class="big">{{baselineRate}}</div><div class="lab">纯 prompt</div></div>
+    <div class="side d"><div class="big">{{ddoRate}}</div><div class="lab">+ Ddo-Code-Flow</div></div>
+  </div>
+  <img src="{{shot}}">
+  <div class="tags"><span>#AI评测</span><span>#工作流</span><span>#同模型AB对照</span></div>
+  <div class="decl">{{declarations}}</div>
+</div>
+</body></html>
