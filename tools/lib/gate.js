@@ -6,10 +6,13 @@
 const fs = require('fs');
 const path = require('path');
 const { phaseType, buildGate, DECISION_RE } = require('./workflow');
+const { findTaskDir, readTaskConfig } = require('./sources');
 
 /** per-task 钩子装载（容错策略同 assemble.js：仅吞「文件自身不存在」）。 */
 function loadPresentHook(tasksDir, taskName) {
-  const hookFile = path.join(tasksDir, taskName, `${taskName}.js`);
+  const taskDir = findTaskDir(tasksDir, taskName); // 经 sources 合并解析（run 20261125-221045-c6ec）
+  if (!taskDir) return undefined;
+  const hookFile = path.join(taskDir, `${taskName}.js`);
   let mod;
   try {
     mod = require(hookFile);
@@ -62,7 +65,7 @@ function openGates(state, statePath, tasksDir) {
     const anchor = (gate && gate.openedAt) || state.stages[stageId].at;
     const staticOptions = (gate && gate.options) || (buildGate(state.stages, stageId, phase, tasksDir, anchor) || { options: [] }).options;
     const hook = loadPresentHook(tasksDir, stageId);
-    const cfg = JSON.parse(fs.readFileSync(path.join(tasksDir, stageId, 'config.json'), 'utf8'));
+    const cfg = readTaskConfig(tasksDir, stageId); // 经 sources 合并解析（run 20261125-221045-c6ec）
     const dyn = hook
       ? dynamicOptions(hook, { phase, state, statePath, config: cfg }, staticOptions, stageId, phase)
       : [];

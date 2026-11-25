@@ -9,8 +9,9 @@
 const fs = require('fs');
 const path = require('path');
 const { readState, writeState, assertState } = require('./state');
-const { loadWorkflow, expandStages, pruneStages, activateStarts } = require('./workflow');
+const { expandStages, pruneStages, activateStarts } = require('./workflow');
 const { applyConfigOverrides } = require('./assemble');
+const { readTaskConfig, loadWorkflowMerged } = require('./sources');
 const journal = require('./journal');
 
 const MAX_DEPTH = 3; // 总深度：父=1，子=2，孙=3（含顶层数法，spec 解释表）
@@ -58,7 +59,7 @@ function prefillAtomTasks(preset, tasksDir) {
   const atomTasks = {};
   for (const s of preset.stages) {
     try {
-      const cfg = JSON.parse(fs.readFileSync(path.join(tasksDir, s.task, 'config.json'), 'utf8'));
+      const cfg = readTaskConfig(tasksDir, s.task); // 经 sources 合并解析（run 20261125-221045-c6ec FC-5）
       for (const c of Array.isArray(cfg.configurable) ? cfg.configurable : []) {
         if (c && c.key && c.default !== undefined) {
           atomTasks[s.task] = { ...(atomTasks[s.task] || {}), [c.key]: c.default };
@@ -100,7 +101,8 @@ function subflowStart({ parentStatePath, atStage, title, workflow = 'basic', con
     throw new Error('父 state 缺 dirs.runDir（绝对路径），无法定位 subflows 目录');
   }
 
-  const preset = loadWorkflow(workflowsDir, workflow); // fail fast，不产生半截子流程
+  // 预设经 sources 合并解析（run 20261125-221045-c6ec DEC-6）：workflowsDir 为 null 时合并用户本地注册源
+  const preset = loadWorkflowMerged(workflowsDir || null, workflow); // fail fast，不产生半截子流程
   const id = nextSubflowId(parent);
   const childRunDir = path.join(parentRunDir, SUBFLOWS_DIR, id);
   const childStatePath = path.join(childRunDir, '.state.json');

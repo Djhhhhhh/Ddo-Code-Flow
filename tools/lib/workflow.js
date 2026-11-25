@@ -6,6 +6,7 @@
 const fs = require('fs');
 const path = require('path');
 const { validate } = require('./jsonschema');
+const { findTaskDir, readTaskConfig } = require('./sources');
 
 const NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 // 旋钮引用（DEC-B）：`<task>.<key>`，task 段允许点号（NAME_RE 同源），key 段不允许——
@@ -214,7 +215,9 @@ function pruneStages(preset, atomTasks) {
 function expandStages(preset, tasksDir, at) {
   const stages = {};
   for (const s of preset.stages) {
-    const taskDir = path.join(tasksDir, s.task);
+    // 任务解析经 sources 合并层（run 20261125-221045-c6ec DEC-1）：primary→user fallback，同名冲突拦截
+    const taskDir = findTaskDir(tasksDir, s.task);
+    if (!taskDir) readTaskConfig(tasksDir, s.task); // null → 抛统一「原子任务不存在」（含查找范围）
     if (!fs.existsSync(path.join(taskDir, 'prompt.md')) || !fs.existsSync(path.join(taskDir, 'config.json'))) {
       throw new Error(`原子任务不存在或结构不完整: ${taskDir}（需含 prompt.md + config.json）`);
     }
@@ -226,7 +229,7 @@ function expandStages(preset, tasksDir, at) {
 
 /** 相位类型（D4：推进依据全在任务 config；未声明 phases = 单相位 01 且视为 action）。 */
 function phaseType(tasksDir, taskName, phase) {
-  const cfg = JSON.parse(fs.readFileSync(path.join(tasksDir, taskName, 'config.json'), 'utf8'));
+  const cfg = readTaskConfig(tasksDir, taskName);
   const phases = Array.isArray(cfg.phases) ? cfg.phases : [];
   const entry = phases.find((p) => String(p.id).padStart(2, '0') === phase);
   return entry && entry.type === 'human' ? 'human' : 'action';
@@ -234,7 +237,7 @@ function phaseType(tasksDir, taskName, phase) {
 
 /** 下一相位：无声明 = ['01']；返回 null 表示相位耗尽（阶段收尾）。 */
 function nextPhase(tasksDir, taskName, phase) {
-  const cfg = JSON.parse(fs.readFileSync(path.join(tasksDir, taskName, 'config.json'), 'utf8'));
+  const cfg = readTaskConfig(tasksDir, taskName);
   const ids = (Array.isArray(cfg.phases) ? cfg.phases : [{ id: '01' }]).map((p) => String(p.id).padStart(2, '0'));
   const i = ids.indexOf(phase);
   if (i === -1) throw new Error(`相位 ${phase} 未在任务 ${taskName} 声明（已声明: ${ids.join(', ')}）`);
@@ -298,7 +301,7 @@ function successors(stages, id) {
  * 否则按 DAG →「收尾并点亮 后继」；无后继 →「收尾（run 将完成）」。
  */
 function standardOptions(stages, stageId, phase, tasksDir) {
-  const cfg = JSON.parse(fs.readFileSync(path.join(tasksDir, stageId, 'config.json'), 'utf8'));
+  const cfg = readTaskConfig(tasksDir, stageId);
   const phases = Array.isArray(cfg.phases) ? cfg.phases : [];
   const i = phases.findIndex((p) => String(p.id).padStart(2, '0') === phase);
   let approveDesc;
@@ -322,7 +325,7 @@ function standardOptions(stages, stageId, phase, tasksDir) {
  * options 来源：任务声明 gate.options 三元组逐字注册（action 白名单 fail fast）／未声明 → 标准二元兜底。
  */
 function buildGate(stages, stageId, phase, tasksDir, at) {
-  const cfg = JSON.parse(fs.readFileSync(path.join(tasksDir, stageId, 'config.json'), 'utf8'));
+  const cfg = readTaskConfig(tasksDir, stageId);
   const phases = Array.isArray(cfg.phases) ? cfg.phases : [];
   const entry = phases.find((p) => String(p.id).padStart(2, '0') === phase);
   if (!entry || entry.type !== 'human') return null;

@@ -106,6 +106,9 @@ CLI 提供当前任务指令、校验产物并管理状态；代理完成实际�
   不把 git-worktree 加入运行中的阶段链。
 - **自定义工作流**：按 guide 指引执行 `list tasks`，与用户确定任务链；在系统临时
   目录写预设，通过 `--workflows-dir` 与 `--workflow` 启动；不得写入 skillRoot。
+  `~/.ddo/` 用户本地注册的预设与原子任务（`workflows/`、`atom-tasks/`）已被
+  `list` / `guide` / `run start` 缺省合并发现（同名冲突 fail-fast，不遮蔽内置），
+  已注册流程可直接按 `--workflow <名>` 启动，无需临时预设文件。
 
 启动成功后保存 statePath，告知用户 `state.atomTasks` 中预填的可配置项，再进入执行循环。
 恢复成功后重新获取当前步骤指令，不凭会话记忆继续。
