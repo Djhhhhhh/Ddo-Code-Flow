@@ -4,6 +4,10 @@
 .DS_Store
 .env*
 
-# model-quick-eval 运行产物（沙箱/事件流/报告，可再生的本地材料）
-.ddo/eval/
+# 过程性文件不入库：.ddo/ 是 ddo 流程的本地运行时工作区
+# （runs 状态、eval 评测产物、config.json 本地桩——可再生/可再收集，与项目当前状态无关）
+.ddo/
+
+# 评测沙箱：一次性本地工作区，showcase 定稿资产在 eval/showcases/（入库）
+eval/runs/
 eval/bench/node_modules/

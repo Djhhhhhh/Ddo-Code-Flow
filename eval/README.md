@@ -6,7 +6,7 @@ ddo-code-flow 的 dogfooding 与评测内容长期归档区：每次评测一个
 
 | 目录 | 职责 | 生命周期 |
 |---|---|---|
-| `runs/` | 评测沙箱：每次评测一个独立 projectRoot（自含 `.ddo/runs/` 状态与任务代码产出，互不污染） | showcase 归档后可整体删除 |
+| `runs/` | 评测沙箱：每次评测一个独立 projectRoot（自含 `.ddo/runs/` 状态与任务代码产出，互不污染）；**本地工作区，不入库**（已 gitignore，定稿结论整理进 showcases/ 后随仓库提交） | showcase 归档后可整体删除 |
 | `verify/` | **版本锁定的 dogfooding 验证方法**（playbook）：每纪元一份，含输入清单、重点注意项、执行步骤与比较基准；旧版定稿后冻结，只作历史参照 | 随版控；**版本归属不可丢**——playbook 头部有版本锚定表 |
 | `showcases/` | 版本级 showcase 归档：从沙箱与 `~/.ddo/history/` 整理的定稿材料 + 评估结论；被新纪元取代时在目录内加 `STATUS.md` 标注（归档正文零改动） | 长期保留，随仓库提交 |
 
