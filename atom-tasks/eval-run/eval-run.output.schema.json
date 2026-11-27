@@ -39,15 +39,15 @@
       "required": true,
       "description": "每题结果（来自编排器 stdout JSON 的 questions 字段，原样保留 delta，含无差异/负增益）",
       "example": [
-        { "q": "q_threejs-orbit-scene", "delta": "6/19 → 19/19" },
-        { "q": "q_export-command", "delta": "2/7 → 2/7；回归 3/3 → 3/3" }
+        { "q": "q_threejs-orbit-scene", "delta": "7/33 → 33/33" },
+        { "q": "q_regression-trap", "delta": "2/4 → 4/4；回归 7/7 → 7/7" }
       ]
     },
     {
       "name": "publish_dir",
       "type": "string",
       "required": true,
-      "description": "发布产物目录（reports/<round_id>，含 summary.md、卡片与平台物料）"
+      "description": "发布产物目录（.ddo/eval/reports/<round_id>，含 summary.md、卡片与平台物料）"
     },
     {
       "name": "notes",
@@ -81,5 +81,5 @@
     "dry_run=true 时 notes 须含「token 为 dry-run 模拟值」",
     "publish_dir 必须真实存在且含 summary.md"
   ],
-  "example": "{\n  \"version\": \"1.0.0\",\n  \"command\": \"node eval/bench/cli.js run --model test-model --tasks q_threejs-orbit-scene,q_regression-trap --baseline-sid s1 --ddo-sid s2 --dry-run\",\n  \"round_id\": \"2026112515402-test-model\",\n  \"dry_run\": true,\n  \"questions\": [{ \"q\": \"q_threejs-orbit-scene\", \"delta\": \"6/19 → 19/19\" }],\n  \"publish_dir\": \".ddo/eval/reports/2026112515402-test-model\",\n  \"notes\": [\"token 为 dry-run 模拟值\"]\n}"
+  "example": "{\n  \"version\": \"1.0.0\",\n  \"command\": \"node eval/bench/cli.js run --model test-model --tasks q_threejs-orbit-scene,q_regression-trap --baseline-sid s1 --ddo-sid s2 --arm-timeout 60 --dry-run\",\n  \"round_id\": \"2026112515402-test-model\",\n  \"dry_run\": true,\n  \"questions\": [{ \"q\": \"q_threejs-orbit-scene\", \"delta\": \"7/33 → 33/33\" }],\n  \"publish_dir\": \".ddo/eval/reports/2026112515402-test-model\",\n  \"notes\": [\"token 为 dry-run 模拟值\"]\n}"
 }

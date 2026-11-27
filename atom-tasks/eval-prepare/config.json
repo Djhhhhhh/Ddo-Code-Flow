@@ -1,7 +1,7 @@
 {
   "name": "eval-prepare",
   "version": "1.0.0",
-  "desc": "收集并校验 model-quick-eval 评测参数（model/双 sid/题单/报告形式），产出 eval-config.json",
+  "desc": "收集并校验 model-quick-eval 评测参数（model/双 sid/题单/报告形式/臂超时），产出 eval-config.json",
   "phases": [
     {
       "id": "01",
@@ -13,8 +13,8 @@
   "defaults": {
     "rules": [
       "参数以用户答复或启动 --config 预填为准，不得代填、推断或使用示例值",
-      "baseline_sid 与 ddo_sid 必须不同（A/B 控变量硬约束）",
-      "题单 1–n 题自由组合，编排器不对数量/顺序/形态做硬校验；题组策略由使用者经 profile 预设（--profile/--tasks）承载（题库见 ddo-code-flow 仓库 eval/bench/bank/core/）",
+      "baseline_sid 与 ddo_sid 必须不同；非 dry_run 时不得含测试占位 ID（问询期仅有的两条防呆）",
+      "其余参数规则（题包存在、reports 注册表、题面平台版本锁等）由编排器启动时校验（preflight/profile 装配为唯一事实源）；被拦截时原样转述原因，修正回本阶段重新确认，不得只在命令行临时改参",
       "dry_run=true 时 token 为模拟值，报告自动带 dry-run 标注"
     ]
   },
@@ -24,6 +24,7 @@
     { "key": "ddo_sid", "desc": "ddo 臂会话 ID（≠ baseline_sid）" },
     { "key": "tasks", "desc": "题单（1–n 题逗号连接；形态与顺序自由，题包读 qpack.json 的 form/track 标注）" },
     { "key": "reports", "desc": "报告形式子集（注册表 card/sheet/summary/wechat/xiaohongshu；缺省 card+sheet+summary）" },
-    { "key": "dry_run", "desc": "true = stub 会话链路自验（token 模拟值）", "default": false }
+    { "key": "dry_run", "desc": "true = stub 会话链路自验（token 模拟值）", "default": false },
+    { "key": "arm_timeout", "desc": "单臂超时分钟数（可缺省 = 编排器 30 分钟；含页面题建议 60；未确认时不写入 eval-config.json）" }
   ]
 }

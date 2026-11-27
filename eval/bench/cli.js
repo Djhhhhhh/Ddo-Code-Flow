@@ -18,6 +18,7 @@ const collectResult = require('./src/collect/result');
 const collectProcess = require('./src/collect/process');
 const collectToken = require('./src/collect/token');
 const { renderCard, renderSummary, renderHtmlForm, exportPng, fmtK } = require('./src/report/render');
+const { createProgress, createHeartbeat, renderRoundStart, renderRoundEnd } = require('./src/progress');
 
 const BENCH_ROOT = __dirname;
 const REPO_ROOT = path.join(BENCH_ROOT, '..', '..');
@@ -102,6 +103,10 @@ async function runCmd(flags) {
   const roundId = `${startedAt.toISOString().replace(/[-:T]/g, '').slice(0, 13).replace('T', '')}-${String(flags.model || 'default').replace(/[^A-Za-z0-9._-]/g, '-').slice(0, 24)}`;
   const roundDir = path.join(RUNS_ROOT, roundId);
   fs.mkdirSync(roundDir, { recursive: true });
+  // 执行进度双通道（issue #93 G1/G2）：stderr 人话公告/心跳/预警/轮末清单 + progress.jsonl 事件流
+  const progress = createProgress({ roundDir });
+  process.stderr.write(renderRoundStart({ roundId, roundDir, tasks: profile.tasks, armTimeoutMin: armTimeout }) + '\n');
+  progress.emit('round-start', { detail: { roundId, roundDir, tasks: profile.tasks, armTimeoutMin: armTimeout } });
   const round = {
     roundId, model: flags.model || null, tasks: profile.tasks, profile,
     baselineSid: flags['baseline-sid'], ddoSid: flags['ddo-sid'],
@@ -115,7 +120,7 @@ async function runCmd(flags) {
   const ddoHome = path.join(roundDir, '.ddo-home'); // 每轮覆写（隔离全局 index/history）
   fs.mkdirSync(ddoHome, { recursive: true });
 
-  for (const qName of profile.tasks) {
+  for (const [qIdx, qName] of profile.tasks.entries()) {
     const { qpack, clarify } = packs[qName];
     const qDir = path.join(roundDir, qName);
     fs.mkdirSync(qDir, { recursive: true });
@@ -127,6 +132,12 @@ async function runCmd(flags) {
     const { policyPath, table } = policyLib.writePolicyArtifacts({ roundQDir: qDir, clarify });
     const qStart = new Date().toISOString();
     round.arms[qName] = { baseline: arms.baseline.dir, ddo: arms.ddo.dir };
+    progress.emit('q-start', { q: qName, detail: { form: qpack.form } });
+    // 心跳（DEC-P2/DEC-P3）：真实模式 60s 定时器增量扫描；dry-run 在桩流写盘后 tick() 同步驱动
+    const heartbeat = createHeartbeat({
+      progress, arms: { baseline: path.join(qDir, 'baseline-stream.jsonl'), ddo: path.join(qDir, 'ddo-stream.jsonl') },
+      qLabel: qName, qIndex: qIdx + 1, qTotal: profile.tasks.length, timeoutMin: armTimeout, startedAtMs: Date.now(),
+    });
 
     // ② 双臂执行（并行）
     process.stderr.write(`[${qName}] 双臂执行${dryRun ? '（dry-run 桩）' : ''}…\n`);
@@ -139,7 +150,10 @@ async function runCmd(flags) {
         fs.writeFileSync(streamPath, events.join('\n') + '\n');
         armResults[arm] = { arm, status: 'completed', exitCode: 0, startedAt: qStart, endedAt: new Date().toISOString(), turns: [{ subtype: 'success' }], answers: [], streamPath };
       }
+      heartbeat.tick(); // dry-run 桩事件同样驱动（DEC-P3）：同步扫描桩流 → arm-turn 事件 + 心跳行 + 预警评估
+      for (const arm of ['baseline', 'ddo']) progress.emit('arm-done', { q: qName, arm, detail: { status: 'completed', exitCode: 0 } });
     } else {
+      heartbeat.start();
       const [rb, rd] = await Promise.all([
         driver.runArm({
           arm: 'baseline', sandboxDir: arms.baseline.dir, streamOutDir: qDir,
@@ -156,6 +170,8 @@ async function runCmd(flags) {
         }),
       ]);
       armResults = { baseline: rb, ddo: rd };
+      heartbeat.stop();
+      for (const arm of ['baseline', 'ddo']) progress.emit('arm-done', { q: qName, arm, detail: { status: armResults[arm].status, exitCode: armResults[arm].exitCode } });
       // 未显式指定 model 时，从会话回执解析实际模型（两臂应一致；不一致如实记录）
       if (!round.model) {
         const rbM = rb.resolvedModel || null; const rdM = rd.resolvedModel || null;
@@ -235,6 +251,7 @@ async function runCmd(flags) {
     for (const [name, data] of [['result', result], ['process', processMetrics], ['token', token]]) {
       if (data) fs.writeFileSync(path.join(metricsDir, `${name}.json`), JSON.stringify(data, null, 2) + '\n');
     }
+    progress.emit('q-collect', { q: qName, detail: { result: !(result && result.skipped), process: !(processMetrics && processMetrics.skipped), cost: token !== null } });
 
     // ④ 报告（按 profile.reports）
     if (profile.reports.includes('card')) {
@@ -251,6 +268,7 @@ async function runCmd(flags) {
       symmetry: processMetrics.signals ? (processMetrics.signals.find((s) => s.signal === '澄清对称性') || {}).detail : undefined,
     });
     process.stderr.write(`[${qName}] 完成：${result && result.delta ? result.delta.结果层 : '（结果层关闭）'}\n`);
+    progress.emit('q-end', { q: qName, detail: { delta: result && result.delta ? result.delta.结果层 : null } });
   }
 
   // ⑤ 汇总 + 平台物料
@@ -313,14 +331,22 @@ async function runCmd(flags) {
   fs.writeFileSync(path.join(roundDir, 'round.json'), JSON.stringify(round, null, 2) + '\n');
   // 产物位置一屏说清（可发现性：全部在 .ddo/eval/ 下，不进源码树）
   const summaryPath = path.join(publishDir, 'summary.md');
+  process.stderr.write(renderRoundEnd({ questions: round.questions, summaryPath }) + '\n'); // 轮末清单（G1）
   process.stderr.write([
     '轮次完成。产物位置（均在 .ddo/eval/ 下，不进源码树）：',
     ...(fs.existsSync(summaryPath) ? [`  汇总页    ${summaryPath}`] : ['  汇总页    （本轮 reports 未含 summary）']),
     ...round.questions.map((q) => `  卡片      ${path.join(publishDir, `card-${q.qName}.md`)}`),
     `  每题详情  ${roundDir}/<题名>/{report,metrics}`,
+    `  进度事件  ${path.join(roundDir, 'progress.jsonl')}`,
     `  沙箱根    ${roundDir}`,
     `（沙箱为工作区大目录；显式清理：cli.js clean --run ${roundId}，同时删除 runs/ 与 reports/ 下该轮次）`,
   ].join('\n') + '\n');
+  progress.emit('round-end', {
+    detail: {
+      questions: round.questions.map((q) => ({ q: q.qName, delta: q.resultDelta === undefined ? null : q.resultDelta })),
+      elapsedMin: Number(((Date.now() - startedAt.getTime()) / 60000).toFixed(1)),
+    },
+  });
   outJson({
     roundId, dryRun, model: modelLabel, tasks: round.tasks,
     questions: round.questions.map((q) => ({ q: q.qName, delta: q.resultDelta, reportDir: q.reportDir })),

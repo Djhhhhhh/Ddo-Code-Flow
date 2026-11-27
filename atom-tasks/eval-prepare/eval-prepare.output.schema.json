@@ -4,7 +4,7 @@
   "document": {
     "title": "评测参数",
     "titleFormat": "固定文本",
-    "description": "用户确认的 model-quick-eval 评测参数：被测模型、双臂会话 ID、题单与报告形式。",
+    "description": "用户确认的 model-quick-eval 评测参数：被测模型、双臂会话 ID、题单、报告形式与臂超时。",
     "separators": false
   },
   "jsonFields": [
@@ -13,7 +13,7 @@
       "type": "string",
       "required": true,
       "description": "格式版本号",
-      "example": "1.0.0"
+      "example": "1.1.0"
     },
     {
       "name": "model",
@@ -54,6 +54,12 @@
       "type": "boolean",
       "required": true,
       "description": "true = stub 会话链路自验（token 模拟值）"
+    },
+    {
+      "name": "arm_timeout",
+      "type": "number",
+      "required": false,
+      "description": "单臂超时分钟数（可缺省 = 编排器 30 分钟；含页面题 form=page 建议 60；用户未确认时不写入）"
     }
   ],
   "sections": [
@@ -68,14 +74,13 @@
         "来源"
       ],
       "extensible": false,
-      "description": "将 JSON 顶层字段逐行渲染（dry_run 渲染为 是/否），来源注明 用户答复 / 启动预填"
+      "description": "将 JSON 顶层字段逐行渲染（dry_run 渲染为 是/否；未写入的字段不渲染），来源注明 用户答复 / 启动预填"
     }
   ],
   "rules": [
     "baseline_sid ≠ ddo_sid",
-    "tasks 非空，且各题须存在于 eval/bench/bank/core/（读各题 qpack.json 的 form/track 标注；数量/顺序/形态不设硬校验）",
-    "reports 若存在，每项须属于注册表 {card, sheet, summary, wechat, xiaohongshu} 且不重复",
-    "不得含示例占位值（如 sid-b-001 等测试用 ID，除非 dry_run=true）"
+    "非 dry_run=true 时不得含示例占位值（如 sid-b-001 等测试用 ID）",
+    "其余参数规则（题包存在、reports 注册表、题面平台版本锁等）由编排器启动时校验（preflight/profile 装配为唯一事实源）；被拦截时原样转述原因，修正回本阶段重新确认，不得只在命令行临时改参"
   ],
-  "example": "{\n  \"version\": \"1.0.0\",\n  \"model\": \"sonnet\",\n  \"baseline_sid\": \"<uuid-1>\",\n  \"ddo_sid\": \"<uuid-2>\",\n  \"tasks\": [\"q_threejs-orbit-scene\", \"q_regression-trap\"],\n  \"dry_run\": false\n}"
+  "example": "{\n  \"version\": \"1.1.0\",\n  \"model\": \"sonnet\",\n  \"baseline_sid\": \"<uuid-1>\",\n  \"ddo_sid\": \"<uuid-2>\",\n  \"tasks\": [\"q_threejs-orbit-scene\", \"q_regression-trap\"],\n  \"dry_run\": false,\n  \"arm_timeout\": 60\n}"
 }

@@ -1,6 +1,6 @@
 {
   "name": "model-quick-eval",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "模型快速评测链路：eval-prepare（收集评测参数）→ eval-run（A/B 双臂评测与报告，用户确认门）→ reporting（run 收口归档）",
   "stages": [
     { "task": "eval-prepare", "dependOn": [] },

@@ -8,7 +8,7 @@
 
 ```
 profile 装配 ─→ 题库取题 ─→ 双臂沙箱 ─→ headless 执行 ─→ 三层采集 ─→ 报告渲染 ─→ 发布
- (src/profile)   (bank/)    (src/sandbox)  (src/driver     (src/collect)   (src/report)   (reports/<轮次>)
+ (src/profile)   (bank/)    (src/sandbox)  (src/driver     (src/collect)   (src/report)   (.ddo/eval/reports/<轮次>)
                                             + src/policy)
 ```
 
@@ -46,6 +46,26 @@ node bank/core/q_threejs-orbit-scene/acceptance/probe.js \
 npm test            # eval/bench 下
 node eval/bench/cli.js clean --run <轮次Id>
 ```
+
+## 触发契约（硬校验唯一事实源 = 编排器）
+
+以下硬校验在编排器启动时执行（`cli.js` `preflight` + `src/profile.js` `assembleProfile`），
+**以代码为唯一事实源**，本节仅转述；preflight 变更时以代码为准同步本节。剧本层
+（`atom-tasks/eval-prepare`）只保留两条问询期防呆（双 sid 不等、非 dry_run 无占位 ID），
+其余规则引用本节、不在剧本层复制：
+
+| 校验 | 执行点 | 失败行为 |
+|---|---|---|
+| `--baseline-sid` / `--ddo-sid` 必填且不相等（token 会混合，A/B 控变量硬约束） | preflight | exit 1 |
+| 题包须存在于 `bank/core/` | preflight | exit 1 |
+| page 题题面 three@版本 = 平台锁 `THREE_LOCK`（唯一声明源 `cli.js`） | preflight | exit 1 |
+| 非 dry_run 且 cost 维度：cc-switch 日志库可读 | preflight | exit 1 |
+| 题单非空；`profile.tasks` 与 `--tasks` 一致 | assembleProfile | exit 2 |
+| reports 须属于报告形式注册表（单一声明源 `src/profile.js` `REPORT_FORMS`）且不重复 | assembleProfile | exit 2 |
+
+题组数量 / 顺序 / 形态**不做硬校验**（issue #92 DEC-9 自由化）：单题、任意组合开箱即用。
+评测时长经 `--arm-timeout`（分钟，缺省 30）配置；执行进度双通道 = stderr 人话
+（`[轮次开始]`/`[心跳]`/`[预警]`/`[轮次结束]`）+ `<roundDir>/progress.jsonl` 事件流。
 
 ## 用 Ddo-Code-Flow 工作流触发（推荐入口）
 
