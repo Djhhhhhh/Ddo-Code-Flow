@@ -41,7 +41,7 @@
     },
     {
       "name": "skipped",
-      "type": ["boolean", "null"],
+      "type": "boolean",
       "required": true,
       "description": "主产物（PNG）是否全部跳过（如 playwright 与本机 Chrome 均不可用）；true 时 notes 必填"
     },

@@ -41,7 +41,7 @@
     },
     {
       "name": "skipped",
-      "type": ["boolean", "null"],
+      "type": "boolean",
       "required": true,
       "description": "主产物（图组 PNG）是否全部跳过；true 时 notes 必填"
     },

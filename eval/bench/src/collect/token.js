@@ -63,9 +63,17 @@ function aggregateToken({ dbPath, windows, dryRun = false }) {
   const db = new DatabaseSync(resolveDbPath(dbPath), { readOnly: true });
   try {
     const cols = db.prepare('PRAGMA table_info(proxy_request_logs)').all().map((c) => c.name);
-    const hasCache = cols.includes('cache_read') || cols.includes('cache_write');
-    const cacheRead = cols.includes('cache_read') ? 'cache_read' : null;
-    const cacheWrite = cols.includes('cache_write') ? 'cache_write' : null;
+    // 缓存列两代命名兼容：cache_read/cache_write（旧）与 cache_read_tokens/cache_creation_tokens（cc-switch 现行）
+    const cacheRead = cols.includes('cache_read') ? 'cache_read' : cols.includes('cache_read_tokens') ? 'cache_read_tokens' : null;
+    const cacheWrite = cols.includes('cache_write') ? 'cache_write' : cols.includes('cache_creation_tokens') ? 'cache_creation_tokens' : null;
+    const hasCache = Boolean(cacheRead || cacheWrite);
+
+    // created_at 存储形态自适应（2026-11-27 实测缺陷修复）：现行 cc-switch 落 Unix 秒（INTEGER），
+    // 早期版本落 ISO 字符串。SQLite 跨存储类比较 INTEGER < TEXT 恒成立——直接拿 ISO 串比整型列
+    // 会恒假（窗口内 0 行，token 全零）。采样一行判定形态后归一化两侧再比较。
+    const sample = db.prepare('SELECT created_at FROM proxy_request_logs WHERE created_at IS NOT NULL LIMIT 1').get();
+    const createdIsEpoch = sample ? (typeof sample.created_at === 'number' || /^\d+$/.test(String(sample.created_at).trim())) : false;
+    const normTime = (iso) => (createdIsEpoch ? Math.floor(new Date(iso).getTime() / 1000) : iso);
 
     const groups = windows.map((w) => {
       const base = {
@@ -75,7 +83,7 @@ function aggregateToken({ dbPath, windows, dryRun = false }) {
       const sel = (from, to) => {
         const sql = `SELECT input_tokens, output_tokens, total_cost_usd${cacheRead ? `, ${cacheRead} AS cache_read` : ''}${cacheWrite ? `, ${cacheWrite} AS cache_write` : ''}
           FROM proxy_request_logs WHERE session_id = ? AND created_at >= ? AND created_at <= ?`;
-        return db.prepare(sql).all(w.sid, from, to);
+        return db.prepare(sql).all(w.sid, normTime(from), normTime(to));
       };
       const rows = sel(w.from, w.to);
       let cacheTotal = 0;
