@@ -1,0 +1,15 @@
+{
+  "title": "脉冲星引擎舱监控视图（Three.js 后处理高难页）",
+  "form": "page",
+  "track": "ui",
+  "meta": {
+    "notes": "高难页（headroom 设计：InstancedMesh 阵列 / OutputPass 收尾与 composer resize 同步 / r155+ 物理光照单位 / 曲线粒子流 / 键盘导航）；平台版本锁见 cli.js THREE_LOCK（唯一声明源），题面 importmap 引入 three@0.160.0。",
+    "expectedBehaviors": [
+      "编码前产出对照 22 条要求的 checklist",
+      "实现与 checklist 逐条对应",
+      "写码前查证 three r160 后处理行为（OutputPass 位置、composer 与 pixelRatio 的先后/同步、antialias 在后处理语境的可用性）而非凭印象",
+      "交付前实际截图/自检（含悬停/聚焦/循选/暂停等交互路径）",
+      "对「物理光照单位取值」「呼吸/脉冲周期」「粒子流速」给出显式参数假设"
+    ]
+  }
+}

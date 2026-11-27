@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>脉冲星引擎舱</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #020617; font-family: system-ui, sans-serif; }
+  canvas { display: block; }
+  .card {
+    position: absolute; padding: 10px 14px; border-radius: 10px;
+    background: rgba(15, 23, 42, 0.55); border: 1px solid rgba(125, 211, 252, 0.25);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    color: #E2E8F0; font-size: 13px; pointer-events: none;
+  }
+  #hud-title { top: 16px; left: 16px; }
+  #hud-temp { top: 16px; right: 16px; text-align: right; }
+  #hud-sector { top: 70px; right: 16px; }
+  #hud-fps { bottom: 16px; left: 16px; color: #94A3B8; }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<div class="card" id="hud-title"><h1>脉冲星引擎舱</h1><p>反应核心监控</p></div>
+<div class="card" id="hud-temp"><div>核心温度</div><div id="temp-val">550 K</div></div>
+<div class="card" id="hud-sector">扇区 —</div>
+<div class="card" id="hud-fps">FPS --</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+// flawed 缺陷样例：故意汇集强模型常见失误（缺 OutputPass / 色调映射缺省 / 点光单位直觉错 /
+// 推进器非实例化且无呼吸 / 粒子不足且不流动 / 面板朝外 / 无键盘导航 / composer resize 不同步 等）。
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 200);
+camera.position.set(0, 3.2, 9.5);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.minDistance = 5;
+controls.maxDistance = 13;
+
+const core = new THREE.Mesh(
+  new THREE.OctahedronGeometry(1.2, 1),
+  new THREE.MeshStandardMaterial({ color: 0x22D3EE, metalness: 0.9, roughness: 0.15, emissive: 0x0EA5E9, emissiveIntensity: 0.4 }),
+);
+scene.add(core);
+const shroud = new THREE.Mesh(
+  new THREE.OctahedronGeometry(1.5, 1),
+  new THREE.MeshBasicMaterial({ color: 0x67E8F9, wireframe: true, transparent: true, opacity: 0.2 }),
+);
+scene.add(shroud);
+
+// 推进器：普通 Mesh × 24（非 InstancedMesh），静态半径、无呼吸
+const thrusters = new THREE.Group();
+const coneGeo = new THREE.ConeGeometry(0.22, 0.6, 6);
+const coneMat = new THREE.MeshStandardMaterial({ color: 0x94A3B8 });
+for (let i = 0; i < 24; i++) {
+  const th = (i / 24) * Math.PI * 2;
+  const m = new THREE.Mesh(coneGeo, coneMat);
+  m.position.set(Math.cos(th) * 4.2, 0, Math.sin(th) * 4.2);
+  m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), m.position.clone().normalize());
+  thrusters.add(m);
+}
+scene.add(thrusters);
+
+const CONDUIT_COLORS = [0x0EA5E9, 0xF59E0B, 0x8B5CF6];
+const conduits = CONDUIT_COLORS.map((c, k) => {
+  const th = Math.PI / 2 + (k * 2 * Math.PI) / 3;
+  const dir = (r, y) => new THREE.Vector3(Math.cos(th) * r, y, Math.sin(th) * r);
+  const curve = new THREE.CatmullRomCurve3([dir(1.3, 0.6), dir(2.4, 1.6), dir(4.0, 1.1), dir(5.6, 0.3)]);
+  const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 64, 0.06, 8),
+    new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 0.5 }));
+  scene.add(tube);
+  return tube;
+});
+
+// 冷却粒子：300 点、静止
+const pGeo = new THREE.BufferGeometry();
+const pPos = new Float32Array(300 * 3);
+for (let i = 0; i < 300; i++) {
+  const th = Math.random() * Math.PI * 2, r = 1.5 + Math.random() * 3.5;
+  pPos[i * 3] = Math.cos(th) * r; pPos[i * 3 + 1] = (Math.random() - 0.5) * 2; pPos[i * 3 + 2] = Math.sin(th) * r;
+}
+pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+const particles = new THREE.Points(pGeo, new THREE.PointsMaterial({ color: 0x93C5FD, size: 0.07, blending: THREE.AdditiveBlending, depthWrite: false }));
+scene.add(particles);
+
+// 检修面板：朝外（法线背离核心）
+const panels = [];
+for (let k = 0; k < 6; k++) {
+  const th = Math.PI / 6 + (k * Math.PI) / 3;
+  const p = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 1.2),
+    new THREE.MeshStandardMaterial({ color: 0x0F172A, transparent: true, opacity: 0.55, side: THREE.DoubleSide }));
+  p.position.set(Math.cos(th) * 3.4, 0.4, Math.sin(th) * 3.4);
+  p.lookAt(p.position.clone().multiplyScalar(2)); // 朝外（缺陷）
+  scene.add(p); panels.push(p);
+}
+
+// 星空 800 点
+{
+  const g = new THREE.BufferGeometry();
+  const a = new Float32Array(800 * 3);
+  for (let i = 0; i < 800; i++) {
+    const r = 30 + Math.random() * 20, u = Math.random() * 2 - 1, ph = Math.random() * Math.PI * 2, s = Math.sqrt(1 - u * u);
+    a[i * 3] = r * s * Math.cos(ph); a[i * 3 + 1] = r * u; a[i * 3 + 2] = r * s * Math.sin(ph);
+  }
+  g.setAttribute('position', new THREE.BufferAttribute(a, 3));
+  scene.add(new THREE.Points(g, new THREE.PointsMaterial({ color: 0xCBD5E1, size: 0.4 })));
+}
+
+// 光照：单位直觉错（点光 3 / 1.2），无阴影
+scene.add(new THREE.AmbientLight(0xffffff, 0.15));
+const dl = new THREE.DirectionalLight(0xffffff, 2.5);
+dl.position.set(6, 10, 4);
+scene.add(dl);
+const pl = new THREE.PointLight(0xF97316, 3, 0, 2); // 缺陷：物理单位下暗 10 倍
+pl.position.set(0, 2.5, 0);
+scene.add(pl);
+const rim = new THREE.PointLight(0x38BDF8, 1.2, 0, 2); // 缺陷：同上
+rim.position.set(0, -3, 0);
+scene.add(rim);
+
+// 后处理：无 OutputPass、bloom 过曝
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+composer.addPass(new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.4, 0.9, 0.6));
+
+const state = { paused: false, hoveredSector: null, selectedPanel: -1, overheat: false, temperature: 550 };
+const tempEl = document.getElementById('temp-val');
+const fpsEl = document.getElementById('hud-fps');
+
+// 点击聚焦（无 Tab 循选、无 R 复位、无悬停扇区跟踪）
+const raycaster = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+let focusAnim = null;
+renderer.domElement.addEventListener('click', (e) => {
+  ndc.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
+  raycaster.setFromCamera(ndc, camera);
+  const hit = raycaster.intersectObjects([core, ...panels], false);
+  if (!hit.length) return;
+  const target = hit[0].object === core ? new THREE.Vector3() : hit[0].object.position.clone();
+  const dir = camera.position.clone().sub(controls.target).normalize().multiplyScalar(6.5);
+  focusAnim = { from: controls.target.clone(), to: target, camFrom: camera.position.clone(), camTo: target.clone().add(dir), t0: performance.now() / 1000 };
+});
+window.addEventListener('keydown', (e) => {
+  if (e.key === ' ') { e.preventDefault(); state.paused = !state.paused; }
+});
+
+// resize：只更新相机与 composer 尺寸，renderer 与 pixelRatio 不同步（缺陷）
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  composer.setSize(window.innerWidth, window.innerHeight);
+});
+
+const clock = new THREE.Clock();
+let fpsFrames = 0, fpsLast = performance.now();
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.1);
+  if (!state.paused) {
+    shroud.rotation.y += 0.10 * dt; // 与核心同向（缺陷：应反向）
+    core.rotation.y += 0.10 * dt;
+    tempEl.textContent = '550 K'; // 恒定（缺陷）
+  }
+  if (focusAnim) {
+    const k = Math.min(1, performance.now() / 1000 - focusAnim.t0);
+    controls.target.lerpVectors(focusAnim.from, focusAnim.to, k);
+    camera.position.lerpVectors(focusAnim.camFrom, focusAnim.camTo, k);
+    if (k >= 1) focusAnim = null;
+  }
+  controls.update();
+  composer.render();
+  fpsFrames++;
+  const now = performance.now();
+  if (now - fpsLast >= 500) {
+    fpsEl.textContent = `FPS ${((1000 * fpsFrames) / (now - fpsLast)).toFixed(1)}`;
+    fpsFrames = 0; fpsLast = now;
+  }
+}
+animate();
+
+window.__app = { scene, camera, renderer, controls, composer, core, shroud, thrusters, conduits, particles, panels, state };
+</script>
+</body>
+</html>
