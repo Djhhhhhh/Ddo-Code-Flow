@@ -1,17 +1,20 @@
 <!DOCTYPE html>
 <html><head><meta charset="utf-8"><style>
-  /* 视觉标准 = eval/bench/docs/report-design.md（改风格先改文档） */
+  /* 视觉标准 = eval/bench/docs/report-design.md；收尾页 = 打分标准与口径（进度点） */
   body { margin:0; font-family: system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif; }
   .card { position:relative; width:1080px; height:1440px; box-sizing:border-box; background:#0A0D0F;
           background-image: radial-gradient(rgba(255,255,255,0.07) 1px, transparent 1px);
-          background-size: 40px 40px; padding:110px 84px 88px; display:flex; flex-direction:column; }
+          background-size: 40px 40px; padding:104px 84px 84px; display:flex; flex-direction:column; }
   .kicker { font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace; font-size:22px; color:#5EEAD4; letter-spacing:6px; }
-  h2 { margin:24px 0 0; font-size:52px; font-weight:800; color:#F5F7F8; }
-  .decl { margin-top:72px; padding:54px 52px; background:#14171C; border:1px solid #2A3138;
-          border-left:6px solid #F472B6; border-radius:14px; font-size:30px; line-height:2.15;
+  h2 { margin:22px 0 0; font-size:48px; font-weight:800; color:#F5F7F8; }
+  .rubric { margin-top:52px; }
+  .rubric p { margin:0 0 24px; font-size:27px; line-height:1.6; color:#C9D1D5; }
+  .rubric i { font-style:normal; color:#5EEAD4; margin-right:14px; }
+  .decl { margin-top:28px; padding:42px 44px; background:#14171C; border:1px solid #2A3138;
+          border-left:6px solid #F472B6; border-radius:14px; font-size:27px; line-height:2.05;
           color:#C9D1D5; white-space:pre-line; }
-  .hint { margin-top:52px; font-size:26px; color:#8A949C; }
-  .hint i { font-style:normal; color:#F472B6; margin-right:14px; }
+  .hint { margin-top:36px; font-size:24px; color:#8A949C; }
+  .hint i { font-style:normal; color:#F472B6; margin-right:12px; }
   .dots { position:absolute; right:38px; top:50%; transform:translateY(-50%);
           display:flex; flex-direction:column; gap:18px; }
   .dots i { width:10px; height:10px; border-radius:50%; background:#2A3138; }
@@ -23,9 +26,12 @@
 <div class="card">
 <p class="kicker">{{kicker}}</p>
 <h2>{{title}}</h2>
+<div class="rubric">
+{{rubricLines}}
+</div>
 <div class="decl">{{declarations}}</div>
-<p class="hint"><i>◆</i>判定层数据以核心集报告（card / summary）为准，本组图为体感快览</p>
-<div class="dots"><i></i><i></i><i></i><i></i></div>
+<p class="hint"><i>◆</i>逐项数据与完整口径见审阅底稿（report-draft）；判定层以核心集报告为准</p>
+<div class="dots"><i></i><i></i><i></i><i></i><i></i></div>
 <div class="foot"><span>{{brand}}</span><span>{{roundTag}}</span></div>
 </div>
 </body></html>

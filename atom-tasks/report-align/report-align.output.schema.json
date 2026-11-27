@@ -1,0 +1,35 @@
+{
+  "description": "report-align.json 输出规范：报告对齐任务的留痕（命令、轮次、对齐稿定位与决议）。",
+  "outputFormat": "json",
+  "document": {
+    "title": "报告对齐留痕",
+    "titleFormat": "固定文本",
+    "description": "一次报告对齐（brief 子命令 + 确认门）的执行留痕。"
+  },
+  "jsonFields": [
+    { "name": "version", "type": "string", "required": true, "description": "格式版本号", "example": "1.0.0" },
+    { "name": "round_id", "type": "string", "required": true, "description": "编排器轮次 ID（取自本 run 的 eval-result.json）" },
+    { "name": "command", "type": "string", "required": true, "description": "实际执行的对齐命令（cli.js brief --round <id>）" },
+    { "name": "brief_path", "type": "string", "required": true, "description": "对齐稿绝对路径（runs/<round_id>/report-brief.json，单一事实源）" },
+    { "name": "subject", "type": "string", "required": true, "description": "主体枚举（model=被测模型能力，工作流=方法；workflow=工作流收益，模型=载体）" },
+    { "name": "core_question", "type": "string", "required": true, "description": "核心问题（原样取自对齐稿）" },
+    { "name": "decision", "type": "string", "required": true, "description": "确认门决议（同意/修改后同意）" },
+    { "name": "notes", "type": "array", "required": false, "description": "如实备注（如用户改过哪些字段）" }
+  ],
+  "sections": [
+    {
+      "heading": "对齐摘要",
+      "level": 2,
+      "required": true,
+      "format": "table",
+      "columns": ["字段", "值"],
+      "extensible": false,
+      "description": "subject / core_question / decision 逐行渲染"
+    }
+  ],
+  "rules": [
+    "subject/core_question 必须与 report-brief.json 当前内容一致，不得转述改写",
+    "decision 只在确认门出结论后写入；驳回/未决不得写「同意」"
+  ],
+  "example": "{\n  \"version\": \"1.0.0\",\n  \"round_id\": \"2026112721000-test-model\",\n  \"command\": \"node eval/bench/cli.js brief --round 2026112721000-test-model\",\n  \"brief_path\": \".ddo/eval/runs/2026112721000-test-model/report-brief.json\",\n  \"subject\": \"model\",\n  \"core_question\": \"glm-5.4 的交付能力到哪一步？过程方法改变它多少？\",\n  \"decision\": \"同意\",\n  \"notes\": []\n}"
+}

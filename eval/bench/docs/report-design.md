@@ -67,19 +67,24 @@
 | 规格行 | panelDeep 底 + 1px line + 圆角 10px，`标签 mono dim` 左、`值 mono ink` 右 |
 | ◆ 要点 | teal ◆ 16px + body 文字；pink ◆ 仅在声明/负向语境 |
 | 趋势符 | 数据算术推导：升 `▲ teal` / 降 `▼ pink` / 平 `◆ dim`；只编码已有数字，不新造结论 |
+| 判定符 | 两臂对照符号带语义色：`✓ teal` / `✗ pink` / `— faint`（F3 process 页信号行） |
 | 页脚 | 1px lineSoft 细线 + 左 `Ddo-Code-Flow · MIT · ddoai.cn`（mono 22px faint）+ 右轮次号 mono |
 | 进度点 | 图组末页右缘 4 点竖列，末点 teal 实心（系列完结记号） |
 
 ## 4. 三形式映射
 
-| | F1 sheet | F2 wechat | F3 xiaohongshu |
-|---|---|---|---|
-| 画布 | 1080 宽，高自适应（fullPage） | 封面 900×383；正文宽 900 | 1080×1440（3:4）×4 页/题 |
-| 点阵背景 | 有 | 封面有（PNG）；**正文禁**（粘贴安全：全内联、无渐变） | 有 |
-| 页序 | 单页快览 | 封面 + 长图 | `01/A-B TEST` 封面 → `02/DELIVERABLES` 两臂截图 → `03/NUMBERS` 数字页 → `04/FINE PRINT` 口径页 |
-| hero | 无（快览） | 无 | quant 页 ddo 达标率 |
-| 声明块 | pink 左边条卡片 | pink 左边条 section（内联） | `04` 整页 + pink 边条 |
-| 硬约束 | — | 粘贴安全：无 div/class/style/@media，`<span leaf>`，禁 radial-gradient | 标题 ≤20 字；note.md ≤1000 字 |
+| | F0 draft | F1 sheet | F2 wechat | F3 xiaohongshu |
+|---|---|---|---|---|
+| 画布 | md 审阅底稿 | 1080 宽，高自适应（fullPage） | 封面 900×383；正文宽 900 | 1080×1440（3:4）图组 |
+| 点阵背景 | —（纯文本） | 有 | 封面有（PNG）；**正文禁**（粘贴安全：全内联、无渐变） | 有 |
+| 页序 | 对齐摘要→概览→每题逐项/分类/过程/Token→样式对照→打分标准→附录A/B | 单页快览（每题含分类小计行） | 轮级封面（模型主题）+ 每题长图（双卡/分类小计/过程成本/截图 GIF 对/声明） | 轮级 `cover(MODEL EVAL)` → 每题 `compare(DELIVERABLES，GIF)`·`results(RESULTS，分类小计)`·`process(PROCESS & COST)` → 轮级 `rubric(RUBRIC，进度点收尾)` |
+| hero | —（数据表） | 无（快览） | 无 | results 页 ddo 达标率（右卡放大） |
+| 声明块 | §4 打分标准引 declarationsFor | pink 左边条卡片 | pink 左边条 section（内联） | rubric 页粉边条卡 |
+| 硬约束 | 附录A=文案单源逐字投影 | — | 粘贴安全：无 div/class/style/@media，`<span leaf>`，禁 radial-gradient | 标题 ≤20 字；note.md ≤1000 字 |
+
+**定位规范（report-brief 驱动，主体=被测模型能力）**：kicker 用 `NN / MODEL EVAL`·`DELIVERABLES`·
+`RESULTS`·`PROCESS & COST`·`RUBRIC`；大标题优先模型名+能力读数；Ddo-Code-Flow 只以「评测方法」身份
+出现（方法行/页脚品牌/底稿附录），不作为报告主角；两臂标签固定 `纯 prompt` / `+ Ddo-Code-Flow`。
 
 不变式（沿用契约）：不新造结论性文案；固定声明一律引 `render.js declarationsFor(n)`；
 臂身份永有文字标签；负增益如实呈现（▼ pink 不修饰）。

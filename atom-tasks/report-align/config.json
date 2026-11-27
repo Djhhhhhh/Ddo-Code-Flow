@@ -1,0 +1,44 @@
+{
+  "name": "report-align",
+  "version": "1.0.0",
+  "desc": "报告对齐：生成/呈现 report-brief（主体/读者/核心问题），经确认门与用户对齐后再进底稿与平台渲染（cli.js brief 唯一入口）",
+  "phases": [
+    {
+      "id": "01",
+      "summary": "定位轮次并执行 brief 子命令，写 report-align.json 留痕",
+      "type": "action",
+      "output": "report-align.json"
+    },
+    {
+      "id": "02",
+      "summary": "对齐确认门（同意/修改/提问）：呈现主体/视角/读者/核心问题/基调",
+      "type": "human",
+      "gate": {
+        "options": [
+          {
+            "name": "同意",
+            "desc": "确认对齐稿，放行审阅底稿与平台渲染",
+            "action": "next --decision 同意"
+          },
+          {
+            "name": "修改",
+            "desc": "用户口述或自行编辑 report-brief.json 后重跑本相位对齐",
+            "action": "in-phase"
+          },
+          {
+            "name": "提问",
+            "desc": "对字段含义答疑，不改变确认状态",
+            "action": "in-phase"
+          }
+        ]
+      }
+    }
+  ],
+  "defaults": {
+    "rules": [
+      "对齐只经 cli.js brief 子命令（确定性内核），不得绕过直接手写 report-brief.json 之外的定位文案",
+      "round_id 只取自本 run 的 eval-result.json；缺失即停止报告，不猜测",
+      "用户修改只落在 runs/<rid>/report-brief.json（单一事实源），渲染器自动消费"
+    ]
+  }
+}

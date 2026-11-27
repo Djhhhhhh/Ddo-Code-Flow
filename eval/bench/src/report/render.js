@@ -199,4 +199,4 @@ async function measurePageHeight(htmlPath, viewport) {
   }
 }
 
-module.exports = { renderCard, renderSummary, declarationsFor, exportPng, measurePageHeight, fmtK };
+module.exports = { renderCard, renderSummary, declarationsFor, exportPng, measurePageHeight, fmtK, launchBrowser };

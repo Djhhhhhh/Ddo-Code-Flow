@@ -21,6 +21,9 @@ const collectProcess = require('./src/collect/process');
 const collectToken = require('./src/collect/token');
 const { renderCard, renderSummary, fmtK } = require('./src/report/render');
 const forms = require('./src/report/forms');
+const briefLib = require('./src/report/brief');
+const { subtotalsOf, processRowsOf } = require('./src/report/draft');
+const { recordArmGif } = require('./src/report/gif');
 const { createProgress, createHeartbeat, renderRoundStart, renderRoundEnd } = require('./src/progress');
 
 const BENCH_ROOT = __dirname;
@@ -340,7 +343,7 @@ function cleanCmd(flags) {
  *  与 ddo run 的 runDir 解耦（eval-result.json 仅为任务侧定位/核对输入，此处不依赖）。
  *  幂等：同一轮次数据重跑产物一致；覆写 report-<form>/ 内同名文件，不触碰其他既有文件。 */
 async function reportCmd(flags) {
-  if (!flags.form) usageError('report: 缺少 --form <sheet|wechat|xiaohongshu>');
+  if (!flags.form) usageError(`report: 缺少 --form <${forms.FORMS.join('|')}>`);
   if (!flags.round) usageError('report: 缺少 --round <轮次Id>');
   if (!forms.FORMS.includes(flags.form)) usageError(`report: 未注册形式 ${flags.form}（注册表: ${forms.FORMS.join(' | ')}）`);
   const roundDir = path.join(RUNS_ROOT, flags.round);
@@ -351,6 +354,21 @@ async function reportCmd(flags) {
   fs.mkdirSync(publishDir, { recursive: true });
   const readJson = (p) => JSON.parse(fs.readFileSync(p, 'utf8'));
   const fmtRate = (o) => (o && o.ok ? `${o.pass}/${o.total}` : '失败');
+  const roundCtx = {
+    roundId: flags.round,
+    modelLabel: round.model || round.resolvedModel || '本地缺省模型',
+    taskCount: (round.tasks || []).length,
+    dryRun: !!round.dryRun,
+  };
+
+  // 对齐稿（#100 跟进）：缺省生成默认稿并提示审阅；不阻塞确定性渲染
+  let brief; const briefNotes = [];
+  try {
+    const r = briefLib.ensureBrief(roundDir, { ...roundCtx, pageQCount: (round.questions || []).filter((x) => x.form === 'page').length });
+    brief = r.brief;
+    if (r.created) briefNotes.push('已生成默认对齐稿 report-brief.json（主体=模型能力，工作流=方法）；如需调整请编辑该文件后重跑（对齐流程：cli.js brief --round <rid>）');
+  } catch (e) { fail(`report-brief.json 非法: ${e.message}`); }
+
   const pageQs = [];
   for (const q of round.questions || []) {
     if (q.form !== 'page') continue;
@@ -358,49 +376,95 @@ async function reportCmd(flags) {
     let result = {};
     try { result = readJson(path.join(qDir, 'metrics', 'result.json')); } catch { /* 如实标注：失败 */ }
     let tokenShort = ''; let tokenB = ''; let tokenD = ''; let tokenRatio = '';
+    let tokenFull = null;
     try {
       const tk = readJson(path.join(qDir, 'metrics', 'token.json'));
       const g = (key) => (tk.groups || []).find((x) => x.key === key) || {};
-      const bt = g('baseline').total_tokens || 0; const dt = g('ddo').total_tokens || 0;
+      const pick = (x) => ({ calls: x.calls, input: x.input_tokens, output: x.output_tokens, total: x.total_tokens, cache: x.cache_fields && x.cache_fields.total });
+      const gb = g('baseline'); const gd = g('ddo');
+      const bt = gb.total_tokens || 0; const dt = gd.total_tokens || 0;
       tokenShort = `${fmtK(bt)} → ${fmtK(dt)}`;
       tokenB = fmtK(bt); tokenD = fmtK(dt);
       if (bt > 0) tokenRatio = `×${(dt / bt).toFixed(1)}`;
+      tokenFull = { b: pick(gb), d: pick(gd) };
     } catch { tokenShort = ''; }
+    let processRows = [];
+    try { processRows = processRowsOf(readJson(path.join(qDir, 'metrics', 'process.json'))); } catch { /* 如实标注 */ }
+    const checks = {
+      baseline: (result.raw && result.raw.baseline && result.raw.baseline.checks) || [],
+      ddo: (result.raw && result.raw.ddo && result.raw.ddo.checks) || [],
+    };
     const qpack = sandboxLib.readQpack(sandboxLib.resolvePack(q.qName));
     pageQs.push({
       qName: q.qName, title: qpack.title, form: 'page', track: q.track || q.trackHint, // 兼容旧轮次 trackHint
       baselineRate: fmtRate(result.baseline), ddoRate: fmtRate(result.ddo),
       delta: (result.delta && result.delta.结果层) || '',
+      fps: { baseline: result.baseline && result.baseline.fps, ddo: result.ddo && result.ddo.fps },
+      checks, subtotals: subtotalsOf(checks), processRows, tokenFull,
       tokenShort, tokenB, tokenD, tokenRatio,
+      armPage: {
+        baseline: (result.raw && result.raw.baseline && result.raw.baseline.page) || path.join(qDir, 'baseline', 'index.html'),
+        ddo: (result.raw && result.raw.ddo && result.raw.ddo.page) || path.join(qDir, 'ddo', 'index.html'),
+      },
       armShotsDirs: {
         baseline: path.join(qDir, 'report', 'baseline', 'shots'),
         ddo: path.join(qDir, 'report', 'ddo', 'shots'),
       },
     });
   }
-  const roundCtx = {
-    roundId: flags.round,
-    modelLabel: round.model || round.resolvedModel || '本地缺省模型',
-    taskCount: (round.tasks || []).length,
-    dryRun: !!round.dryRun,
-  };
-  const result = await forms.renderForm({ form: flags.form, round: roundCtx, pageQs, publishDir });
+
+  // 双臂 GIF（展示素材；失败降级回退 PNG，不阻塞）
+  const gifNotes = [];
+  if (['wechat', 'xiaohongshu'].includes(flags.form)) {
+    for (const q of pageQs) {
+      for (const arm of ['baseline', 'ddo']) {
+        const r = await recordArmGif({
+          htmlPath: q.armPage[arm],
+          outGif: path.join(q.armShotsDirs[arm], 'demo.gif'),
+        });
+        if (r.skipped) gifNotes.push(`demo.gif(${q.qName}/${arm}) 跳过：${r.reason}（回退静态帧）`);
+      }
+    }
+  }
+
+  const result = await forms.renderForm({ form: flags.form, round: roundCtx, brief, pageQs, publishDir });
   const missing = result.outputs.filter((o) => !fs.existsSync(path.join(publishDir, o)));
   if (missing.length) fail(`渲染器声称的产物不存在: ${missing.join(', ')}（不虚构 outputs）`);
   outJson({
     form: flags.form, round_id: flags.round, publish_dir: publishDir,
-    outputs: result.outputs, skipped: result.skipped, notes: result.notes,
+    outputs: result.outputs, skipped: result.skipped, notes: [...briefNotes, ...gifNotes, ...result.notes],
   });
   process.stderr.write(`[report] ${flags.form} 物料完成：${result.outputs.length} 个产物（${path.join(publishDir, `report-${flags.form}`)}）${result.skipped ? '；主产物 PNG 全部跳过（原因见 notes）' : ''}\n`);
+}
+
+/** brief 子命令：报告对齐（#100 跟进）——生成/查看 report-brief.json，供确认门呈现与人工修改。 */
+async function briefCmd(flags) {
+  if (!flags.round) usageError('brief: 缺少 --round <轮次Id>');
+  const roundDir = path.join(RUNS_ROOT, flags.round);
+  const roundJsonPath = path.join(roundDir, 'round.json');
+  if (!fs.existsSync(roundJsonPath)) fail(`轮次不存在: ${roundJsonPath}`);
+  const round = JSON.parse(fs.readFileSync(roundJsonPath, 'utf8'));
+  const roundCtx = {
+    roundId: flags.round,
+    modelLabel: round.model || round.resolvedModel || '本地缺省模型',
+    taskCount: (round.tasks || []).length,
+  };
+  let ensured;
+  try {
+    ensured = briefLib.ensureBrief(roundDir, { ...roundCtx, pageQCount: (round.questions || []).filter((x) => x.form === 'page').length });
+  } catch (e) { fail(`report-brief.json 非法: ${e.message}`); }
+  process.stdout.write(`${briefLib.renderBriefText(ensured.brief, { created: ensured.created })}\n`);
+  process.stdout.write(`文件：${path.join(roundDir, 'report-brief.json')}\n`);
 }
 
 async function main() {
   const [cmd, ...rest] = process.argv.slice(2);
   const flags = parseArgs(rest);
   if (cmd === 'run') return runCmd(flags);
+  if (cmd === 'brief') return briefCmd(flags);
   if (cmd === 'report') return reportCmd(flags);
   if (cmd === 'clean') return cleanCmd(flags);
-  usageError(`未知子命令: ${cmd || '(空)'}（run | report | clean）`);
+  usageError(`未知子命令: ${cmd || '(空)'}（run | brief | report | clean）`);
 }
 
 main().catch((e) => fail(String((e && e.message) || e)));

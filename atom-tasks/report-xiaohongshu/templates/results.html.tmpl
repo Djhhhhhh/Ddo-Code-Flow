@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+  /* 视觉标准 = eval/bench/docs/report-design.md；本页 = 结果层全景（分类小计） */
+  body { margin:0; font-family: system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif; }
+  .card { width:1080px; height:1440px; box-sizing:border-box; background:#0A0D0F;
+          background-image: radial-gradient(rgba(255,255,255,0.07) 1px, transparent 1px);
+          background-size: 40px 40px; padding:104px 84px 84px; display:flex; flex-direction:column; }
+  .kicker { font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace; font-size:22px; color:#5EEAD4; letter-spacing:6px; }
+  h2 { margin:22px 0 0; font-size:48px; font-weight:800; color:#F5F7F8; }
+  .strip { margin-top:52px; display:flex; gap:26px; }
+  .stat { flex:1; text-align:center; border-radius:14px; padding:26px 0 24px; }
+  .stat b { display:block; font-size:58px; font-weight:800; }
+  .stat span { display:block; margin-top:6px; font-size:21px; color:#8A949C; }
+  .stat .dm { margin-top:10px; font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace; font-size:22px; }
+  .b { background:#14171C; border:1px solid #2A3138; } .b b { color:#F5F7F8; }
+  .d { background:#0E2622; border:1px solid #2A5B50; } .d b { color:#5EEAD4; }
+  .rows { margin-top:48px; display:flex; flex-direction:column; gap:16px; }
+  .row { display:flex; justify-content:space-between; align-items:center; padding:22px 32px; background:#1E2530;
+         border:1px solid #2A3138; border-radius:12px; font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace; }
+  .row .k { font-size:20px; color:#8A949C; }
+  .row .v { font-size:23px; color:#F5F7F8; } .row .v b { font-weight:700; }
+  .foot { margin-top:auto; padding-top:24px; border-top:1px solid rgba(255,255,255,0.08);
+          display:flex; justify-content:space-between;
+          font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace; font-size:19px; color:#5C6670; }
+</style></head><body>
+<div class="card">
+<p class="kicker">{{kicker}}</p>
+<h2>{{title}} · 结果层</h2>
+<div class="strip">
+<div class="stat b"><b>{{baselineRate}}</b><span>纯 prompt 达标</span></div>
+<div class="stat d"><b>{{ddoRate}}</b><span>+ Ddo-Code-Flow 达标</span><span class="dm">{{deltaMini}}</span></div>
+</div>
+<div class="rows">
+{{deltaRow}}
+{{catRows}}
+</div>
+<div class="foot"><span>{{brand}}</span><span>{{roundTag}}</span></div>
+</div>
+</body></html>

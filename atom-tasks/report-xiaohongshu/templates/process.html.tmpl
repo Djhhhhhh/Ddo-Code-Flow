@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+  /* 视觉标准 = eval/bench/docs/report-design.md；本页 = 过程信号与成本（同模型内对照） */
+  body { margin:0; font-family: system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif; }
+  .card { width:1080px; height:1440px; box-sizing:border-box; background:#0A0D0F;
+          background-image: radial-gradient(rgba(255,255,255,0.07) 1px, transparent 1px);
+          background-size: 40px 40px; padding:104px 84px 84px; display:flex; flex-direction:column; }
+  .kicker { font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace; font-size:22px; color:#5EEAD4; letter-spacing:6px; }
+  h2 { margin:22px 0 0; font-size:48px; font-weight:800; color:#F5F7F8; }
+  .rows { margin-top:36px; display:flex; flex-direction:column; gap:14px; }
+  .row { display:flex; justify-content:space-between; align-items:center; padding:15px 34px; background:#1E2530;
+         border:1px solid #2A3138; border-radius:12px; font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace; }
+  .row .k { font-size:20px; color:#8A949C; }
+  .row .v { font-size:23px; color:#F5F7F8; } .row .v b { font-weight:700; }
+  .note { margin-top:34px; font-size:24px; color:#8A949C; }
+  .note i { font-style:normal; color:#5EEAD4; margin-right:12px; }
+  .foot { margin-top:auto; padding-top:24px; border-top:1px solid rgba(255,255,255,0.08);
+          display:flex; justify-content:space-between;
+          font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace; font-size:19px; color:#5C6670; }
+</style></head><body>
+<div class="card">
+<p class="kicker">{{kicker}}</p>
+<h2>{{title}} · 过程与成本</h2>
+<div class="rows">
+{{signalRows}}
+</div>
+<p class="note"><i>◆</i>过程信号：✓/✗ 为同模型两臂对照（方法 = Ddo-Code-Flow 工作流）</p>
+<div class="rows">
+{{tokenRows}}
+</div>
+<div class="foot"><span>{{brand}}</span><span>{{roundTag}}</span></div>
+</div>
+</body></html>

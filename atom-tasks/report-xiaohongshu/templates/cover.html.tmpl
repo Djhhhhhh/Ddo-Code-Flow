@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html><head><meta charset="utf-8"><style>
-  /* 视觉标准 = eval/bench/docs/report-design.md（改风格先改文档） */
+  /* 视觉标准 = eval/bench/docs/report-design.md（改风格先改文档）；主体=模型能力（report-brief） */
   body { margin:0; font-family: system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif; }
   .card { width:1080px; height:1440px; box-sizing:border-box; background:#0A0D0F;
           background-image: radial-gradient(rgba(255,255,255,0.07) 1px, transparent 1px);
@@ -8,15 +8,19 @@
   .kicker { font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace; font-size:22px; color:#5EEAD4; letter-spacing:6px; }
   h1 { margin:28px 0 0; font-size:72px; line-height:1.3; font-weight:800; color:#F5F7F8; }
   .sub { margin:24px 0 0; font-size:28px; color:#8A949C; }
-  .hooks { margin-top:72px; }
-  .hooks p { margin:0 0 26px; font-size:31px; color:#C9D1D5; }
+  .hooks { margin-top:64px; }
+  .hooks p { margin:0 0 24px; font-size:31px; color:#C9D1D5; }
   .hooks i { font-style:normal; color:#5EEAD4; margin-right:16px; }
-  .nums { margin-top:120px; display:flex; gap:28px; }
-  .num { flex:1; text-align:center; padding:38px 0 34px; border-radius:16px; }
-  .num b { display:block; font-size:82px; font-weight:800; }
-  .num span { display:block; margin-top:6px; font-size:24px; color:#8A949C; }
-  .b { background:#14171C; border:1px solid #2A3138; } .b b { color:#F5F7F8; }
-  .d { background:#0E2622; border:1px solid #2A5B50; } .d b { color:#5EEAD4; }
+  .mid { margin-top:auto; text-align:center; font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace;
+         font-size:21px; letter-spacing:3px; color:#5C6670; }
+  .mid i { font-style:normal; color:#5EEAD4; margin:0 18px; }
+  .qlist { margin-top:auto; background:#14171C; border:1px solid #2A3138; border-radius:14px; padding:14px 30px; }
+  .qline { display:flex; justify-content:space-between; align-items:center; padding:16px 0;
+           border-bottom:1px solid rgba(255,255,255,0.06); }
+  .qline:last-child { border-bottom:none; }
+  .qn { font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace; font-size:21px; color:#8A949C; }
+  .qr { font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace; font-size:26px; color:#C9D1D5; }
+  .qr b { font-weight:700; }
   .foot { margin-top:40px; padding-top:24px; border-top:1px solid rgba(255,255,255,0.08);
           display:flex; justify-content:space-between;
           font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace; font-size:19px; color:#5C6670; }
@@ -30,9 +34,9 @@
 <p><i>◆</i>{{hook2}}</p>
 <p><i>◆</i>{{hook3}}</p>
 </div>
-<div class="nums">
-<div class="num b"><b>{{baselineRate}}</b><span>纯 prompt 规格达标</span></div>
-<div class="num d"><b>{{ddoRate}}</b><span>+ Ddo-Code-Flow 规格达标</span></div>
+<p class="mid">RESULTS<i>◆</i>PROCESS<i>◆</i>COST</p>
+<div class="qlist">
+{{qLines}}
 </div>
 <div class="foot"><span>{{brand}}</span><span>{{roundTag}}</span></div>
 </div>
