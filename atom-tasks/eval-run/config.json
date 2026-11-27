@@ -1,6 +1,6 @@
 {
   "name": "eval-run",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "desc": "执行 model-quick-eval A/B 双臂评测（调用 eval/bench 编排器），产出 eval-result.json 并经用户确认门送审",
   "phases": [
     {

@@ -1,0 +1,72 @@
+{
+  "description": "report-result-wechat.json 输出规范：report-wechat 任务执行 F2 公众号长图文渲染的留痕（命令、轮次、产物清单、跳过状态）。",
+  "outputFormat": "json",
+  "document": {
+    "title": "报告物料留痕（wechat）",
+    "titleFormat": "固定文本",
+    "description": "一次 report-wechat 平台物料渲染的执行留痕与产物定位。",
+    "separators": false
+  },
+  "jsonFields": [
+    {
+      "name": "version",
+      "type": "string",
+      "required": true,
+      "description": "格式版本号",
+      "example": "1.0.0"
+    },
+    {
+      "name": "form",
+      "type": "string",
+      "required": true,
+      "description": "报告形式（enum：sheet|wechat|xiaohongshu；本任务恒为 wechat，须与任务名后缀一致）"
+    },
+    {
+      "name": "round_id",
+      "type": "string",
+      "required": true,
+      "description": "编排器轮次 ID（取自本 run 的 eval-result.json）"
+    },
+    {
+      "name": "command",
+      "type": "string",
+      "required": true,
+      "description": "实际执行的渲染命令（与 report-contract.md 入口一致：cli.js report --form wechat --round <id>）"
+    },
+    {
+      "name": "outputs",
+      "type": "array",
+      "required": true,
+      "description": "产物清单（publish_dir 相对路径，原样取自子命令 stdout；每个路径必须真实存在；HTML 恒产出，PNG 视渲染器可用性）"
+    },
+    {
+      "name": "skipped",
+      "type": ["boolean", "null"],
+      "required": true,
+      "description": "主产物（PNG）是否全部跳过（HTML 仍保留时如实列于 outputs）；true 时 notes 必填"
+    },
+    {
+      "name": "notes",
+      "type": "array",
+      "required": false,
+      "description": "如实备注（跳过原因、长图分段、字数截断、无页面题等）"
+    }
+  ],
+  "sections": [
+    {
+      "heading": "执行留痕",
+      "level": 2,
+      "required": true,
+      "format": "table",
+      "columns": ["字段", "值"],
+      "extensible": false,
+      "description": "command / round_id / skipped / 产物数逐行渲染"
+    }
+  ],
+  "rules": [
+    "outputs 中每个路径必须存在于 publish_dir（不代生成、不虚构产物）",
+    "skipped=true 时 outputs 可只含 HTML 或为空，且 notes 必填",
+    "form/round_id/command 与实际执行一致，不得修饰"
+  ],
+  "example": "{\n  \"version\": \"1.0.0\",\n  \"form\": \"wechat\",\n  \"round_id\": \"2026112721000-test-model\",\n  \"command\": \"node eval/bench/cli.js report --form wechat --round 2026112721000-test-model\",\n  \"outputs\": [\"report-wechat/cover-q_threejs-orbit-scene.html\", \"report-wechat/cover-q_threejs-orbit-scene.png\", \"report-wechat/article-q_threejs-orbit-scene.html\", \"report-wechat/article-q_threejs-orbit-scene.png\"],\n  \"skipped\": false,\n  \"notes\": []\n}"
+}

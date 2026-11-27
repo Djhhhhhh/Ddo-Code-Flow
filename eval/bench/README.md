@@ -16,8 +16,8 @@ profile 装配 ─→ 题库取题 ─→ 双臂沙箱 ─→ headless 执行 �
 
 | 目录 | 语义 | 提交 |
 |---|---|---|
-| `cli.js` | 唯一入口（`run` / `clean`），preflight 硬校验 | ✅ |
-| `src/` | 代码，按流水线阶段：`profile`（装配）→ `sandbox`（沙箱）→ `policy`（对等澄清策略）→ `driver`（双臂驱动）→ `collect/`（trajectory·process·token·result 四采集器）→ `report/`（渲染器 + `templates/` 五报告形式模板） | ✅ |
+| `cli.js` | 唯一入口（`run` / `report` / `clean`），preflight 硬校验 | ✅ |
+| `src/` | 代码，按流水线阶段：`profile`（装配，维度/题单）→ `sandbox`（沙箱）→ `policy`（对等澄清策略）→ `driver`（双臂驱动）→ `collect/`（trajectory·process·token·result 四采集器）→ `report/`（`render.js` 核心集渲染 + 声明单源；`forms.js` 平台形式注册表与 F1–F3 渲染器；`templates/` 仅核心集模板——平台模板随 `atom-tasks/report-<form>/templates/`） | ✅ |
 | `bank/` | 题库（输入资产）：`core/` 冻结核心集。每题（`q_<slug>/`，目录名 = 题名）= `qpack.json`（唯一机器契约：title/form/track/changeWhitelist/meta）+ `prompt.md`（唯一题面）+ `clarify.json`（同源澄清清单）+ `fixture/`（code 题被测基线，进沙箱）+ `acceptance/`（**不进沙箱**的隐藏验收：`CHECKS.md` 计分总纲；code 题另有 `verify.js`，页面题另有 `probe.js` + `testdata/` 黄金样例与可选 `stub.js` dry-run 桩） | ✅ |
 | `docs/` | 人读规则：`rubric.md`（判定口径）、`prompt-rules.md`（出题层修正规则）、`model-quick-eval.subflow`（流水线机器可读声明） | ✅ |
 | `tests/` | bench 单测 | ✅ |
@@ -35,8 +35,11 @@ node eval/bench/cli.js run --model <model_id> --tasks q_threejs-orbit-scene,q_re
 # 链路自验（stub 会话 + 黄金样例页，token 为模拟值）
 node eval/bench/cli.js run --model test-model --tasks … --baseline-sid s1 --ddo-sid s2 --dry-run
 
-# 运行装配（DEC-9）：维度 / 题单 / 报告形式（注册表 card·sheet·summary·wechat·xiaohongshu）
-#   --profile <profile.json>，缺省全维度 + card/sheet/summary
+# 运行装配（issue #94 后收缩）：维度 / 题单（--profile 不再承载报告形式——run 恒产 card+summary）
+#   --profile <profile.json>，缺省全维度
+
+# 平台物料渲染（report-* 原子任务的唯一渲染入口；契约见 docs/report-contract.md）
+node eval/bench/cli.js report --form <sheet|wechat|xiaohongshu> --round <轮次Id>
 
 # 探针自检（reference 应 33/33，flawed 部分失败）
 node bank/core/q_threejs-orbit-scene/acceptance/probe.js \
@@ -61,7 +64,11 @@ node eval/bench/cli.js clean --run <轮次Id>
 | page 题题面 three@版本 = 平台锁 `THREE_LOCK`（唯一声明源 `cli.js`） | preflight | exit 1 |
 | 非 dry_run 且 cost 维度：cc-switch 日志库可读 | preflight | exit 1 |
 | 题单非空；`profile.tasks` 与 `--tasks` 一致 | assembleProfile | exit 2 |
-| reports 须属于报告形式注册表（单一声明源 `src/profile.js` `REPORT_FORMS`）且不重复 | assembleProfile | exit 2 |
+| `report --form` 须属于形式注册表（单一声明源 `src/report/forms.js` `FORMS`：sheet/wechat/xiaohongshu） | report 子命令 | exit 2 |
+| `report --round` 轮次须存在（round.json） | report 子命令 | exit 1 |
+
+> `--profile` 的 `reports` 键已随语义收缩移除（旧 profile 文件含该键：静默忽略）；
+> 报告形式装配改经 run start 的 `eval-prepare.reports` 旋钮（见下节）。
 
 题组数量 / 顺序 / 形态**不做硬校验**（issue #92 DEC-9 自由化）：单题、任意组合开箱即用。
 评测时长经 `--arm-timeout`（分钟，缺省 30）配置；执行进度双通道 = stderr 人话
@@ -70,7 +77,8 @@ node eval/bench/cli.js clean --run <轮次Id>
 ## 用 Ddo-Code-Flow 工作流触发（推荐入口）
 
 评测可以作为一个受管理的 run 直接触发（状态、人工确认门、reporting 收口归档全走引擎）。
-所需预设随本仓库分发：`workflows/model-quick-eval.json` + `atom-tasks/eval-prepare` + `atom-tasks/eval-run`。
+所需预设随本仓库分发：`workflows/model-quick-eval.json`（v1.2.0）+ `atom-tasks/eval-prepare` +
+`atom-tasks/eval-run` + `atom-tasks/report-{sheet,wechat,xiaohongshu}`。
 
 ```bash
 # 在任意项目目录（skill 快照未含新任务时，显式指向本仓库）：
@@ -79,12 +87,15 @@ node ~/.claude/skills/Ddo-Code-Flow/tools/cli.js run start \
   --workflow model-quick-eval \
   --tasks-dir <本仓库>/atom-tasks \
   --workflows-dir <本仓库>/workflows \
-  --config eval-prepare.model='"<model_id>"'          # 其余参数由 eval-prepare 阶段问询收集
+  --config eval-prepare.model='"<model_id>"' \
+  --config eval-prepare.reports='["wechat"]'   # 可选：装配平台报告任务（缺省 [] 全裁剪）
 ```
 
-链路：`eval-prepare`（问询收集 model / 双 sid / 题单 / 报告形式 → `eval-config.json`）
-→ `eval-run:01`（自动执行本编排器 → `eval-result.json`）→ `eval-run:02`（确认门送审报告）
-→ `reporting`（收口归档）。
+链路：`eval-prepare`（问询收集 model / 双 sid / 题单；`reports` 装配旋钮只回显 → `eval-config.json`）
+→ `eval-run:01`（自动执行本编排器，恒产核心集 card+summary → `eval-result.json`）
+→ `eval-run:02`（确认门送审报告）
+→ `report-*`（按 `eval-prepare.reports` 装配时裁剪；执行 `cli.js report` 渲染平台物料并留痕送审）
+→ `reporting`（收口归档）。装配发生在 run start（引擎 when 裁剪，零引擎改动）。
 
 > 注：`~/.claude/skills/Ddo-Code-Flow` 是仓库快照（软链到 `~/.cc-switch/skills/`）。
 > 快照同步包含新任务后，可省略 `--tasks-dir`/`--workflows-dir` 直接 `--workflow model-quick-eval`。

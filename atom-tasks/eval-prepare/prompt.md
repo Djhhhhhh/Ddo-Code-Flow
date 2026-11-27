@@ -18,8 +18,10 @@
    - `tasks`：题单。列出可选题（仓库根 = `state.dirs.tasksDir` 的上一级；
      枚举 `eval/bench/bank/core/` 下的题目录，读各题 `qpack.json` 标注 form 与 track）；
      题组自由组成（1–n 题、顺序与形态不限），题组策略由使用者自行定义；
-   - `reports`（可缺省）：报告形式子集，注册表 card / sheet / summary / wechat / xiaohongshu；
-     缺省 = card+sheet+summary；
+   - `reports`（**装配旋钮，只回显不问询**）：读取 `state.atomTasks['eval-prepare'].reports`
+     预填值（含缺省 `[]`），向用户回显「本轮装配的平台报告任务 = <按值映射的 report-* 任务名
+     或 无>」。装配在 run start 时已发生（合法值 sheet/wechat/xiaohongshu；card/summary 为
+     核心集恒产不在此列），事后改值无效，如需变更须新开 run；
    - `dry_run`（可缺省）：是否链路自验模式；
    - `arm_timeout`（可缺省）：单臂超时分钟数。缺省不写入 = 编排器按 30 分钟执行；
      题单含页面题（form=page）时建议 60（ddo 臂流程文档纵深大，30 分钟实测不够走完全程，
@@ -27,7 +29,7 @@
 
    问询期两条防呆（本阶段仅有的自查规则）：`baseline_sid = ddo_sid` 时指出并要求重新提供；
    非 dry_run 时不得接受占位/示例 ID（如 sid-b-001）。其余参数规则（题包存在、
-   reports 注册表、题面平台版本锁等）由编排器启动时校验；若被拦截，将拦截原因
+   题面平台版本锁等）由编排器启动时校验；若被拦截，将拦截原因
    原样转述用户，修正须回本阶段重新确认并改写 eval-config.json，
    不得只在命令行临时改参。
 
@@ -35,7 +37,8 @@
    任何一条不过，向用户说明并重新收集，不带错写入。
 
 4. **写产物**：将确认后的参数写 `eval-config.json` 到 runDir（结构按 output schema 的
-   jsonFields），并在回复中回显参数清单请用户过目。
+   jsonFields；`reports` 写装配回显值——预填值或缺省 `[]`），并在回复中回显参数清单
+   （含平台报告任务装配回显行）请用户过目。
 
 ## 边界
 

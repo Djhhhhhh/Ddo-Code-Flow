@@ -26,8 +26,8 @@
    `--arm-timeout <值>`，无值时不传（编排器缺省 30 分钟）。是否需要更大超时在
    eval-prepare 问询时确认（含页面题建议 60），本阶段不做临时裁量。
 
-   `reports` 缺省集（card/sheet/summary）之外有追加时：先在 runDir 写 `eval-profile.json`
-   （`{"reports": [...]}`），命令追加 `--profile <runDir>/eval-profile.json`。
+   `run` 恒产核心集报告（card+summary）；平台物料（sheet/wechat/xiaohongshu）不在本命令产出，
+   由装配的 report-* 任务经 `cli.js report` 子命令渲染（本阶段不追加 `--profile` 报告参数）。
 
 3. **执行**：长任务（真实轮单臂可达数十分钟）。**后台启动**评测命令，从启动公告
    （stderr `[轮次开始]`，含 roundId / roundDir / 题单 / 臂超时）定位轮次目录；此后
@@ -51,6 +51,7 @@
 ## 边界
 
 - 不改评测题目、验收工具与判定口径；发现编排器缺陷如实记录进 notes，不就地绕过。
-- 运行产物统一隔离在 `<仓库根>/.ddo/eval/` 下：发布产物（summary/卡片/sheet）在
-  `.ddo/eval/reports/<轮次>/`，沙箱、事件流与进度事件（progress.jsonl）在
-  `.ddo/eval/runs/<轮次>/`；两者是评测运行产物，不并入本 run 的交付清单，也不进源码树。
+- 运行产物统一隔离在 `<仓库根>/.ddo/eval/` 下：发布产物（summary/卡片，核心集）在
+  `.ddo/eval/reports/<轮次>/`（平台物料另经 report-* 任务产出至 `report-<form>/` 子目录），
+  沙箱、事件流与进度事件（progress.jsonl）在 `.ddo/eval/runs/<轮次>/`；两者是评测运行产物，
+  不并入本 run 的交付清单，也不进源码树。

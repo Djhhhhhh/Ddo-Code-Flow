@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+  body { margin:0; font-family: system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif; }
+  .card { width:1080px; height:1440px; box-sizing:border-box; background:#FFFFFF; padding:72px 64px; display:flex; flex-direction:column; }
+  h2 { margin:0; font-size:44px; color:#111827; }
+  .sub { margin:10px 0 0; font-size:26px; color:#6B7280; }
+  .pair { margin-top:40px; display:flex; gap:24px; flex:1; }
+  .side { flex:1; display:flex; flex-direction:column; }
+  .tag { align-self:center; padding:8px 28px; border-radius:999px; font-size:24px; margin-bottom:16px; }
+  .t-b { background:#F8FAFC; color:#4B5563; border:1px solid #E2E8F0; }
+  .t-d { background:#EFF6FF; color:#2563EB; border:1px solid #DBEAFE; }
+  .side img { width:100%; border:1px solid #E2E8F0; border-radius:16px; }
+  .empty { width:100%; flex:1; border:1px dashed #E5E7EB; border-radius:16px; display:flex; align-items:center; justify-content:center; color:#9CA6AF; font-size:24px; }
+</style></head><body>
+<div class="card">
+<h2>{{title}}</h2>
+<p class="sub">{{subtitle}}</p>
+<div class="pair">
+<div class="side"><span class="tag t-b">纯 prompt</span>{{imgBaseline}}</div>
+<div class="side"><span class="tag t-d">+ Ddo-Code-Flow</span>{{imgDdo}}</div>
+</div>
+</div>
+</body></html>

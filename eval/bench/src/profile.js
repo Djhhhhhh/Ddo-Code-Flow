@@ -1,9 +1,10 @@
 'use strict';
-// 运行 profile 装配与校验（plan Part 02 §1，DEC-9）：
-// {dimensions{result,process,cost,symmetry}, tasks[], reports[]}，各项可省略 = 全量/基础缺省。
-// 报告形式注册表单一来源：新增形式 = 加模板 + 在此注册（不改数据契约）。
+// 运行 profile 装配与校验（issue #94 报告层重构，reports 语义收缩）：
+// {dimensions{result,process,cost,symmetry}, tasks[]}，各项可省略 = 全量/基础缺省。
+// 报告形式注册表已随平台物料任务化迁至 src/report/forms.js FORMS（run 恒产核心集 card+summary；
+// 平台物料经 cli.js report 子命令 + atom-tasks/report-<form> 装配产出）。
+// 旧 profile 文件中的 reports 键：静默忽略（不报错、不再生效——README 触发契约表已同步说明）。
 
-const REPORT_FORMS = ['card', 'sheet', 'summary', 'wechat', 'xiaohongshu'];
 const DIMENSION_KEYS = ['result', 'process', 'cost', 'symmetry'];
 
 class ProfileError extends Error {
@@ -46,15 +47,7 @@ function assembleProfile({ profileFile, profileObj, cliTasks } = {}) {
   if (!tasks || !tasks.length) throw new ProfileError('题单为空：--tasks 或 profile.tasks 至少提供一道题');
   // 题组组成自由化（issue #92 DEC-9）：数量/顺序/形态不设上限硬校验，题组策略由使用者经预设承载。
 
-  let reports = ['card', 'sheet', 'summary'];
-  if (raw.reports !== undefined) {
-    if (!Array.isArray(raw.reports) || !raw.reports.every((r) => typeof r === 'string')) throw new ProfileError('profile.reports 须为字符串数组');
-    const unknown = raw.reports.filter((r) => !REPORT_FORMS.includes(r));
-    if (unknown.length) throw new ProfileError(`profile.reports 含未注册形式: ${unknown.join(',')}（注册表: ${REPORT_FORMS.join(', ')}）`);
-    if (new Set(raw.reports).size !== raw.reports.length) throw new ProfileError('profile.reports 不得重复');
-    reports = raw.reports;
-  }
-  return { dimensions, tasks, reports };
+  return { dimensions, tasks };
 }
 
-module.exports = { assembleProfile, REPORT_FORMS, DIMENSION_KEYS, ProfileError };
+module.exports = { assembleProfile, DIMENSION_KEYS, ProfileError };
