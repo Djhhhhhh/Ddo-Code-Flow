@@ -47,7 +47,7 @@
       "name": "reports",
       "type": "array",
       "required": false,
-      "description": "报告形式子集（注册表 card/sheet/summary/wechat/xiaohongshu）；缺省 card+sheet+summary"
+      "description": "平台报告物料装配子集（合法值 sheet/wechat/xiaohongshu；决定 run start 装配哪些 report-* 任务——card/summary 为核心集恒产不在此列；装配回显值，缺省 []）"
     },
     {
       "name": "dry_run",
@@ -82,5 +82,5 @@
     "非 dry_run=true 时不得含示例占位值（如 sid-b-001 等测试用 ID）",
     "其余参数规则（题包存在、reports 注册表、题面平台版本锁等）由编排器启动时校验（preflight/profile 装配为唯一事实源）；被拦截时原样转述原因，修正回本阶段重新确认，不得只在命令行临时改参"
   ],
-  "example": "{\n  \"version\": \"1.1.0\",\n  \"model\": \"sonnet\",\n  \"baseline_sid\": \"<uuid-1>\",\n  \"ddo_sid\": \"<uuid-2>\",\n  \"tasks\": [\"q_threejs-orbit-scene\", \"q_regression-trap\"],\n  \"dry_run\": false,\n  \"arm_timeout\": 60\n}"
+  "example": "{\n  \"version\": \"1.1.0\",\n  \"model\": \"sonnet\",\n  \"baseline_sid\": \"<uuid-1>\",\n  \"ddo_sid\": \"<uuid-2>\",\n  \"tasks\": [\"q_threejs-orbit-scene\", \"q_regression-trap\"],\n  \"reports\": [\"wechat\"],\n  \"dry_run\": false,\n  \"arm_timeout\": 60\n}"
 }

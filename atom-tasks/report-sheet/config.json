@@ -1,0 +1,45 @@
+{
+  "name": "report-sheet",
+  "version": "1.0.0",
+  "desc": "渲染快览对比大图（F1）平台报告物料（cli.js report 唯一入口），写 report-result-sheet.json 留痕并送审",
+  "phases": [
+    {
+      "id": "01",
+      "summary": "定位轮次并执行 report 子命令，写 report-result-sheet.json",
+      "type": "action",
+      "output": "report-result-sheet.json"
+    },
+    {
+      "id": "02",
+      "summary": "报告物料确认门（同意/提问/修改）",
+      "type": "human",
+      "gate": {
+        "options": [
+          {
+            "name": "同意",
+            "desc": "确认物料产出与留痕，放行后续收口",
+            "action": "next --decision 同意"
+          },
+          {
+            "name": "提问",
+            "desc": "对物料答疑，不改变确认状态；处理后重新呈现",
+            "action": "in-phase"
+          },
+          {
+            "name": "修改",
+            "desc": "按意见重执行本相位（确定性渲染可安全重跑）",
+            "action": "in-phase"
+          }
+        ]
+      }
+    }
+  ],
+  "defaults": {
+    "rules": [
+      "渲染只经 cli.js report 子命令（确定性内核），不得手填模板或代生成产物",
+      "round_id 与 publish_dir 只取自本 run 的 eval-result.json；缺失即停止报告，不猜测",
+      "渲染器 skipped 时如实留痕（notes 必填），不虚构 outputs",
+      "评测运行产物在 <仓库根>/.ddo/eval/ 下，不并入本 run 交付清单，不进源码树"
+    ]
+  }
+}

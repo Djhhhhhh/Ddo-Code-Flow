@@ -1,10 +1,13 @@
 {
   "name": "model-quick-eval",
-  "version": "1.1.0",
-  "description": "模型快速评测链路：eval-prepare（收集评测参数）→ eval-run（A/B 双臂评测与报告，用户确认门）→ reporting（run 收口归档）",
+  "version": "1.2.0",
+  "description": "模型快速评测链路：eval-prepare → eval-run（核心集报告）→ 平台报告任务（report-*，按 eval-prepare.reports 装配时裁剪）→ reporting",
   "stages": [
     { "task": "eval-prepare", "dependOn": [] },
     { "task": "eval-run", "dependOn": ["eval-prepare"] },
-    { "task": "reporting", "dependOn": ["eval-run"] }
+    { "task": "report-sheet", "dependOn": ["eval-run"], "when": { "config": "eval-prepare.reports", "includes": "sheet" } },
+    { "task": "report-wechat", "dependOn": ["eval-run"], "when": { "config": "eval-prepare.reports", "includes": "wechat" } },
+    { "task": "report-xiaohongshu", "dependOn": ["eval-run"], "when": { "config": "eval-prepare.reports", "includes": "xiaohongshu" } },
+    { "task": "reporting", "dependOn": ["eval-run", "report-sheet", "report-wechat", "report-xiaohongshu"] }
   ]
 }

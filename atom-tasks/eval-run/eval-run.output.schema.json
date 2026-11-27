@@ -47,7 +47,7 @@
       "name": "publish_dir",
       "type": "string",
       "required": true,
-      "description": "发布产物目录（.ddo/eval/reports/<round_id>，含 summary.md、卡片与平台物料）"
+      "description": "发布产物目录（.ddo/eval/reports/<round_id>，含 summary.md 与卡片——核心集；平台物料另经 report-* 任务产出至 report-<form>/ 子目录）"
     },
     {
       "name": "notes",

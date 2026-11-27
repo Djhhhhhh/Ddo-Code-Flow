@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 'use strict';
-// model-quick-eval 编排器入口（plan Part 02 §1/§6，FR-1/AC-1）。
+// model-quick-eval 编排器入口（issue #94 报告层重构）。
 // 用法：
 //   node eval/bench/cli.js run [--model <名>] --tasks <q…> --baseline-sid <s> --ddo-sid <s>   # --model 缺省 = 本地 claude 已配置模型
 //        [--profile <f>] [--ccswitch-db <p>] [--arm-timeout <min>] [--dry-run] [--keep-sandboxes]
+//        # run 恒产核心集报告（card+summary）；平台物料改经 report 子命令（report-* 原子任务装配）
+//   node eval/bench/cli.js report --form <sheet|wechat|xiaohongshu> --round <轮次Id>          # 平台物料唯一渲染入口（确定性内核）
 //   node eval/bench/cli.js clean --run <轮次Id>
 // 输出对齐引擎四通道惯例：stdout JSON / stderr 人话 / exit 0·1·2。
 
@@ -17,7 +19,8 @@ const driver = require('./src/driver');
 const collectResult = require('./src/collect/result');
 const collectProcess = require('./src/collect/process');
 const collectToken = require('./src/collect/token');
-const { renderCard, renderSummary, renderHtmlForm, exportPng, fmtK } = require('./src/report/render');
+const { renderCard, renderSummary, fmtK } = require('./src/report/render');
+const forms = require('./src/report/forms');
 const { createProgress, createHeartbeat, renderRoundStart, renderRoundEnd } = require('./src/progress');
 
 const BENCH_ROOT = __dirname;
@@ -253,17 +256,19 @@ async function runCmd(flags) {
     }
     progress.emit('q-collect', { q: qName, detail: { result: !(result && result.skipped), process: !(processMetrics && processMetrics.skipped), cost: token !== null } });
 
-    // ④ 报告（按 profile.reports）
-    if (profile.reports.includes('card')) {
+    // ④ 核心集报告（issue #94 DEC-1：card 恒产，不受 profile.reports 控制）
+    {
       const md = renderCard({
         model: modelLabel, qName, qTitle: qpack.title, form: qpack.form,
         result, process: processMetrics, token: token || { groups: [] },
         armReportDirs: { baseline: arms.baseline.dir, ddo: arms.ddo.dir },
+        expectedBehaviors: (qpack.meta && qpack.meta.expectedBehaviors) || [],
+        taskCount: profile.tasks.length,
       });
       fs.writeFileSync(path.join(reportDir, `card-${qName}.md`), md);
     }
     round.questions.push({
-      qName, form: qpack.form, trackHint: qpack.track, arms: armResults,
+      qName, form: qpack.form, track: qpack.track, arms: armResults,
       reportDir, resultDelta: result && result.delta ? result.delta.结果层 : null,
       symmetry: processMetrics.signals ? (processMetrics.signals.find((s) => s.signal === '澄清对称性') || {}).detail : undefined,
     });
@@ -271,58 +276,29 @@ async function runCmd(flags) {
     progress.emit('q-end', { q: qName, detail: { delta: result && result.delta ? result.delta.结果层 : null } });
   }
 
-  // ⑤ 汇总 + 平台物料
+  // ⑤ 汇总 + 核心集发布（issue #94 DEC-1：summary 恒产；平台物料改经 report 子命令，run 不再内联渲染）
   const publishDir = path.join(PUBLISH_ROOT, roundId);
   fs.mkdirSync(publishDir, { recursive: true });
-  if (profile.reports.includes('summary')) {
-    const readJson = (p) => { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return {}; } };
-    const cards = round.questions.map((q) => {
-      const token = readJson(path.join(roundDir, q.qName, 'metrics', 'token.json'));
-      const g = (key) => (token.groups || []).find((x) => x.key === key) || {};
-      return {
-        qName: q.qName, form: q.form, trackHint: q.trackHint,
-        result: readJson(path.join(roundDir, q.qName, 'metrics', 'result.json')),
-        symmetry: q.symmetry && q.symmetry.结论,
-        tokenLineShort: `；token ${fmtK(g('baseline').total_tokens || 0)} → ${fmtK(g('ddo').total_tokens || 0)}`,
-      };
-    });
-    fs.writeFileSync(path.join(publishDir, 'summary.md'), renderSummary({ model: modelLabel, cards, dryRun }));
-  }
+  const readJson = (p) => { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return {}; } };
+  const cards = round.questions.map((q) => {
+    const token = readJson(path.join(roundDir, q.qName, 'metrics', 'token.json'));
+    const g = (key) => (token.groups || []).find((x) => x.key === key) || {};
+    return {
+      qName: q.qName, form: q.form, track: q.track,
+      result: readJson(path.join(roundDir, q.qName, 'metrics', 'result.json')),
+      symmetry: q.symmetry && q.symmetry.结论,
+      tokenLineShort: `${fmtK(g('baseline').total_tokens || 0)} → ${fmtK(g('ddo').total_tokens || 0)}`,
+    };
+  });
+  fs.writeFileSync(path.join(publishDir, 'summary.md'), renderSummary({ model: modelLabel, cards, dryRun, taskCount: profile.tasks.length }));
   for (const q of round.questions) {
     const card = path.join(roundDir, q.qName, 'report', `card-${q.qName}.md`);
     if (fs.existsSync(card)) fs.copyFileSync(card, path.join(publishDir, `card-${q.qName}.md`));
     if (q.form === 'page') {
-      // 卡片图片相对链接为 <arm>/shots/...：按同结构复制（另备 sheet 用 <arm>-shots）
+      // 卡片图片相对链接为 <arm>/shots/...：按同结构复制（平台物料截图由 report 子命令在 report-<form>/ 内自管）
       for (const arm of ['baseline', 'ddo']) {
         const shots = path.join(roundDir, q.qName, 'report', arm, 'shots');
-        if (fs.existsSync(shots)) {
-          fs.cpSync(shots, path.join(publishDir, arm, 'shots'), { recursive: true });
-          fs.cpSync(shots, path.join(publishDir, `${arm}-shots`), { recursive: true });
-        }
-      }
-      // sheet / 平台物料（页面题）
-      const ctx = {
-        title: `${modelLabel} · ${q.qName}`, subtitle: '同模型 A/B 对照（2–3 题小样本）',
-        baselineRate: '-', ddoRate: '-',
-        baselineShot: `baseline-shots/initial.png`, ddoShot: `ddo-shots/initial.png`, shot: `ddo-shots/initial.png`,
-        keyPoints: 'Ddo-Code-Flow 在 spec 阶段把规格转 checklist 并逐项验证；代价是更高 token，收益是规格达标项提升（数字见汇总页）。',
-        declarations: '2–3 题小样本，体感参考，不代表全面测评。过于简单的任务无收益或负收益（预期结论，如实记录）。token 仅同模型内对照。',
-      };
-      try {
-        const res = JSON.parse(fs.readFileSync(path.join(roundDir, q.qName, 'metrics', 'result.json'), 'utf8'));
-        ctx.baselineRate = res.baseline.ok ? `${res.baseline.pass}/${res.baseline.total}` : '失败';
-        ctx.ddoRate = res.ddo.ok ? `${res.ddo.pass}/${res.ddo.total}` : '失败';
-      } catch { /* 保留占位 */ }
-      if (profile.reports.includes('sheet')) {
-        fs.writeFileSync(path.join(publishDir, `sheet-${q.qName}.html`), renderHtmlForm({ form: 'sheet', ctx }));
-        await exportPng(path.join(publishDir, `sheet-${q.qName}.html`), path.join(publishDir, `sheet-${q.qName}.png`), { width: 1100, height: 700 });
-      }
-      if (profile.reports.includes('wechat')) {
-        fs.writeFileSync(path.join(publishDir, `wechat-${q.qName}.html`), renderHtmlForm({ form: 'wechat', ctx }));
-      }
-      if (profile.reports.includes('xiaohongshu')) {
-        fs.writeFileSync(path.join(publishDir, `xiaohongshu-${q.qName}.html`), renderHtmlForm({ form: 'xiaohongshu', ctx }));
-        await exportPng(path.join(publishDir, `xiaohongshu-${q.qName}.html`), path.join(publishDir, `xiaohongshu-${q.qName}.png`), { width: 810, height: 1080 });
+        if (fs.existsSync(shots)) fs.cpSync(shots, path.join(publishDir, arm, 'shots'), { recursive: true });
       }
     }
   }
@@ -359,12 +335,68 @@ function cleanCmd(flags) {
   outJson(sandboxLib.cleanRound(RUNS_ROOT, flags.run, PUBLISH_ROOT));
 }
 
+/** report 子命令（issue #94 DEC-3：平台物料唯一渲染入口，确定性内核）。
+ *  输入口径见 eval/bench/docs/report-contract.md：round.json + 逐题 metrics + qpack + shots；
+ *  与 ddo run 的 runDir 解耦（eval-result.json 仅为任务侧定位/核对输入，此处不依赖）。
+ *  幂等：同一轮次数据重跑产物一致；覆写 report-<form>/ 内同名文件，不触碰其他既有文件。 */
+async function reportCmd(flags) {
+  if (!flags.form) usageError('report: 缺少 --form <sheet|wechat|xiaohongshu>');
+  if (!flags.round) usageError('report: 缺少 --round <轮次Id>');
+  if (!forms.FORMS.includes(flags.form)) usageError(`report: 未注册形式 ${flags.form}（注册表: ${forms.FORMS.join(' | ')}）`);
+  const roundDir = path.join(RUNS_ROOT, flags.round);
+  const roundJsonPath = path.join(roundDir, 'round.json');
+  if (!fs.existsSync(roundJsonPath)) fail(`轮次不存在: ${roundJsonPath}`);
+  const round = JSON.parse(fs.readFileSync(roundJsonPath, 'utf8'));
+  const publishDir = path.join(PUBLISH_ROOT, flags.round);
+  fs.mkdirSync(publishDir, { recursive: true });
+  const readJson = (p) => JSON.parse(fs.readFileSync(p, 'utf8'));
+  const fmtRate = (o) => (o && o.ok ? `${o.pass}/${o.total}` : '失败');
+  const pageQs = [];
+  for (const q of round.questions || []) {
+    if (q.form !== 'page') continue;
+    const qDir = path.join(roundDir, q.qName);
+    let result = {};
+    try { result = readJson(path.join(qDir, 'metrics', 'result.json')); } catch { /* 如实标注：失败 */ }
+    let tokenShort = '';
+    try {
+      const tk = readJson(path.join(qDir, 'metrics', 'token.json'));
+      const g = (key) => (tk.groups || []).find((x) => x.key === key) || {};
+      tokenShort = `${fmtK(g('baseline').total_tokens || 0)} → ${fmtK(g('ddo').total_tokens || 0)}`;
+    } catch { tokenShort = ''; }
+    const qpack = sandboxLib.readQpack(sandboxLib.resolvePack(q.qName));
+    pageQs.push({
+      qName: q.qName, title: qpack.title, form: 'page', track: q.track || q.trackHint, // 兼容旧轮次 trackHint
+      baselineRate: fmtRate(result.baseline), ddoRate: fmtRate(result.ddo),
+      delta: (result.delta && result.delta.结果层) || '',
+      tokenShort,
+      armShotsDirs: {
+        baseline: path.join(qDir, 'report', 'baseline', 'shots'),
+        ddo: path.join(qDir, 'report', 'ddo', 'shots'),
+      },
+    });
+  }
+  const roundCtx = {
+    modelLabel: round.model || round.resolvedModel || '本地缺省模型',
+    taskCount: (round.tasks || []).length,
+    dryRun: !!round.dryRun,
+  };
+  const result = await forms.renderForm({ form: flags.form, round: roundCtx, pageQs, publishDir });
+  const missing = result.outputs.filter((o) => !fs.existsSync(path.join(publishDir, o)));
+  if (missing.length) fail(`渲染器声称的产物不存在: ${missing.join(', ')}（不虚构 outputs）`);
+  outJson({
+    form: flags.form, round_id: flags.round, publish_dir: publishDir,
+    outputs: result.outputs, skipped: result.skipped, notes: result.notes,
+  });
+  process.stderr.write(`[report] ${flags.form} 物料完成：${result.outputs.length} 个产物（${path.join(publishDir, `report-${flags.form}`)}）${result.skipped ? '；主产物 PNG 全部跳过（原因见 notes）' : ''}\n`);
+}
+
 async function main() {
   const [cmd, ...rest] = process.argv.slice(2);
   const flags = parseArgs(rest);
   if (cmd === 'run') return runCmd(flags);
+  if (cmd === 'report') return reportCmd(flags);
   if (cmd === 'clean') return cleanCmd(flags);
-  usageError(`未知子命令: ${cmd || '(空)'}（run | clean）`);
+  usageError(`未知子命令: ${cmd || '(空)'}（run | report | clean）`);
 }
 
 main().catch((e) => fail(String((e && e.message) || e)));
