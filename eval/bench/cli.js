@@ -357,18 +357,21 @@ async function reportCmd(flags) {
     const qDir = path.join(roundDir, q.qName);
     let result = {};
     try { result = readJson(path.join(qDir, 'metrics', 'result.json')); } catch { /* 如实标注：失败 */ }
-    let tokenShort = '';
+    let tokenShort = ''; let tokenB = ''; let tokenD = ''; let tokenRatio = '';
     try {
       const tk = readJson(path.join(qDir, 'metrics', 'token.json'));
       const g = (key) => (tk.groups || []).find((x) => x.key === key) || {};
-      tokenShort = `${fmtK(g('baseline').total_tokens || 0)} → ${fmtK(g('ddo').total_tokens || 0)}`;
+      const bt = g('baseline').total_tokens || 0; const dt = g('ddo').total_tokens || 0;
+      tokenShort = `${fmtK(bt)} → ${fmtK(dt)}`;
+      tokenB = fmtK(bt); tokenD = fmtK(dt);
+      if (bt > 0) tokenRatio = `×${(dt / bt).toFixed(1)}`;
     } catch { tokenShort = ''; }
     const qpack = sandboxLib.readQpack(sandboxLib.resolvePack(q.qName));
     pageQs.push({
       qName: q.qName, title: qpack.title, form: 'page', track: q.track || q.trackHint, // 兼容旧轮次 trackHint
       baselineRate: fmtRate(result.baseline), ddoRate: fmtRate(result.ddo),
       delta: (result.delta && result.delta.结果层) || '',
-      tokenShort,
+      tokenShort, tokenB, tokenD, tokenRatio,
       armShotsDirs: {
         baseline: path.join(qDir, 'report', 'baseline', 'shots'),
         ddo: path.join(qDir, 'report', 'ddo', 'shots'),
@@ -376,6 +379,7 @@ async function reportCmd(flags) {
     });
   }
   const roundCtx = {
+    roundId: flags.round,
     modelLabel: round.model || round.resolvedModel || '本地缺省模型',
     taskCount: (round.tasks || []).length,
     dryRun: !!round.dryRun,

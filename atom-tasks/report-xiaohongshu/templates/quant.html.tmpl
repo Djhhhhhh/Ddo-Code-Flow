@@ -1,23 +1,40 @@
 <!DOCTYPE html>
 <html><head><meta charset="utf-8"><style>
+  /* 视觉标准 = eval/bench/docs/report-design.md（改风格先改文档） */
   body { margin:0; font-family: system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif; }
-  .card { width:1080px; height:1440px; box-sizing:border-box; background:#FFFFFF; padding:96px 84px; display:flex; flex-direction:column; }
-  h2 { margin:0; font-size:52px; color:#111827; }
-  .nums { margin-top:64px; display:flex; gap:28px; }
-  .num { flex:1; text-align:center; padding:52px 0; border-radius:24px; }
-  .num b { display:block; font-size:88px; font-weight:800; }
-  .num span { display:block; margin-top:8px; font-size:26px; color:#6B7280; }
-  .b { background:#F8FAFC; border:1px solid #E2E8F0; } .b b { color:#111827; }
-  .d { background:#EFF6FF; border:1px solid #DBEAFE; } .d b { color:#2563EB; }
-  .line { margin-top:44px; padding:28px 32px; background:#F8FAFC; border-radius:16px; font-size:30px; color:#4B5563; line-height:1.6; }
+  .card { width:1080px; height:1440px; box-sizing:border-box; background:#0A0D0F;
+          background-image: radial-gradient(rgba(255,255,255,0.07) 1px, transparent 1px);
+          background-size: 40px 40px; padding:110px 84px 88px; display:flex; flex-direction:column; }
+  .kicker { font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace; font-size:22px; color:#5EEAD4; letter-spacing:6px; }
+  h2 { margin:24px 0 0; font-size:52px; font-weight:800; color:#F5F7F8; }
+  .nums { margin-top:100px; display:flex; gap:28px; align-items:stretch; }
+  .num { border-radius:16px; padding:64px 0 58px; }
+  .num b { display:block; font-weight:800; }
+  .num span { display:block; margin-top:10px; font-size:24px; color:#8A949C; }
+  .b { flex:1; text-align:center; background:#14171C; border:1px solid #2A3138; } .b b { font-size:76px; color:#F5F7F8; }
+  .d { flex:1.35; text-align:center; background:#0E2622; border:1px solid #2A5B50; } .d b { font-size:128px; color:#5EEAD4; }
+  .rows { margin-top:92px; display:flex; flex-direction:column; gap:32px; }
+  .row { display:flex; justify-content:space-between; align-items:center; padding:36px 38px; background:#1E2530;
+         border:1px solid #2A3138; border-radius:12px; font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace; }
+  .row .k { font-size:21px; color:#8A949C; }
+  .row .v { font-size:25px; color:#F5F7F8; } .row .v b { font-weight:700; }
+  .foot { margin-top:auto; padding-top:24px; border-top:1px solid rgba(255,255,255,0.08);
+          display:flex; justify-content:space-between;
+          font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace; font-size:19px; color:#5C6670; }
 </style></head><body>
 <div class="card">
+<p class="kicker">{{kicker}}</p>
 <h2>{{title}} · 数字</h2>
 <div class="nums">
-<div class="num b"><b>{{baselineRate}}</b><span>纯 prompt 达标</span></div>
-<div class="num d"><b>{{ddoRate}}</b><span>+ Ddo-Code-Flow 达标</span></div>
+<div class="num b"><b>{{baselineRate}}</b><span>纯 prompt 规格达标</span></div>
+<div class="num d"><b>{{ddoRate}}</b><span>+ Ddo-Code-Flow 规格达标</span></div>
 </div>
-<div class="line">Δ 结果层：{{deltaLine}}</div>
-<div class="line">token（同模型内对照）：{{tokenLine}}</div>
+<div class="rows">
+{{deltaRow}}
+{{tokenRow}}
+{{tokenRow2}}
+{{tokenRow3}}
+</div>
+<div class="foot"><span>{{brand}}</span><span>{{roundTag}}</span></div>
 </div>
 </body></html>

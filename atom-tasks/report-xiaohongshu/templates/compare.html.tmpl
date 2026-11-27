@@ -1,23 +1,48 @@
 <!DOCTYPE html>
 <html><head><meta charset="utf-8"><style>
+  /* 视觉标准 = eval/bench/docs/report-design.md（改风格先改文档） */
   body { margin:0; font-family: system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif; }
-  .card { width:1080px; height:1440px; box-sizing:border-box; background:#FFFFFF; padding:72px 64px; display:flex; flex-direction:column; }
-  h2 { margin:0; font-size:44px; color:#111827; }
-  .sub { margin:10px 0 0; font-size:26px; color:#6B7280; }
-  .pair { margin-top:40px; display:flex; gap:24px; flex:1; }
-  .side { flex:1; display:flex; flex-direction:column; }
-  .tag { align-self:center; padding:8px 28px; border-radius:999px; font-size:24px; margin-bottom:16px; }
-  .t-b { background:#F8FAFC; color:#4B5563; border:1px solid #E2E8F0; }
-  .t-d { background:#EFF6FF; color:#2563EB; border:1px solid #DBEAFE; }
-  .side img { width:100%; border:1px solid #E2E8F0; border-radius:16px; }
-  .empty { width:100%; flex:1; border:1px dashed #E5E7EB; border-radius:16px; display:flex; align-items:center; justify-content:center; color:#9CA6AF; font-size:24px; }
+  .card { width:1080px; height:1440px; box-sizing:border-box; background:#0A0D0F;
+          background-image: radial-gradient(rgba(255,255,255,0.07) 1px, transparent 1px);
+          background-size: 40px 40px; padding:96px 64px 76px; display:flex; flex-direction:column; }
+  .kicker { font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace; font-size:22px; color:#5EEAD4; letter-spacing:6px; }
+  h2 { margin:24px 0 0; font-size:46px; font-weight:800; color:#F5F7F8; }
+  .sub { margin:14px 0 0; font-size:26px; color:#8A949C; }
+  .pair { margin-top:44px; display:flex; gap:28px; flex:1; }
+  .side { flex:1; display:flex; flex-direction:column; gap:24px; }
+  .tag { align-self:flex-start; padding:6px 20px; border-radius:999px; font-size:22px; }
+  .t-b { background:#1E2530; color:#8A949C; border:1px solid #2A3138; }
+  .t-d { background:#0E2622; color:#5EEAD4; border:1px solid #2A5B50; }
+  .win { background:#1E2530; border:1px solid #2A3138; border-radius:14px; overflow:hidden; }
+  .bar { display:flex; align-items:center; gap:8px; padding:13px 18px; border-bottom:1px solid #2A3138; }
+  .bar i { width:12px; height:12px; border-radius:50%; }
+  .bar i:nth-child(1) { background:#FF5F57; } .bar i:nth-child(2) { background:#FEBC2E; } .bar i:nth-child(3) { background:#28C840; }
+  .url { margin-left:10px; font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace; font-size:16px; color:#5C6670; }
+  .win img { width:100%; display:block; }
+  .empty { padding:60px 0; text-align:center; color:#5C6670; font-size:22px; }
+  .row { display:flex; justify-content:space-between; padding:20px 26px; background:#1E2530; border:1px solid #2A3138; border-radius:12px;
+         font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace; margin-top:auto; }
+  .row .k { font-size:19px; color:#8A949C; } .row .v { font-size:22px; color:#F5F7F8; }
+  .foot { margin-top:36px; padding-top:22px; border-top:1px solid rgba(255,255,255,0.08);
+          display:flex; justify-content:space-between;
+          font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace; font-size:19px; color:#5C6670; }
 </style></head><body>
 <div class="card">
+<p class="kicker">{{kicker}}</p>
 <h2>{{title}}</h2>
 <p class="sub">{{subtitle}}</p>
 <div class="pair">
-<div class="side"><span class="tag t-b">纯 prompt</span>{{imgBaseline}}</div>
-<div class="side"><span class="tag t-d">+ Ddo-Code-Flow</span>{{imgDdo}}</div>
+<div class="side">
+<span class="tag t-b">纯 prompt</span>
+{{winBaseline1}}{{winBaseline2}}
+<div class="row"><span class="k">规格达标</span><span class="v">{{baselineRate}}</span></div>
 </div>
+<div class="side">
+<span class="tag t-d">+ Ddo-Code-Flow</span>
+{{winDdo1}}{{winDdo2}}
+<div class="row"><span class="k">规格达标</span><span class="v">{{ddoRate}}</span></div>
+</div>
+</div>
+<div class="foot"><span>{{brand}}</span><span>{{roundTag}}</span></div>
 </div>
 </body></html>
