@@ -1,13 +1,15 @@
 {
   "name": "model-quick-eval",
   "version": "1.2.0",
-  "description": "模型快速评测链路：eval-prepare → eval-run（核心集报告）→ 平台报告任务（report-*，按 eval-prepare.reports 装配时裁剪）→ reporting",
+  "description": "模型快速评测链路：eval-prepare → eval-run（核心集报告）→ report-align（对齐确认门）→ report-draft（审阅底稿门）→ 平台报告任务（report-*，按 eval-prepare.reports 装配时裁剪）→ reporting",
   "stages": [
     { "task": "eval-prepare", "dependOn": [] },
     { "task": "eval-run", "dependOn": ["eval-prepare"] },
-    { "task": "report-sheet", "dependOn": ["eval-run"], "when": { "config": "eval-prepare.reports", "includes": "sheet" } },
-    { "task": "report-wechat", "dependOn": ["eval-run"], "when": { "config": "eval-prepare.reports", "includes": "wechat" } },
-    { "task": "report-xiaohongshu", "dependOn": ["eval-run"], "when": { "config": "eval-prepare.reports", "includes": "xiaohongshu" } },
-    { "task": "reporting", "dependOn": ["eval-run", "report-sheet", "report-wechat", "report-xiaohongshu"] }
+    { "task": "report-align", "dependOn": ["eval-run"] },
+    { "task": "report-draft", "dependOn": ["report-align"] },
+    { "task": "report-sheet", "dependOn": ["report-draft"], "when": { "config": "eval-prepare.reports", "includes": "sheet" } },
+    { "task": "report-wechat", "dependOn": ["report-draft"], "when": { "config": "eval-prepare.reports", "includes": "wechat" } },
+    { "task": "report-xiaohongshu", "dependOn": ["report-draft"], "when": { "config": "eval-prepare.reports", "includes": "xiaohongshu" } },
+    { "task": "reporting", "dependOn": ["eval-run", "report-draft", "report-sheet", "report-wechat", "report-xiaohongshu"] }
   ]
 }

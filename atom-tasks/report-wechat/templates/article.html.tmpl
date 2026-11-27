@@ -1,11 +1,18 @@
 <!DOCTYPE html>
 <html><head><meta charset="utf-8"></head>
-<body style="margin:0;font-family:system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;background:#FFFFFF;color:#111827;">
-<section style="width:900px;box-sizing:border-box;padding:40px 0;background:#FFFFFF;">
-<h1 style="margin:0;font-size:26px;line-height:1.4;text-align:center;color:#111827;"><span leaf="">{{title}}</span></h1>
-<p style="margin:8px 0 0;font-size:14px;text-align:center;color:#6B7280;"><span leaf="">{{subtitle}}</span></p>
+<!-- 视觉标准 = eval/bench/docs/report-design.md（改风格先改文档）；粘贴安全：全内联、无块级容器标签与样式表、<span leaf> 包裹；正文禁渐变（点阵仅封面 PNG 用） -->
+<body style="margin:0;font-family:system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;background:#0A0D0F;color:#C9D1D5;">
+<section style="width:900px;box-sizing:border-box;padding:46px 36px 40px;background:#0A0D0F;">
+<p style="margin:0 0 10px;font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace;font-size:12px;letter-spacing:3px;color:#5EEAD4;text-align:center;"><span leaf="">MODEL QUICK EVAL · 同模型两臂对照</span></p>
+<h1 style="margin:0;font-size:26px;line-height:1.4;text-align:center;color:#F5F7F8;"><span leaf="">{{title}}</span></h1>
+<p style="margin:8px 0 0;font-size:14px;text-align:center;color:#8A949C;"><span leaf="">{{subtitle}}</span></p>
 {{dataCards}}
+{{subtotalBlock}}
+{{processBlock}}
+{{costBlock}}
 {{imageBlocks}}
+{{gifNote}}
 {{declarationsBlock}}
+{{footerBlock}}
 </section>
 </body></html>

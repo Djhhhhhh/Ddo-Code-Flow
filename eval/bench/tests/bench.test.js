@@ -164,11 +164,43 @@ test('report 子命令：负向 exit 2/1；正向产出 report-wechat/ 且粘贴
   fs.writeFileSync(path.join(qDir, 'metrics', 'result.json'), JSON.stringify({
     baseline: { ok: true, pass: 7, total: 33 }, ddo: { ok: true, pass: 33, total: 33 },
     delta: { 结果层: '7/33 → 33/33' },
+    raw: {
+      baseline: { checks: [{ id: 'A1', pass: true, actual: 'x', expected: 'y' }, { id: 'D1', pass: false, actual: '0', expected: '>0' }] },
+      ddo: { checks: [{ id: 'A1', pass: true, actual: 'x', expected: 'y' }, { id: 'D1', pass: true, actual: '1', expected: '>0' }] },
+    },
   }));
   fs.writeFileSync(path.join(qDir, 'metrics', 'token.json'), JSON.stringify({
-    groups: [{ key: 'baseline', total_tokens: 12000 }, { key: 'ddo', total_tokens: 45000 }],
+    groups: [{ key: 'baseline', total_tokens: 12000, calls: 3 }, { key: 'ddo', total_tokens: 45000, calls: 5 }],
+  }));
+  fs.writeFileSync(path.join(qDir, 'metrics', 'process.json'), JSON.stringify({
+    signals: [{ signal: '交付前自检', rows: [{ arm: 'baseline', binary: false, metrics: { 测试运行次数: 0 } }, { arm: 'ddo', binary: true, metrics: { 测试运行次数: 2 } }] }],
   }));
   try {
+    // brief：默认生成 → 幂等；非法 subject → exit 1
+    const b1 = runCli(['brief', '--round', rid]);
+    assert.equal(b1.code, 0, b1.stderr);
+    assert.ok(b1.stdout.includes('主体 subject'));
+    assert.ok(fs.existsSync(path.join(runsRoot, rid, 'report-brief.json')));
+    const briefBefore = fs.readFileSync(path.join(runsRoot, rid, 'report-brief.json'), 'utf8');
+    runCli(['brief', '--round', rid]);
+    assert.equal(fs.readFileSync(path.join(runsRoot, rid, 'report-brief.json'), 'utf8'), briefBefore); // 幂等不覆盖
+    fs.writeFileSync(path.join(runsRoot, rid, 'report-brief.json'), JSON.stringify({ subject: 'hero' }));
+    assert.equal(runCli(['brief', '--round', rid]).code, 1); // 非法 subject
+    fs.writeFileSync(path.join(runsRoot, rid, 'report-brief.json'), briefBefore);
+
+    // draft：逐项表/分类小计/过程信号/附录A 文案与渲染器同源
+    const dr = runCli(['report', '--form', 'draft', '--round', rid]);
+    assert.equal(dr.code, 0, dr.stderr);
+    const draftPath = path.join(publishRoot, rid, 'report-draft', `draft-${rid}.md`);
+    const draft = fs.readFileSync(draftPath, 'utf8');
+    assert.ok(draft.includes('## 0 对齐摘要'));
+    assert.ok(draft.includes('### 逐项探针'));
+    assert.ok(draft.includes('| D1 | 动画 | >0 | ✗ | ✓ |')); // 未过侧摘录
+    assert.ok(draft.includes('### 分类小计'));
+    assert.ok(draft.includes('交付前自检')); // 过程信号
+    assert.ok(draft.includes('## 附录A 平台文案'));
+    assert.ok(draft.includes('## 附录B 各平台呈现说明'));
+
     const okRun = runCli(['report', '--form', 'wechat', '--round', rid]);
     assert.equal(okRun.code, 0, okRun.stderr);
     const out = JSON.parse(okRun.stdout);
@@ -177,6 +209,7 @@ test('report 子命令：负向 exit 2/1；正向产出 report-wechat/ 且粘贴
     assert.equal(out.round_id, rid);
     const article = fs.readFileSync(path.join(publishRoot, rid, 'report-wechat', 'article-q_threejs-orbit-scene.html'), 'utf8');
     assert.ok(article.includes('题小样本')); // 声明注入（参数化题数）
+    assert.ok(article.includes('分类小计')); // 量化全景进正文
     // 粘贴安全（gzh-design-skill 平台限制清单的产物关校验）
     assert.ok(!article.includes('<div'));
     assert.ok(!article.includes('class='));
@@ -189,6 +222,14 @@ test('report 子命令：负向 exit 2/1；正向产出 report-wechat/ 且粘贴
     const note = fs.readFileSync(path.join(publishRoot, rid, 'report-xiaohongshu', 'note-q_threejs-orbit-scene.md'), 'utf8');
     const firstLine = note.split('\n')[0];
     assert.ok([...firstLine].length <= 21, `标题超 20 字硬限: ${firstLine}`); // ≤20 字 + 可能的截断省略号
+    // 附录A 同源断言：draft 中的 note 正文与实际 note 文件一致（文案单源不漂移）
+    const noteBlock = draft.split('### 小红书 note（q_threejs-orbit-scene')[1].split('```')[1];
+    assert.equal(noteBlock.trim(), note.trim());
+    // 图组页序：轮级 cover + 每题 compare/results/process + 轮级 rubric
+    const xhsOut = JSON.parse(xhs.stdout);
+    for (const p of ['xhs-01-cover', 'xhs-02-compare', 'xhs-03-results', 'xhs-04-process', 'xhs-05-rubric']) {
+      assert.ok(xhsOut.outputs.includes(`report-xiaohongshu/${p}.html`), `缺页: ${p}`);
+    }
   } finally {
     fs.rmSync(path.join(runsRoot, rid), { recursive: true, force: true });
     fs.rmSync(path.join(publishRoot, rid), { recursive: true, force: true });

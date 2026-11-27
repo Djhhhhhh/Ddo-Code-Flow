@@ -1,0 +1,45 @@
+{
+  "name": "report-draft",
+  "version": "1.0.0",
+  "desc": "渲染审阅底稿（平台物料上游）：完整数据对比/样式对照/打分标准 + 附录A 平台文案 + 附录B 平台呈现说明，经审阅门后放行平台渲染",
+  "phases": [
+    {
+      "id": "01",
+      "summary": "执行 report --form draft 生成审阅底稿，写 report-result-draft.json 留痕",
+      "type": "action",
+      "output": "report-result-draft.json"
+    },
+    {
+      "id": "02",
+      "summary": "底稿审阅门（同意/修改/提问）：逐项数据、打分标准、附录文案过目",
+      "type": "human",
+      "gate": {
+        "options": [
+          {
+            "name": "同意",
+            "desc": "确认底稿与文案，放行平台形式渲染（report-*）",
+            "action": "next --decision 同意"
+          },
+          {
+            "name": "修改",
+            "desc": "改对齐稿或题面口径后重跑本相位（确定性渲染可安全重跑）",
+            "action": "in-phase"
+          },
+          {
+            "name": "提问",
+            "desc": "对数据口径/文案答疑，不改变确认状态",
+            "action": "in-phase"
+          }
+        ]
+      }
+    }
+  ],
+  "defaults": {
+    "rules": [
+      "渲染只经 cli.js report --form draft（确定性内核），不得手写底稿正文",
+      "round_id 只取自本 run 的 eval-result.json；缺失即停止报告，不猜测",
+      "底稿数据与平台物料同源（metrics/*.json + 文案单源 forms.js）；两处不一致即为缺陷",
+      "平台文案修订只改 forms.js 单源或对齐稿，不改底稿文本本身"
+    ]
+  }
+}
