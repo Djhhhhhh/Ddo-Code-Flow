@@ -44,7 +44,7 @@ function assembleProfile({ profileFile, profileObj, cliTasks } = {}) {
     tasks = raw.tasks;
   }
   if (!tasks || !tasks.length) throw new ProfileError('题单为空：--tasks 或 profile.tasks 至少提供一道题');
-  if (tasks.length > 3) throw new ProfileError(`题组为 ${tasks.length} 道（每轮 2–3 题）`);
+  // 题组组成自由化（issue #92 DEC-9）：数量/顺序/形态不设上限硬校验，题组策略由使用者经预设承载。
 
   let reports = ['card', 'sheet', 'summary'];
   if (raw.reports !== undefined) {

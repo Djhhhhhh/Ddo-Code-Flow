@@ -136,7 +136,7 @@ function stubArmEvents({ arm, startedAt, endedAt }) {
     return [
       toolUse(100, 'Read', { file_path: 'README.workspace.md' }),
       toolUse(400, 'Write', { file_path: 'checklist.md' }),
-      text(600, '已对照题面 12 条要求产出 checklist；显式假设：球面均匀采用斐波那契球面分布，缓慢自转 0.1 rad/s。'),
+      text(600, '已对照题面要求产出 checklist；显式假设：关键参数按工程判断取值并在此显式记录。'),
       toolUse(900, 'Write', { file_path: 'index.html' }),
       toolUse(1200, 'Bash', { command: 'node selfcheck.js --shots', description: '交付前自检（截图/探针）' }),
       mk(1500, 'result', { subtype: 'success', result: '交付完成：index.html；已按 checklist 自检并记录假设。' }),

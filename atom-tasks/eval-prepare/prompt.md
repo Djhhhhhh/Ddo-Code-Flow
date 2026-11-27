@@ -15,13 +15,14 @@
    - `baseline_sid` / `ddo_sid`：两个**不相同**的会话 ID——用户可用 `uuidgen` 各生成一个；
      相同则指出并要求重新提供（A/B 控变量硬约束）；
    - `tasks`：题单。列出可选题（仓库根 = `state.dirs.tasksDir` 的上一级；
-     枚举 `eval/bench/bank/core/` 与 `eval/bench/bank/rotating/` 下的题目录，
-     标注 core/rotating 与 kind）；提醒题组规则：2–3 题、题 1 页面题、核心集 ≥1；
+     枚举 `eval/bench/bank/core/` 下的题目录，读各题 `qpack.json` 标注 form 与 track）；
+     题组自由组成（1–n 题、顺序与形态不限），题组策略由使用者自行定义，
+     编排器不做数量/顺序/形态硬校验；
    - `reports`（可缺省）：报告形式子集，注册表 card / sheet / summary / wechat / xiaohongshu；
      缺省 = card+sheet+summary；
    - `dry_run`（可缺省）：是否链路自验模式。
 
-3. **校验**：执行 eval-prepare.output.schema.json 的 rules（sid 不等、题组规则、
+3. **校验**：执行 eval-prepare.output.schema.json 的 rules（sid 不等、
    reports ⊆ 注册表、非 dry_run 时不得含测试占位 ID）。任何一条不过，向用户说明并重新收集，
    不带错写入。
 

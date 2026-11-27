@@ -27,6 +27,7 @@ const REPO_ROOT = path.join(BENCH_ROOT, '..', '..');
 const RUNS_ROOT = path.join(REPO_ROOT, '.ddo', 'eval', 'runs');
 const PUBLISH_ROOT = path.join(REPO_ROOT, '.ddo', 'eval', 'reports');
 const ENGINE_CLI = path.join(REPO_ROOT, 'tools', 'cli.js');
+// 平台版本锁唯一声明源（原 meta.three_lock/cdns 已废除；题面 three@<版本> 由 preflight 校验一致性）。
 const THREE_LOCK = '0.160.0';
 
 function usageError(msg) { process.stderr.write(`[用法错误] ${msg}\n`); process.exit(2); }
@@ -48,46 +49,34 @@ function parseArgs(argv) {
   return flags;
 }
 
-/** 前置硬校验（失败即 fail，不进入执行）。model 可缺省 = 两臂不带 --model，用本地 claude 已配置模型。 */
+/** 前置硬校验（失败即 fail，不进入执行）。model 可缺省 = 两臂不带 --model，用本地 claude 已配置模型。
+ *  qpack 必填字段由 sandbox.readQpack 在题包读取时校验（单源）；此处补 page 题题面平台版本一致性。
+ *  题组组成自由化（issue #92 DEC-9）：数量/顺序/形态不做硬校验，题组策略由 profile/--tasks 承载。 */
 function preflight({ model, baselineSid, ddoSid, tasks, packs, ccswitchDb, dryRun, dims }) {
   if (!baselineSid || !ddoSid) usageError('缺少 --baseline-sid / --ddo-sid');
   if (baselineSid === ddoSid) fail(`baseline_sid 与 ddo_sid 相同（${baselineSid}）——token 会混合，硬性约束禁止（需求 §5.3）`);
   for (const q of tasks) {
     if (!packs[q]) fail(`题包不存在: ${q}（bank/core 与 bank/rotating 均未找到）`);
-    const meta = packs[q].meta;
-    if (meta.kind === 'page' && meta.three_lock && meta.three_lock !== THREE_LOCK) {
-      fail(`题 ${q} three 版本锁定不符（meta ${meta.three_lock} ≠ ${THREE_LOCK}）`);
+    const { qpack, dir } = packs[q];
+    if (qpack.form === 'page') {
+      const promptText = fs.readFileSync(path.join(dir, 'prompt.md'), 'utf8');
+      const versions = [...promptText.matchAll(/three@(\d+(?:\.\d+)*)/g)].map((m) => m[1]);
+      const bad = versions.find((v) => v !== THREE_LOCK);
+      if (bad) fail(`题 ${q} 题面 three 版本不符（prompt.md three@${bad} ≠ 平台锁 ${THREE_LOCK}）`);
     }
   }
-  // 题组规则（AC-5）：题 1 页面必备；2–3 题
-  if (tasks.length < 2 || tasks.length > 3) fail(`题组为 ${tasks.length} 道（每轮 2–3 题）`);
-  if (!(packs[tasks[0]].meta.kind === 'page')) fail('题 1 必须为页面样式题（需求 §3 题位结构）');
-  const coreCount = tasks.filter((q) => packs[q].meta.core).length;
-  if (coreCount < 1) fail('题组须含至少 1 道冻结核心集题（跨模型可比）');
   if (!dryRun && dims.cost) {
     try { collectToken.resolveDbPath(ccswitchDb); } catch (e) { fail(e.message); }
   }
 }
 
-/** dry-run 桩产物：两臂可对照的最小实现（页面题用黄金样例；回归题打最小补丁）。 */
-function stubArmArtifacts({ qName, arm, sandboxDir }) {
-  if (qName === 'q_threejs-orbit-scene') {
-    const variant = arm === 'ddo' ? 'reference' : 'flawed';
-    fs.copyFileSync(path.join(sandboxLib.resolvePack(qName), 'acceptance', 'testdata', variant, 'index.html'), path.join(sandboxDir, 'index.html'));
-    return;
-  }
-  if (qName === 'q_regression-trap') {
-    if (arm === 'ddo') {
-      const p = path.join(sandboxDir, 'bin', 'convert.js');
-      let src = fs.readFileSync(p, 'utf8');
-      src = src.replace("if (args[0] === '--upper')", "if (args[0] === '--uppercase') { mode = 'upper'; text = args.slice(1).join(' '); }\n  else if (args[0] === '--upper')");
-      fs.writeFileSync(p, src);
-    } else {
-      const p = path.join(sandboxDir, 'lib', 'textlib.js');
-      fs.appendFileSync(p, '\n// 手滑改了无关文件（越界改动样例）\n');
-      fs.appendFileSync(path.join(sandboxDir, 'README.md'), '\n（未新增 --uppercase 的 baseline 样例）\n');
-    }
-  }
+/** dry-run 桩调度（issue #92 DEC-6）：题包自带 acceptance/stub.js（`async ({arm, sandboxDir, packDir})`）；
+ *  无文件 = 无操作（合法形态）。题结构知识归题包，编排器不按题名分支。 */
+async function runPackStub({ qName, arm, sandboxDir }) {
+  const packDir = sandboxLib.resolvePack(qName);
+  const stubPath = path.join(packDir, 'acceptance', 'stub.js');
+  if (!fs.existsSync(stubPath)) return;
+  await require(stubPath)({ arm, sandboxDir, packDir });
 }
 
 async function runCmd(flags) {
@@ -105,7 +94,7 @@ async function runCmd(flags) {
   const packs = {};
   for (const q of profile.tasks) {
     const packDir = sandboxLib.resolvePack(q);
-    packs[q] = { dir: packDir, meta: JSON.parse(fs.readFileSync(path.join(packDir, 'meta.json'), 'utf8')), clarify: JSON.parse(fs.readFileSync(path.join(packDir, 'clarify.json'), 'utf8')) };
+    packs[q] = { dir: packDir, qpack: sandboxLib.readQpack(packDir), clarify: JSON.parse(fs.readFileSync(path.join(packDir, 'clarify.json'), 'utf8')) };
   }
   preflight({ model: flags.model, baselineSid: flags['baseline-sid'], ddoSid: flags['ddo-sid'], tasks: profile.tasks, packs, ccswitchDb: flags['ccswitch-db'], dryRun, dims: profile.dimensions });
 
@@ -127,13 +116,13 @@ async function runCmd(flags) {
   fs.mkdirSync(ddoHome, { recursive: true });
 
   for (const qName of profile.tasks) {
-    const { meta, clarify } = packs[qName];
+    const { qpack, clarify } = packs[qName];
     const qDir = path.join(roundDir, qName);
     fs.mkdirSync(qDir, { recursive: true });
     // ① 沙箱 + policy
     const arms = {};
     for (const arm of ['baseline', 'ddo']) {
-      arms[arm] = sandboxLib.prepareArmSandbox({ roundDir, qName, arm, meta });
+      arms[arm] = sandboxLib.prepareArmSandbox({ roundDir, qName, arm, qpack });
     }
     const { policyPath, table } = policyLib.writePolicyArtifacts({ roundQDir: qDir, clarify });
     const qStart = new Date().toISOString();
@@ -144,7 +133,7 @@ async function runCmd(flags) {
     let armResults = {};
     if (dryRun) {
       for (const arm of ['baseline', 'ddo']) {
-        stubArmArtifacts({ qName, arm, sandboxDir: arms[arm].dir });
+        await runPackStub({ qName, arm, sandboxDir: arms[arm].dir });
         const events = driver.stubArmEvents({ arm, startedAt: qStart, endedAt: new Date().toISOString() });
         const streamPath = path.join(qDir, `${arm}-stream.jsonl`);
         fs.writeFileSync(streamPath, events.join('\n') + '\n');
@@ -154,14 +143,14 @@ async function runCmd(flags) {
       const [rb, rd] = await Promise.all([
         driver.runArm({
           arm: 'baseline', sandboxDir: arms.baseline.dir, streamOutDir: qDir,
-          promptText: driver.baselineArmPrompt({ taskPrompt: fs.readFileSync(path.join(packs[qName].dir, 'prompt.final.md'), 'utf8') }),
+          promptText: driver.baselineArmPrompt({ taskPrompt: fs.readFileSync(path.join(packs[qName].dir, 'prompt.md'), 'utf8') }),
           model: flags.model, sessionId: round.baselineSid, timeoutMin: armTimeout,
           responderTable: profile.dimensions.symmetry ? table : null,
           env: { DDO_HOME: ddoHome }, // 每轮覆写（两臂一致；隔离全局 index/history）
         }),
         driver.runArm({
           arm: 'ddo', sandboxDir: arms.ddo.dir, streamOutDir: qDir,
-          promptText: driver.ddoArmPrompt({ taskPrompt: fs.readFileSync(path.join(packs[qName].dir, 'prompt.final.md'), 'utf8'), policyPath }),
+          promptText: driver.ddoArmPrompt({ taskPrompt: fs.readFileSync(path.join(packs[qName].dir, 'prompt.md'), 'utf8'), policyPath }),
           model: flags.model, sessionId: round.ddoSid, timeoutMin: armTimeout,
           env: { DDO_HOME: ddoHome },
         }),
@@ -188,8 +177,8 @@ async function runCmd(flags) {
 
     // 结果层
     let result;
-    if (meta.kind === 'page') {
-      const probeScript = path.join(packs[qName].dir, meta.probe || 'acceptance/probe.js');
+    if (qpack.form === 'page') {
+      const probeScript = path.join(packs[qName].dir, 'acceptance', 'probe.js'); // 固定路径约定（原 meta.probe）
       const runProbe = async (arm) => {
         const pageFile = path.join(arms[arm].dir, 'index.html');
         if (!fs.existsSync(pageFile)) return { error: 'index.html 未交付' };
@@ -214,7 +203,7 @@ async function runCmd(flags) {
       ? collectProcess.buildProcess({
           baseline: { streamPath: armResults.baseline.streamPath, sandboxDir: arms.baseline.dir },
           ddo: { streamPath: armResults.ddo.streamPath, sandboxDir: arms.ddo.dir },
-          whitelist: meta.changeWhitelist, questionRe: driver.QUESTION_RE,
+          whitelist: qpack.changeWhitelist, questionRe: driver.QUESTION_RE,
           expectedAmbiguities: (clarify.items || []).length,
           responderAnswers: armResults.baseline.answers || [],
           clarifyItems: clarify.items || [],
@@ -250,14 +239,14 @@ async function runCmd(flags) {
     // ④ 报告（按 profile.reports）
     if (profile.reports.includes('card')) {
       const md = renderCard({
-        model: modelLabel, qName, qTitle: meta.title, kind: meta.kind,
+        model: modelLabel, qName, qTitle: qpack.title, form: qpack.form,
         result, process: processMetrics, token: token || { groups: [] },
         armReportDirs: { baseline: arms.baseline.dir, ddo: arms.ddo.dir },
       });
       fs.writeFileSync(path.join(reportDir, `card-${qName}.md`), md);
     }
     round.questions.push({
-      qName, kind: meta.kind, lineHint: meta.line, arms: armResults,
+      qName, form: qpack.form, trackHint: qpack.track, arms: armResults,
       reportDir, resultDelta: result && result.delta ? result.delta.结果层 : null,
       symmetry: processMetrics.signals ? (processMetrics.signals.find((s) => s.signal === '澄清对称性') || {}).detail : undefined,
     });
@@ -273,7 +262,7 @@ async function runCmd(flags) {
       const token = readJson(path.join(roundDir, q.qName, 'metrics', 'token.json'));
       const g = (key) => (token.groups || []).find((x) => x.key === key) || {};
       return {
-        qName: q.qName, kind: q.kind, lineHint: q.lineHint,
+        qName: q.qName, form: q.form, trackHint: q.trackHint,
         result: readJson(path.join(roundDir, q.qName, 'metrics', 'result.json')),
         symmetry: q.symmetry && q.symmetry.结论,
         tokenLineShort: `；token ${fmtK(g('baseline').total_tokens || 0)} → ${fmtK(g('ddo').total_tokens || 0)}`,
@@ -284,7 +273,7 @@ async function runCmd(flags) {
   for (const q of round.questions) {
     const card = path.join(roundDir, q.qName, 'report', `card-${q.qName}.md`);
     if (fs.existsSync(card)) fs.copyFileSync(card, path.join(publishDir, `card-${q.qName}.md`));
-    if (q.kind === 'page') {
+    if (q.form === 'page') {
       // 卡片图片相对链接为 <arm>/shots/...：按同结构复制（另备 sheet 用 <arm>-shots）
       for (const arm of ['baseline', 'ddo']) {
         const shots = path.join(roundDir, q.qName, 'report', arm, 'shots');

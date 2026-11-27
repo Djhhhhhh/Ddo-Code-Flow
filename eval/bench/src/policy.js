@@ -39,10 +39,10 @@ function materializePolicy(policy) {
   return JSON.parse(JSON.stringify(policy));
 }
 
-/** baseline 臂应答查表：关键词命中 → 既定应答；未命中 → 中性回退（回退本身入对称性记录）。 */
+/** baseline 臂应答查表：关键词命中 → 既定应答；未命中 → 中性回退（回退本身入对称性记录）。
+ *  clarify schema（issue #92 DEC-2/10）：{ note?, fallback, items[{id,keywords,answer}] }——question 键已废除。 */
 function buildResponderTable(clarify) {
   return {
-    question: clarify.question,
     fallback: clarify.fallback || '按你的假设继续，并显式记录该假设。',
     entries: (clarify.items || []).map((it) => ({ id: it.id, keywords: it.keywords, answer: it.answer })),
   };

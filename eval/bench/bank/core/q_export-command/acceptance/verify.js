@@ -89,7 +89,6 @@ const regPass = (reg.stdout.match(/^✔/gm) || []).length;
 const regFail = (reg.stdout.match(/^✖/gm) || []).length;
 
 process.stdout.write(JSON.stringify({
-  question: 'q_export-command',
   line: 'design',
   acceptance: { pass: cases.filter((c) => c.pass).length, total: cases.length, cases },
   regression: { pass: regPass, total: regPass + regFail, broken: regFail },
