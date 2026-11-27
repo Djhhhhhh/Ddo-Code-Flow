@@ -62,7 +62,7 @@ async function recordNow({ htmlPath, outGif, tmpDir, width, fps, seconds, stages
  * 录制单臂 GIF。htmlPath = 交付页绝对路径；outGif = 目标 gif 路径。
  * 返回 { skipped, reason? }；已存在缓存直接复用（skipped:false，reason:'cache'）。
  */
-async function recordArmGif({ htmlPath, outGif, width = 640, fps = 12, seconds = 4.5, watchdogMs = 150_000 }) {
+async function recordArmGif({ htmlPath, outGif, width = 1080, fps = 15, seconds = 4.5, watchdogMs = 150_000 }) {
   if (!fs.existsSync(htmlPath)) return { skipped: true, reason: `交付页不存在: ${htmlPath}` };
   if (fs.existsSync(outGif)) return { skipped: false, reason: 'cache' };
   const why = skipReason();
