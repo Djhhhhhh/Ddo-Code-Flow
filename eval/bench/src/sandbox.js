@@ -18,13 +18,36 @@ const SANDBOX_SETTINGS = {
   permissions: { allow: ['Bash', 'Read', 'Write', 'Edit', 'MultiEdit', 'Glob', 'Grep', 'WebFetch', 'WebSearch'] },
 };
 
-/** 题包定位：core/ → rotating/；不存在抛错。 */
+/** 题包定位：core/ → rotating/；不存在抛错（rotating 目录已废除，查找分支保留——不存在即跳过）。 */
 function resolvePack(qName) {
   for (const sub of ['core', 'rotating']) {
     const dir = path.join(BANK_ROOT, sub, qName);
-    if (fs.existsSync(path.join(dir, 'meta.json'))) return dir;
+    if (fs.existsSync(path.join(dir, 'qpack.json'))) return dir;
   }
   throw new Error(`题包不存在: ${qName}（查找 bank/core 与 bank/rotating）`);
+}
+
+/** qpack 唯一机器契约校验（issue #92 DEC-1；cli preflight 与 tests 共用单源）。 */
+function readQpack(packDir) {
+  const qpack = JSON.parse(fs.readFileSync(path.join(packDir, 'qpack.json'), 'utf8'));
+  const where = `qpack.json（${packDir}）`;
+  if (!qpack || typeof qpack !== 'object' || Array.isArray(qpack)) throw new Error(`${where} 须为 JSON 对象`);
+  if (typeof qpack.title !== 'string' || !qpack.title.trim()) throw new Error(`${where} 缺必填字段 title（非空字符串）`);
+  if (qpack.form !== 'code' && qpack.form !== 'page') throw new Error(`${where} form 非法: ${qpack.form}（合法: code | page）`);
+  if (!['ui', 'design', 'execute', 'both', 'none'].includes(qpack.track)) {
+    throw new Error(`${where} track 非法: ${qpack.track}（合法: ui | design | execute | both | none）`);
+  }
+  if (qpack.form === 'code') {
+    if (!Array.isArray(qpack.changeWhitelist) || !qpack.changeWhitelist.length || !qpack.changeWhitelist.every((w) => typeof w === 'string')) {
+      throw new Error(`${where} code 题必填 changeWhitelist（非空字符串数组）`);
+    }
+  } else if (qpack.changeWhitelist !== undefined) {
+    throw new Error(`${where} page 题不得含 changeWhitelist（单页交付无越界判定）`);
+  }
+  if (qpack.meta !== undefined && (typeof qpack.meta !== 'object' || Array.isArray(qpack.meta))) {
+    throw new Error(`${where} meta 须为对象（人读档案，编排器不读）`);
+  }
+  return qpack;
 }
 
 /** 复制目录（浅层递归；跳过 acceptance/——隐藏验收不进沙箱）。 */
@@ -41,24 +64,24 @@ function copyDirFiltered(src, dst) {
 
 /**
  * 准备单臂沙箱。返回 { dir, ddoHome }。
- * - 页面题：空白工作区 + README（交付单个 index.html 的提示不注入——题面已含）。
- * - 代码题：复制 fixture/（含 .ddo 样例与测试），git 初始化提交（改动范围提取基线）。
+ * - 页面题（form=page）：空白工作区 + README（交付单个 index.html 的提示不注入——题面已含）。
+ * - 代码题（form=code）：固定约定复制 fixture/（含 .ddo 样例与测试）并 git 初始化提交（改动范围提取基线）。
  */
-function prepareArmSandbox({ roundDir, qName, arm, meta }) {
+function prepareArmSandbox({ roundDir, qName, arm, qpack }) {
   const packDir = resolvePack(qName);
   const dir = path.join(roundDir, qName, arm);
   fs.rmSync(dir, { recursive: true, force: true });
   fs.mkdirSync(dir, { recursive: true });
-  const kind = meta.kind || 'code';
-  if (kind === 'code' && meta.fixture && meta.fixture.dir) {
-    copyDirFiltered(path.join(packDir, meta.fixture.dir), dir);
+  const form = qpack.form;
+  if (form === 'code') {
+    copyDirFiltered(path.join(packDir, 'fixture'), dir); // 固定目录约定（原 meta.fixture.dir）
   } else {
     fs.writeFileSync(path.join(dir, 'README.workspace.md'), `# 评测工作区（${qName} / ${arm}）\n\n被测任务的工作目录。按题面要求在此交付。\n`);
   }
   // 沙箱级 settings 不再落盘（headless 未信任工作区会忽略该文件）；
   // 权限预放行由 driver.js 以 --settings <json> 注入，两臂同配置。
-  // git 基线（改动范围提取）
-  if (kind === 'code' && meta.fixture && meta.fixture.git) {
+  // git 基线（改动范围提取；code 题固定约定，原 meta.fixture.git）
+  if (form === 'code') {
     const git = (args) => execFileSync('git', args, { cwd: dir, encoding: 'utf8', env: { ...process.env, GIT_AUTHOR_NAME: 'eval-bench', GIT_AUTHOR_EMAIL: 'eval@bench.local', GIT_COMMITTER_NAME: 'eval-bench', GIT_COMMITTER_EMAIL: 'eval@bench.local' } });
     git(['init', '-q']);
     git(['add', '-A']);
@@ -93,4 +116,4 @@ function cleanRound(runsRoot, roundId, publishRoot) {
   return { cleaned };
 }
 
-module.exports = { resolvePack, prepareArmSandbox, environmentFingerprint, cleanRound, SANDBOX_SETTINGS, BANK_ROOT, BENCH_ROOT };
+module.exports = { resolvePack, readQpack, prepareArmSandbox, environmentFingerprint, cleanRound, SANDBOX_SETTINGS, BANK_ROOT, BENCH_ROOT };

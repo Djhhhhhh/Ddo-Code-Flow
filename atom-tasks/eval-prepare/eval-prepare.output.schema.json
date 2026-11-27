@@ -37,7 +37,7 @@
       "name": "tasks",
       "type": "array",
       "required": true,
-      "description": "题单（2–3 题，题 1 页面题，核心集 ≥1）",
+      "description": "题单（1–n 题自由组合，顺序与形态不限；题组策略由使用者定义，编排器不做硬校验）",
       "example": [
         "q_threejs-orbit-scene",
         "q_regression-trap"
@@ -73,7 +73,7 @@
   ],
   "rules": [
     "baseline_sid ≠ ddo_sid",
-    "tasks 长度 2–3，且首题为页面题（kind=page），核心集（core=true）≥1",
+    "tasks 非空，且各题须存在于 eval/bench/bank/core/（读各题 qpack.json 的 form/track 标注；数量/顺序/形态不设硬校验）",
     "reports 若存在，每项须属于注册表 {card, sheet, summary, wechat, xiaohongshu} 且不重复",
     "不得含示例占位值（如 sid-b-001 等测试用 ID，除非 dry_run=true）"
   ],

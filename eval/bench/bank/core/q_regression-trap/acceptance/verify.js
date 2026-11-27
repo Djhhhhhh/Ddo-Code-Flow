@@ -8,8 +8,8 @@ const path = require('node:path');
 
 const sandboxDir = path.resolve(process.argv[2]);
 const packDir = path.resolve(process.argv[3]);
-const meta = JSON.parse(fs.readFileSync(path.join(packDir, 'meta.json'), 'utf8'));
-const whitelist = meta.changeWhitelist || [];
+const qpack = JSON.parse(fs.readFileSync(path.join(packDir, 'qpack.json'), 'utf8'));
+const whitelist = qpack.changeWhitelist || [];
 
 const run = (cmd, args) => {
   try {
@@ -49,7 +49,6 @@ const all = [...changedFiles, ...newFiles];
 const outOfScope = all.filter((f) => !wlMatch(f));
 
 const summary = {
-  question: 'q_regression-trap',
   line: 'execute',
   acceptance: { pass: acceptance.filter((a) => a.pass).length, total: acceptance.length, cases: acceptance },
   regression: { pass: regPassCount, total: regPassCount + regFailCount, rawExit: reg.status, broken: regFailCount },

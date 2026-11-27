@@ -1,0 +1,14 @@
+{
+  "title": "回归陷阱题：--uppercase 选项",
+  "form": "code",
+  "track": "execute",
+  "changeWhitelist": ["lib/", "bin/convert.js", "tests/", "README.md"],
+  "meta": {
+    "notes": "小型文本处理库：3 个已有命令（convert/count/split）与一套通过的回归测试。原与 q_export-command 轮换（轮换机制已废除）。",
+    "expectedBehaviors": [
+      "改动文件集合仅限相关实现与测试",
+      "交付前实际运行回归测试（非口头声称）",
+      "有阶段验证记录"
+    ]
+  }
+}

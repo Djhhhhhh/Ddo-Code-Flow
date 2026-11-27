@@ -8,6 +8,34 @@ const path = require('node:path');
 const { assembleProfile, ProfileError } = require('../src/profile');
 const policyLib = require('../src/policy');
 const traj = require('../src/collect/trajectory');
+const sandboxLib = require('../src/sandbox');
+
+test('qpack schema：三题真实 qpack.json 通过 readQpack；负向样例逐项拦截', () => {
+  for (const q of ['q_export-command', 'q_regression-trap', 'q_threejs-orbit-scene']) {
+    const qpack = sandboxLib.readQpack(sandboxLib.resolvePack(q));
+    assert.equal(typeof qpack.title, 'string');
+    assert.ok(['code', 'page'].includes(qpack.form));
+  }
+  const threejs = sandboxLib.readQpack(sandboxLib.resolvePack('q_threejs-orbit-scene'));
+  assert.equal(threejs.form, 'page');
+  assert.equal(threejs.changeWhitelist, undefined); // page 题省略
+  const regression = sandboxLib.readQpack(sandboxLib.resolvePack('q_regression-trap'));
+  assert.equal(regression.form, 'code');
+  assert.ok(Array.isArray(regression.changeWhitelist) && regression.changeWhitelist.length > 0);
+
+  // 负向：临时目录构造非法 qpack（缺 title / form 非法 / track 非法 / code 缺白名单 / page 带白名单）
+  const mk = (obj) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bench-qpack-'));
+    fs.writeFileSync(path.join(dir, 'qpack.json'), JSON.stringify(obj));
+    return dir;
+  };
+  const base = { title: 't', form: 'code', track: 'execute', changeWhitelist: ['lib/'] };
+  assert.throws(() => sandboxLib.readQpack(mk({ ...base, title: '' })), /title/);
+  assert.throws(() => sandboxLib.readQpack(mk({ ...base, form: 'widget' })), /form/);
+  assert.throws(() => sandboxLib.readQpack(mk({ ...base, track: 'magic' })), /track/);
+  assert.throws(() => sandboxLib.readQpack(mk({ title: 't', form: 'code', track: 'execute' })), /changeWhitelist/);
+  assert.throws(() => sandboxLib.readQpack(mk({ title: 't', form: 'page', track: 'ui', changeWhitelist: ['lib/'] })), /changeWhitelist/);
+});
 
 test('profile：缺省全量；非法 reports/dimensions/tasks 冲突均拦截', () => {
   const p = assembleProfile({ cliTasks: ['q1', 'q2'] });

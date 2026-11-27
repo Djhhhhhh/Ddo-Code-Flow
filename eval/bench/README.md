@@ -1,7 +1,8 @@
 # model-quick-eval — 模型能力快速评测编排器
 
-输入一个 `model_id` + 2–3 道题 + 两个 session ID，自动跑 A/B 双分支（纯 prompt vs prompt + Ddo-Code-Flow auto 模式），
+输入一个 `model_id` + 题单（任意 1–n 题、形态自由）+ 两个 session ID，自动跑 A/B 双分支（纯 prompt vs prompt + Ddo-Code-Flow auto 模式），
 提取结果层 / 过程层 / 成本层数据，输出对比卡片与汇总报告。混合形态（BQ-1 决议 c）：编排在本地，引擎只提供通用 `gate auto` 能力。
+题组策略由使用者经 profile 预设（`--profile`/`--tasks`）自行定义，编排器不对数量/顺序/形态做硬校验。
 
 ## 数据流
 
@@ -17,11 +18,11 @@ profile 装配 ─→ 题库取题 ─→ 双臂沙箱 ─→ headless 执行 �
 |---|---|---|
 | `cli.js` | 唯一入口（`run` / `clean`），preflight 硬校验 | ✅ |
 | `src/` | 代码，按流水线阶段：`profile`（装配）→ `sandbox`（沙箱）→ `policy`（对等澄清策略）→ `driver`（双臂驱动）→ `collect/`（trajectory·process·token·result 四采集器）→ `report/`（渲染器 + `templates/` 五报告形式模板） | ✅ |
-| `bank/` | 题库（输入资产）：`core/` 冻结核心集 + `rotating/` 轮换池。每题 = `meta.json` + 冻结 `prompt.*` + `clarify.json`（同源澄清清单）+ `fixture/`（进沙箱的被测基线）+ `acceptance/`（**不进沙箱**的隐藏验收：execute 题为 `verify.js`，页面题为 `probe.js` + `testdata/` 黄金样例） | ✅ |
+| `bank/` | 题库（输入资产）：`core/` 冻结核心集。每题（`q_<slug>/`，目录名 = 题名）= `qpack.json`（唯一机器契约：title/form/track/changeWhitelist/meta）+ `prompt.md`（唯一题面）+ `clarify.json`（同源澄清清单）+ `fixture/`（code 题被测基线，进沙箱）+ `acceptance/`（**不进沙箱**的隐藏验收：`CHECKS.md` 计分总纲；code 题另有 `verify.js`，页面题另有 `probe.js` + `testdata/` 黄金样例与可选 `stub.js` dry-run 桩） | ✅ |
 | `docs/` | 人读规则：`rubric.md`（判定口径）、`prompt-rules.md`（出题层修正规则）、`model-quick-eval.subflow`（流水线机器可读声明） | ✅ |
 | `tests/` | bench 单测 | ✅ |
-| `runs/<轮次Id>/` | 运行产物：沙箱、stream 轨迹、`metrics/*.json`、`round.json`（清理：`cli.js clean --run <id>`） | ❌ 不提交 |
-| `reports/<轮次Id>/` | 对外发布物：卡片集、汇总页、平台物料（含 PNG） | ❌ 不提交 |
+| `.ddo/eval/runs/<轮次Id>/` | 运行产物（仓库级 `.ddo/` 下，不落 bench 源码树）：沙箱、stream 轨迹、`metrics/*.json`、`round.json`（清理：`cli.js clean --run <id>`） | ❌ 不提交 |
+| `.ddo/eval/reports/<轮次Id>/` | 对外发布物：卡片集、汇总页、平台物料（含 PNG） | ❌ 不提交 |
 | `node_modules/` | playwright devDependency 安装产物 | ❌ 不提交 |
 
 ## 常用命令
@@ -37,7 +38,7 @@ node eval/bench/cli.js run --model test-model --tasks … --baseline-sid s1 --dd
 # 运行装配（DEC-9）：维度 / 题单 / 报告形式（注册表 card·sheet·summary·wechat·xiaohongshu）
 #   --profile <profile.json>，缺省全维度 + card/sheet/summary
 
-# 探针自检（reference 应 19/19，flawed 部分失败）
+# 探针自检（reference 应 33/33，flawed 部分失败）
 node bank/core/q_threejs-orbit-scene/acceptance/probe.js \
   bank/core/q_threejs-orbit-scene/acceptance/testdata/reference/index.html /tmp/probe-out
 

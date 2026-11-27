@@ -1,0 +1,14 @@
+{
+  "title": "调研依赖题：导出运行记录（CSV/JSON）",
+  "form": "code",
+  "track": "design",
+  "changeWhitelist": ["lib/", "bin/", "tests/", "README.md", "docs/"],
+  "meta": {
+    "notes": "微型 CLI 项目：runs list 命令 + .ddo/runs/ 样例记录 + 明确的序列化与错误约定。原题 2 design/execute 两线路轮换（轮换机制已废除，重建属触发方式规范化范畴）。",
+    "expectedBehaviors": [
+      "编码前有调研动作（读取现有命令/序列化代码）",
+      "「现有约定」无法唯一确定时有澄清或显式假设",
+      "产物含 spec/实现计划且引用被调研文件"
+    ]
+  }
+}

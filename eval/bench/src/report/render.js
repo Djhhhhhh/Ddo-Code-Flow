@@ -19,10 +19,10 @@ const fill = (tpl, ctx) => tpl.replace(/\{\{(\w+)\}\}/g, (_, k) => (k in ctx ? S
 const loadTpl = (name) => fs.readFileSync(path.join(TEMPLATES_DIR, name), 'utf8');
 const fmtK = (n) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
 
-/** 每题卡片（markdown）。输入：{model, qName, qTitle, result, process, token, kind, reportDir} */
-function renderCard({ model, qName, qTitle, result, process, token, kind, armReportDirs }) {
+/** 每题卡片（markdown）。输入：{model, qName, qTitle, result, process, token, form, reportDir} */
+function renderCard({ model, qName, qTitle, result, process, token, form, armReportDirs }) {
   // 直观区
-  const visual = kind === 'page'
+  const visual = form === 'page'
     ? [
       '### 直观区（初始 / 拖拽旋转 / 窄屏 / 两帧差分，两臂对照）',
       '',
@@ -38,7 +38,7 @@ function renderCard({ model, qName, qTitle, result, process, token, kind, armRep
   // 量化区
   const rows = [];
   const rb = result.baseline; const rd = result.ddo;
-  if (kind === 'page') {
+  if (form === 'page') {
     rows.push(`| 规格达标项 | ${rb.ok ? `${rb.pass}/${rb.total}` : '失败'} | ${rd.ok ? `${rd.pass}/${rd.total}` : '失败'} |`);
     const bFps = rb.ok ? rb.fps : '-'; const dFps = rd.ok ? rd.fps : '-';
     rows.push(`| 帧率（参考档） | ${bFps} | ${dFps} |`);
@@ -77,10 +77,10 @@ function renderCard({ model, qName, qTitle, result, process, token, kind, armRep
   return md;
 }
 
-/** 汇总页（markdown）。输入：{model, cards: [{qName,qTitle,kind,result,token}], symmetry, dryRun} */
+/** 汇总页（markdown）。输入：{model, cards: [{qName,qTitle,form,trackHint,result,token}], symmetry, dryRun} */
 function renderSummary({ model, cards, dryRun }) {
-  const col = (kind) => {
-    const hit = cards.filter((c) => (kind === 'page' ? c.kind === 'page' : c.kind !== 'page' && c.lineHint === kind));
+  const col = (track) => {
+    const hit = cards.filter((c) => (track === 'page' ? c.form === 'page' : c.form !== 'page' && c.trackHint === track));
     if (!hit.length) return '_本轮无此类题_';
     return hit.map((c) => `- ${c.qName}：${c.result.delta.结果层}${c.tokenLineShort || ''}`).join('\n');
   };
