@@ -12,8 +12,8 @@ const policyLib = require('../src/policy');
 const traj = require('../src/collect/trajectory');
 const sandboxLib = require('../src/sandbox');
 
-test('qpack schema：三题真实 qpack.json 通过 readQpack；负向样例逐项拦截', () => {
-  for (const q of ['q_export-command', 'q_regression-trap', 'q_threejs-orbit-scene']) {
+test('qpack schema：四题真实 qpack.json 通过 readQpack；负向样例逐项拦截', () => {
+  for (const q of ['q_export-command', 'q_regression-trap', 'q_threejs-orbit-scene', 'q_threejs-reactor-bay']) {
     const qpack = sandboxLib.readQpack(sandboxLib.resolvePack(q));
     assert.equal(typeof qpack.title, 'string');
     assert.ok(['code', 'page'].includes(qpack.form));
@@ -21,6 +21,9 @@ test('qpack schema：三题真实 qpack.json 通过 readQpack；负向样例逐�
   const threejs = sandboxLib.readQpack(sandboxLib.resolvePack('q_threejs-orbit-scene'));
   assert.equal(threejs.form, 'page');
   assert.equal(threejs.changeWhitelist, undefined); // page 题省略
+  const reactor = sandboxLib.readQpack(sandboxLib.resolvePack('q_threejs-reactor-bay'));
+  assert.equal(reactor.form, 'page');
+  assert.equal(reactor.changeWhitelist, undefined);
   const regression = sandboxLib.readQpack(sandboxLib.resolvePack('q_regression-trap'));
   assert.equal(regression.form, 'code');
   assert.ok(Array.isArray(regression.changeWhitelist) && regression.changeWhitelist.length > 0);

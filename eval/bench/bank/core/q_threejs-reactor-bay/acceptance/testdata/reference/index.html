@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>脉冲星引擎舱</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #020617; font-family: system-ui, -apple-system, "PingFang SC", sans-serif; }
+  canvas { display: block; }
+  .card {
+    position: absolute; padding: 10px 14px; border-radius: 10px;
+    background: rgba(15, 23, 42, 0.55); border: 1px solid rgba(125, 211, 252, 0.25);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    color: #E2E8F0; font-size: 13px; line-height: 1.6; pointer-events: none;
+  }
+  #hud-title { top: 16px; left: 16px; }
+  #hud-title h1 { margin: 0; font-size: 16px; letter-spacing: 1px; color: #7DD3FC; }
+  #hud-title p { margin: 2px 0 0; font-size: 12px; color: #94A3B8; }
+  #hud-temp { top: 16px; right: 16px; text-align: right; }
+  #hud-temp .k { color: #94A3B8; font-size: 12px; }
+  #hud-temp .v { font-size: 20px; font-variant-numeric: tabular-nums; color: #7DD3FC; }
+  #hud-temp .v.hot { color: #EF4444; }
+  #hud-sector { top: 70px; right: 16px; }
+  #hud-paused { top: 112px; right: 16px; color: #F59E0B; display: none; }
+  #hud-fps { bottom: 16px; left: 16px; color: #94A3B8; font-variant-numeric: tabular-nums; }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<div class="card" id="hud-title"><h1>脉冲星引擎舱</h1><p>反应核心 · 实时监控视图</p></div>
+<div class="card" id="hud-temp"><div class="k">核心温度</div><div class="v" id="temp-val">-- K</div></div>
+<div class="card" id="hud-sector">扇区 —</div>
+<div class="card" id="hud-paused">已暂停</div>
+<div class="card" id="hud-fps">FPS --</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+// ===== 显式参数假设（题面「自定需显式」项）=====
+// 脉冲周期 2.4s（±0.25）；呼吸周期 3.5s（±0.15）；外罩反向自转 -0.12 rad/s；
+// 核心自转 +0.10 rad/s；星空 +0.008 rad/s；粒子流速 0.06 曲线参数/秒；
+// 温度波形 520 + 140·(0.5+0.5·sin(2πt/14)) K（周期 14s，>640K 过热）。
+const PULSE_PERIOD = 2.4, BREATH_PERIOD = 3.5;
+const SHROUD_SPIN = -0.12, CORE_SPIN = 0.10, STAR_SPIN = 0.008;
+const FLOW_SPEED = 0.06, TEMP_PERIOD = 14, OVERHEAT_K = 640;
+const RING_R = 4.2, BREATH_AMP = 0.15, N_THRUSTERS = 24, PANEL_R = 3.4;
+const DEFAULT_CAM = new THREE.Vector3(0, 3.2, 9.5);
+
+const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const renderer = new THREE.WebGLRenderer({ antialias: false }); // 后处理接管上屏，MSAA 不用于 composer 缓冲（见下方说明）
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+// pixelRatio 必须在 composer 构造前设定（EffectComposer 构造时读取并固化缓冲分辨率）
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0A1830); // 深空底色（保证画面平均亮度远离纯黑贴边）
+scene.fog = new THREE.FogExp2(0x0A1830, 0.012);
+const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 200);
+camera.position.copy(DEFAULT_CAM);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.minDistance = 5;
+controls.maxDistance = 13;
+
+// ---- 反应核心 ----
+const core = new THREE.Mesh(
+  new THREE.OctahedronGeometry(1.2, 1),
+  new THREE.MeshStandardMaterial({ color: 0x22D3EE, metalness: 0.9, roughness: 0.15, emissive: 0x0EA5E9, emissiveIntensity: 0.4 }),
+);
+core.castShadow = true; core.receiveShadow = true;
+scene.add(core);
+
+// ---- 核心外罩（线框，反向自转）----
+const shroud = new THREE.Mesh(
+  new THREE.OctahedronGeometry(1.5, 1),
+  new THREE.MeshBasicMaterial({ color: 0x67E8F9, wireframe: true, transparent: true, opacity: 0.2 }),
+);
+scene.add(shroud);
+
+// ---- 推进器阵列（InstancedMesh × 24，XZ 圆环，锥尖朝外）----
+const thrusters = new THREE.InstancedMesh(
+  new THREE.ConeGeometry(0.22, 0.6, 6),
+  new THREE.MeshStandardMaterial({ color: 0x94A3B8, metalness: 0.4, roughness: 0.5 }),
+  N_THRUSTERS,
+);
+thrusters.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+const WHITE = new THREE.Color(0xffffff), SECTOR_HI = new THREE.Color(0x7DD3FC);
+const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _p = new THREE.Vector3(), _s = new THREE.Vector3(1, 1, 1);
+const UP = new THREE.Vector3(0, 1, 0);
+function thrusterAngle(i) { return (i / N_THRUSTERS) * Math.PI * 2; }
+function writeInstances(radius) {
+  for (let i = 0; i < N_THRUSTERS; i++) {
+    const th = thrusterAngle(i);
+    _p.set(Math.cos(th) * radius, 0, Math.sin(th) * radius);
+    _q.setFromUnitVectors(UP, _p.clone().normalize()); // +Y（锥尖）对齐径向朝外
+    _m.compose(_p, _q, _s);
+    thrusters.setMatrixAt(i, _m);
+  }
+  thrusters.instanceMatrix.needsUpdate = true;
+}
+writeInstances(RING_R);
+for (let i = 0; i < N_THRUSTERS; i++) thrusters.setColorAt(i, WHITE); // 建立实例色缓冲（扇区提亮手段）
+if (thrusters.instanceColor) thrusters.instanceColor.needsUpdate = true;
+scene.add(thrusters);
+
+// ---- 冷却管线（3 条 CatmullRom → Tube）----
+const CONDUIT_COLORS = [0x0EA5E9, 0xF59E0B, 0x8B5CF6];
+const conduits = [];
+const curves = CONDUIT_COLORS.map((c, k) => {
+  const th = (Math.PI / 2) + (k * 2 * Math.PI) / 3;
+  const dir = (r, y) => new THREE.Vector3(Math.cos(th) * r, y, Math.sin(th) * r);
+  const curve = new THREE.CatmullRomCurve3([dir(1.3, 0.6), dir(2.4, 1.6), dir(4.0, 1.1), dir(5.6, 0.3)]);
+  const tube = new THREE.Mesh(
+    new THREE.TubeGeometry(curve, 64, 0.06, 8),
+    new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 0.5, metalness: 0.2, roughness: 0.6 }),
+  );
+  scene.add(tube); conduits.push(tube);
+  return curve;
+});
+
+// ---- 冷却粒子流（600 点沿曲线循环）----
+const N_PARTICLES = 600;
+const pGeo = new THREE.BufferGeometry();
+const pPos = new Float32Array(N_PARTICLES * 3);
+const pMeta = [];
+for (let i = 0; i < N_PARTICLES; i++) pMeta.push({ c: i % 3, t: (i / N_PARTICLES) % 1 });
+pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3).setUsage(THREE.DynamicDrawUsage));
+const particles = new THREE.Points(pGeo, new THREE.PointsMaterial({
+  color: 0x93C5FD, size: 0.07, transparent: true, opacity: 0.9,
+  blending: THREE.AdditiveBlending, depthWrite: false,
+}));
+scene.add(particles);
+function writeParticles() {
+  for (let i = 0; i < N_PARTICLES; i++) {
+    const pt = curves[pMeta[i].c].getPointAt(pMeta[i].t);
+    pPos[i * 3] = pt.x; pPos[i * 3 + 1] = pt.y; pPos[i * 3 + 2] = pt.z;
+  }
+  pGeo.attributes.position.needsUpdate = true;
+}
+writeParticles();
+
+// ---- 检修面板（6 块正六边形围合，法线朝心）----
+const panels = [];
+for (let k = 0; k < 6; k++) {
+  const th = (Math.PI / 6) + (k * Math.PI) / 3;
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0x0F172A, transparent: true, opacity: 0.55, side: THREE.DoubleSide,
+    emissive: 0x38BDF8, emissiveIntensity: 0, metalness: 0.3, roughness: 0.7,
+  });
+  const p = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 1.2), mat);
+  p.position.set(Math.cos(th) * PANEL_R, 0.4, Math.sin(th) * PANEL_R);
+  p.lookAt(0, 0, 0); // 非相机对象：+Z（前向面）指向原点
+  p.castShadow = true; p.receiveShadow = true;
+  scene.add(p); panels.push(p);
+}
+
+// ---- 星空（两层 800 点）----
+function starLayer(n, rMin, rMax, size) {
+  const g = new THREE.BufferGeometry();
+  const a = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    const r = rMin + Math.random() * (rMax - rMin);
+    const u = Math.random() * 2 - 1; const ph = Math.random() * Math.PI * 2;
+    const s = Math.sqrt(1 - u * u);
+    a[i * 3] = r * s * Math.cos(ph); a[i * 3 + 1] = r * u; a[i * 3 + 2] = r * s * Math.sin(ph);
+  }
+  g.setAttribute('position', new THREE.BufferAttribute(a, 3));
+  return new THREE.Points(g, new THREE.PointsMaterial({ color: 0xCBD5E1, size, sizeAttenuation: true, transparent: true, opacity: 0.8, depthWrite: false }));
+}
+const starA = starLayer(500, 34, 52, 0.5);
+const starB = starLayer(300, 18, 30, 0.25);
+const stars = new THREE.Group(); stars.add(starA, starB); scene.add(stars);
+
+// ---- 光照（r155+ 物理单位：点光距离平方衰减）----
+scene.add(new THREE.AmbientLight(0xffffff, 0.15));
+const dirLight = new THREE.DirectionalLight(0xffffff, 2.5);
+dirLight.position.set(6, 10, 4);
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.set(1024, 1024);
+dirLight.shadow.camera.left = -8; dirLight.shadow.camera.right = 8;
+dirLight.shadow.camera.top = 8; dirLight.shadow.camera.bottom = -8;
+scene.add(dirLight);
+const mainPL = new THREE.PointLight(0xF97316, 30, 0, 2); // decay 2：物理衰减
+mainPL.position.set(0, 2.5, 0);
+scene.add(mainPL);
+const rimPL = new THREE.PointLight(0x38BDF8, 12, 0, 2);
+rimPL.position.set(0, -3, 0);
+scene.add(rimPL);
+
+// ---- 后处理：RenderPass → UnrealBloomPass → OutputPass（末尾，r160 线性空间需 OutputPass 做 sRGB/toneMapping 收尾）----
+const composer = new EffectComposer(renderer); // 构造时读取当前 pixelRatio
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.65, 0.55, 0.6);
+composer.addPass(bloom);
+composer.addPass(new OutputPass());
+
+// ---- 状态与 HUD ----
+const state = { paused: false, hoveredSector: null, selectedPanel: -1, overheat: false, temperature: 520 };
+const tempEl = document.getElementById('temp-val');
+const sectorEl = document.getElementById('hud-sector');
+const pausedEl = document.getElementById('hud-paused');
+const fpsEl = document.getElementById('hud-fps');
+
+// ---- 交互 ----
+const raycaster = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+let focusAnim = null; // { t0, from, to, camFrom, camTo }
+function tweenFocus(toTarget, toCam) {
+  focusAnim = {
+    t0: performance.now() / 1000, dur: 0.8,
+    from: controls.target.clone(), to: toTarget.clone(),
+    camFrom: camera.position.clone(), camTo: toCam.clone(),
+  };
+}
+renderer.domElement.addEventListener('pointermove', (e) => {
+  ndc.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
+  raycaster.setFromCamera(ndc, camera);
+  const hit = raycaster.intersectObject(thrusters);
+  const sector = hit.length && hit[0].instanceId !== undefined ? Math.floor(hit[0].instanceId / 6) : null;
+  if (sector !== state.hoveredSector) {
+    state.hoveredSector = sector;
+    sectorEl.textContent = sector === null ? '扇区 —' : `扇区 ${sector} · 6 台推进器`;
+    for (let i = 0; i < N_THRUSTERS; i++) thrusters.setColorAt(i, sector !== null && Math.floor(i / 6) === sector ? SECTOR_HI : WHITE);
+    if (thrusters.instanceColor) thrusters.instanceColor.needsUpdate = true;
+  }
+});
+let downXY = null;
+renderer.domElement.addEventListener('pointerdown', (e) => { downXY = [e.clientX, e.clientY]; });
+renderer.domElement.addEventListener('pointerup', (e) => {
+  if (!downXY || Math.hypot(e.clientX - downXY[0], e.clientY - downXY[1]) > 6) return; // 拖拽不算点击
+  ndc.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
+  raycaster.setFromCamera(ndc, camera);
+  const hit = raycaster.intersectObjects([core, shroud, ...panels], false);
+  if (!hit.length) return;
+  const target = hit[0].object === core || hit[0].object === shroud ? new THREE.Vector3(0, 0, 0) : hit[0].object.position.clone();
+  const dir = camera.position.clone().sub(controls.target).normalize().multiplyScalar(6.5);
+  tweenFocus(target, target.clone().add(dir));
+});
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Tab') {
+    e.preventDefault(); // 循选面板，不让焦点跳出画布
+    state.selectedPanel = (state.selectedPanel + 1) % 6;
+    panels.forEach((p, i) => { p.material.emissiveIntensity = i === state.selectedPanel ? 0.7 : 0; });
+  } else if (e.key === ' ') {
+    e.preventDefault();
+    state.paused = !state.paused;
+    pausedEl.style.display = state.paused ? 'block' : 'none';
+  } else if (e.key === 'r' || e.key === 'R') {
+    tweenFocus(new THREE.Vector3(0, 0, 0), DEFAULT_CAM.clone());
+  }
+});
+
+// ---- resize：renderer 与 composer 的 pixelRatio、尺寸都同步 ----
+window.addEventListener('resize', () => {
+  const pr = Math.min(window.devicePixelRatio, 2);
+  const w = window.innerWidth, h = window.innerHeight;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setPixelRatio(pr);
+  renderer.setSize(w, h);
+  composer.setPixelRatio(pr); // composer 构造时固化 pixelRatio，resize 必须显式同步
+  composer.setSize(w, h);
+});
+
+// ---- 主循环（rAF + Clock，帧率无关；每帧至多一次实例矩阵重写）----
+const clock = new THREE.Clock();
+let simT = 0; // 暂停时停止推进的模拟时钟
+let fpsEMA = 60, fpsLast = performance.now(), lastFrame = performance.now();
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.1);
+  if (!state.paused) simT += dt;
+
+  if (!state.paused && !reducedMotion) {
+    core.material.emissiveIntensity = 0.4 + 0.25 * Math.sin((2 * Math.PI * simT) / PULSE_PERIOD); // 脉冲
+    writeInstances(RING_R + BREATH_AMP * Math.sin((2 * Math.PI * simT) / BREATH_PERIOD)); // 阵列呼吸
+    for (let i = 0; i < N_PARTICLES; i++) pMeta[i].t = (pMeta[i].t + FLOW_SPEED * dt) % 1; // 粒子流动
+    writeParticles();
+    shroud.rotation.y += SHROUD_SPIN * dt; // 反向自转
+    core.rotation.y += CORE_SPIN * dt;
+    stars.rotation.y += STAR_SPIN * dt;
+  }
+
+  // 温度模拟（随模拟时钟推进；暂停即冻结）
+  state.temperature = 520 + 140 * (0.5 + 0.5 * Math.sin((2 * Math.PI * simT) / TEMP_PERIOD));
+  state.overheat = state.temperature > OVERHEAT_K;
+  tempEl.textContent = `${Math.round(state.temperature)} K`;
+  tempEl.classList.toggle('hot', state.overheat);
+
+  if (focusAnim) {
+    const k = Math.min(1, (performance.now() / 1000 - focusAnim.t0) / focusAnim.dur);
+    const e2 = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2; // easeInOutQuad
+    controls.target.lerpVectors(focusAnim.from, focusAnim.to, e2);
+    camera.position.lerpVectors(focusAnim.camFrom, focusAnim.camTo, e2);
+    if (k >= 1) focusAnim = null;
+  }
+
+  controls.update();
+  composer.render();
+
+  // FPS：逐帧瞬时率的 EMA（跟踪帧间抖动，显示持续微移；每 500ms 刷新一次，一位小数）
+  const now = performance.now();
+  const inst = 1000 / Math.max(1e-3, now - lastFrame);
+  lastFrame = now;
+  fpsEMA += 0.08 * (Math.min(inst, 240) - fpsEMA);
+  if (now - fpsLast >= 500) {
+    fpsEl.textContent = `FPS ${fpsEMA.toFixed(1)}`;
+    fpsLast = now;
+  }
+}
+animate();
+
+// ---- 可观测性 ----
+window.__app = { scene, camera, renderer, controls, composer, core, shroud, thrusters, conduits, particles, panels, state };
+</script>
+</body>
+</html>
