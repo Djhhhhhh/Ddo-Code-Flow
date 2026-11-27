@@ -44,11 +44,13 @@ function scanTurns({ file, offset = 0 }) {
   if (lastNl < 0) return { offset, turns: [] };
   const committed = text.slice(0, lastNl + 1);
   const turns = [];
+  let lastTs = null; // 2026-11-27 实测：result 事件不带 timestamp，assistant 事件带——回退取扫描窗内最后已知时戳
   for (const line of committed.split('\n')) {
     if (!line.trim()) continue;
     let evt;
     try { evt = JSON.parse(line); } catch { continue; }
-    if (evt.type === 'result') turns.push({ subtype: evt.subtype || 'unknown', endedAt: evt.timestamp || null });
+    if (evt.timestamp) lastTs = evt.timestamp;
+    if (evt.type === 'result') turns.push({ subtype: evt.subtype || 'unknown', endedAt: evt.timestamp || lastTs || null });
   }
   return { offset: offset + Buffer.byteLength(committed, 'utf8'), turns };
 }
@@ -94,7 +96,10 @@ function createHeartbeat({ progress, arms, qLabel, qIndex, qTotal, timeoutMin, s
   function heartbeatLine(fresh) {
     const done = ['baseline', 'ddo']
       .filter((a) => fresh[a].length)
-      .map((a) => `${a} turn ${fresh[a][fresh[a].length - 1].turn} 完成（${hhmm(fresh[a][fresh[a].length - 1].endedAt)}）`);
+      .map((a) => {
+        const t = fresh[a][fresh[a].length - 1];
+        return `${a} turn ${t.turn} 完成${t.endedAt ? `（${hhmm(t.endedAt)}）` : ''}`;
+      });
     if (!done.length) return;
     const remaining = Math.max(0, Math.round(remainingMin()));
     process.stderr.write(
